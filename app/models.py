@@ -1,0 +1,442 @@
+from __future__ import annotations
+
+import uuid
+from datetime import date, datetime, timezone
+from typing import Any
+
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, Numeric, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+def uuid4() -> str:
+    return str(uuid.uuid4())
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(24), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    org_type: Mapped[str] = mapped_column(String(40), default="Division")
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    narrative: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(160))
+    email: Mapped[str] = mapped_column(String(200), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(400))
+    roles: Mapped[list[str]] = mapped_column(JSON, default=list)
+    division_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    sensitive_access: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    acting_for_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    delegation_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Mission(Base):
+    __tablename__ = "missions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text)
+    owner_org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    status: Mapped[str] = mapped_column(String(30), default="Active")
+    outcome: Mapped[str] = mapped_column(Text, default="")
+    measures: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+
+
+class CoreFunction(Base):
+    __tablename__ = "core_functions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(30), unique=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    mission_id: Mapped[str] = mapped_column(ForeignKey("missions.id"))
+    health: Mapped[str] = mapped_column(String(30), default="On Track")
+    minimum_capacity_hours: Mapped[float] = mapped_column(Float, default=0)
+    allocated_capacity_hours: Mapped[float] = mapped_column(Float, default=0)
+
+
+class Demand(Base):
+    __tablename__ = "demands"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(240), index=True)
+    category: Mapped[str] = mapped_column(String(80), default="Idea")
+    status: Mapped[str] = mapped_column(String(60), default="Draft", index=True)
+    sensitivity: Mapped[str] = mapped_column(String(40), default="Controlled Unclassified")
+    sponsor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    requester_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    requesting_org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    lead_org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    mission_id: Mapped[str | None] = mapped_column(ForeignKey("missions.id"), nullable=True)
+    purpose: Mapped[str] = mapped_column(Text, default="")
+    problem: Mapped[str] = mapped_column(Text, default="")
+    desired_end_state: Mapped[str] = mapped_column(Text, default="")
+    beneficiaries: Mapped[str] = mapped_column(Text, default="")
+    required_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    urgency: Mapped[str] = mapped_column(String(30), default="Normal")
+    consequence_of_inaction: Mapped[str] = mapped_column(Text, default="")
+    preliminary_scope: Mapped[str] = mapped_column(Text, default="")
+    deliverables: Mapped[str] = mapped_column(Text, default="")
+    assumptions: Mapped[str] = mapped_column(Text, default="")
+    dependencies_text: Mapped[str] = mapped_column(Text, default="")
+    required_skills: Mapped[str] = mapped_column(Text, default="")
+    rom_cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    expected_benefits: Mapped[str] = mapped_column(Text, default="")
+    confidence: Mapped[str] = mapped_column(String(30), default="Medium")
+    current_owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    next_action: Mapped[str] = mapped_column(String(240), default="Complete intake")
+    pending_information: Mapped[str] = mapped_column(Text, default="")
+    target_decision_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    disposition: Mapped[str] = mapped_column(Text, default="")
+    score_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_variance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mandatory: Mapped[bool] = mapped_column(Boolean, default=False)
+    mandatory_rationale: Mapped[str] = mapped_column(Text, default="")
+    capacity_tradeoff: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    source_system: Mapped[str] = mapped_column(String(80), default="DDC5I-PM")
+    source_record: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class DemandRevision(Base):
+    __tablename__ = "demand_revisions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    demand_id: Mapped[str] = mapped_column(ForeignKey("demands.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    changed_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON)
+    comment: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Assessment(Base):
+    __tablename__ = "assessments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    demand_id: Mapped[str] = mapped_column(ForeignKey("demands.id"), index=True)
+    assessor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    scores: Mapped[dict[str, float]] = mapped_column(JSON)
+    rationale: Mapped[str] = mapped_column(Text)
+    confidence: Mapped[str] = mapped_column(String(30), default="Medium")
+    total_score: Mapped[float] = mapped_column(Float)
+    adjudication: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(200))
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("portfolios.id"), nullable=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="Active")
+
+
+class Project(Base):
+    __tablename__ = "projects"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(240), index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    work_type: Mapped[str] = mapped_column(String(40), default="Project")
+    status: Mapped[str] = mapped_column(String(40), default="Active")
+    health_owner: Mapped[str] = mapped_column(String(30), default="On Track")
+    health_calculated: Mapped[str] = mapped_column(String(30), default="On Track")
+    health_override: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    health_override_reason: Mapped[str] = mapped_column(Text, default="")
+    lead_org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    supporting_org_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    portfolio_id: Mapped[str | None] = mapped_column(ForeignKey("portfolios.id"), nullable=True)
+    sponsor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    manager_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    mission_id: Mapped[str] = mapped_column(ForeignKey("missions.id"))
+    demand_id: Mapped[str | None] = mapped_column(ForeignKey("demands.id"), nullable=True, unique=True)
+    desired_end_state: Mapped[str] = mapped_column(Text, default="")
+    scope: Mapped[str] = mapped_column(Text, default="")
+    deliverables: Mapped[str] = mapped_column(Text, default="")
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    baseline_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    current_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    percent_complete: Mapped[int] = mapped_column(Integer, default=0)
+    budget: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    actual: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    forecast: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    benefit_expected: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    benefit_realized: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    sensitivity: Mapped[str] = mapped_column(String(40), default="Controlled Unclassified")
+    last_status_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    source_system: Mapped[str] = mapped_column(String(80), default="DDC5I-PM")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(240))
+    status: Mapped[str] = mapped_column(String(40), default="To Do")
+    board_column: Mapped[str] = mapped_column(String(40), default="Backlog")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    contributor_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    estimated_effort: Mapped[float] = mapped_column(Float, default=0)
+    actual_effort: Mapped[float] = mapped_column(Float, default=0)
+    percent_complete: Mapped[int] = mapped_column(Integer, default=0)
+    checklist: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    acceptance_evidence: Mapped[str] = mapped_column(Text, default="")
+    sequence: Mapped[int] = mapped_column(Integer, default=0)
+    indent_level: Mapped[int] = mapped_column(Integer, default=0)
+    baseline_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Milestone(Base):
+    __tablename__ = "milestones"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    title: Mapped[str] = mapped_column(String(240))
+    baseline_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    current_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Not Started")
+    confidence: Mapped[str] = mapped_column(String(30), default="Medium")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    critical: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class RaidItem(Base):
+    __tablename__ = "raid_items"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    type: Mapped[str] = mapped_column(String(40))
+    title: Mapped[str] = mapped_column(String(240))
+    description: Mapped[str] = mapped_column(Text, default="")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Open")
+    severity: Mapped[str] = mapped_column(String(30), default="Medium")
+    likelihood: Mapped[str] = mapped_column(String(30), default="Possible")
+    consequence: Mapped[str] = mapped_column(Text, default="")
+    exposure: Mapped[int] = mapped_column(Integer, default=0)
+    mitigation: Mapped[str] = mapped_column(Text, default="")
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    escalation_level: Mapped[str] = mapped_column(String(40), default="Project")
+    impacted_missions: Mapped[str] = mapped_column(Text, default="")
+    evidence: Mapped[str] = mapped_column(Text, default="")
+    closure_rationale: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Dependency(Base):
+    __tablename__ = "dependencies"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True)
+    source_project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    target_project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(240))
+    status: Mapped[str] = mapped_column(String(40), default="Open")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    impact: Mapped[str] = mapped_column(Text, default="")
+    external_party: Mapped[str] = mapped_column(String(160), default="")
+
+
+class Decision(Base):
+    __tablename__ = "decisions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True)
+    demand_id: Mapped[str | None] = mapped_column(ForeignKey("demands.id"), nullable=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
+    decision: Mapped[str] = mapped_column(String(60))
+    authority_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    participants: Mapped[str] = mapped_column(Text, default="")
+    rationale: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[str] = mapped_column(Text, default="")
+    conditions: Mapped[str] = mapped_column(Text, default="")
+    caveats: Mapped[str] = mapped_column(Text, default="")
+    resource_implications: Mapped[str] = mapped_column(Text, default="")
+    financial_implications: Mapped[str] = mapped_column(Text, default="")
+    review_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Action(Base):
+    __tablename__ = "actions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
+    demand_id: Mapped[str | None] = mapped_column(ForeignKey("demands.id"), nullable=True)
+    decision_id: Mapped[str | None] = mapped_column(ForeignKey("decisions.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(240))
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String(40), default="Open")
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(60), default="Decision condition")
+
+
+class ResourceCapacity(Base):
+    __tablename__ = "resource_capacity"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    role_name: Mapped[str] = mapped_column(String(120))
+    skill: Mapped[str] = mapped_column(String(120))
+    period: Mapped[str] = mapped_column(String(20))
+    capacity_hours: Mapped[float] = mapped_column(Float, default=0)
+    allocated_hours: Mapped[float] = mapped_column(Float, default=0)
+    actual_hours: Mapped[float] = mapped_column(Float, default=0)
+    minimum_core_coverage: Mapped[float] = mapped_column(Float, default=0)
+
+
+class FinancialRecord(Base):
+    __tablename__ = "financial_records"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    demand_id: Mapped[str | None] = mapped_column(ForeignKey("demands.id"), nullable=True)
+    category: Mapped[str] = mapped_column(String(80), default="Program")
+    approved_budget: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    actual_cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    forecast: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    minimum_viable: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    full_requirement: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    funding_status: Mapped[str] = mapped_column(String(40), default="Funded")
+    fiscal_year: Mapped[int] = mapped_column(Integer, default=2026)
+    restricted_rate_notes: Mapped[str] = mapped_column(Text, default="")
+
+
+class Benefit(Base):
+    __tablename__ = "benefits"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
+    demand_id: Mapped[str | None] = mapped_column(ForeignKey("demands.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(240))
+    benefit_type: Mapped[str] = mapped_column(String(80), default="Operational")
+    target_value: Mapped[float] = mapped_column(Float, default=0)
+    realized_value: Mapped[float] = mapped_column(Float, default=0)
+    unit: Mapped[str] = mapped_column(String(60), default="qualitative score")
+    status: Mapped[str] = mapped_column(String(40), default="Expected")
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    review_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    message: Mapped[str] = mapped_column(Text)
+    link: Mapped[str] = mapped_column(String(300), default="/")
+    notification_type: Mapped[str] = mapped_column(String(50), default="Assignment")
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    entity_type: Mapped[str] = mapped_column(String(80), index=True)
+    entity_id: Mapped[str] = mapped_column(String(80), index=True)
+    action: Mapped[str] = mapped_column(String(80))
+    before_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    after_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    ip_address: Mapped[str] = mapped_column(String(80), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class RequirementTrace(Base):
+    __tablename__ = "requirement_trace"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    requirement_id: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    domain: Mapped[str] = mapped_column(String(180), index=True)
+    title: Mapped[str] = mapped_column(String(240))
+    requirement: Mapped[str] = mapped_column(Text)
+    priority: Mapped[str] = mapped_column(String(20))
+    phase: Mapped[str] = mapped_column(String(20), index=True)
+    preliminary_fit: Mapped[str] = mapped_column(String(40))
+    capability: Mapped[str] = mapped_column(String(180))
+    accountable_owner: Mapped[str] = mapped_column(String(180))
+    verification_method: Mapped[str] = mapped_column(String(80))
+    source_status: Mapped[str] = mapped_column(String(40), default="Proposed")
+    implementation_status: Mapped[str] = mapped_column(String(80), index=True)
+    design_reference: Mapped[str] = mapped_column(String(240), default="")
+    module_reference: Mapped[str] = mapped_column(String(240), default="")
+    test_case: Mapped[str] = mapped_column(String(240), default="")
+    uat_result: Mapped[str] = mapped_column(String(80), default="Not Run")
+    release: Mapped[str] = mapped_column(String(80), default="Roadmap")
+    acceptance_notes: Mapped[str] = mapped_column(Text, default="")
+    decision_comments: Mapped[str] = mapped_column(Text, default="")
+
+
+class ImportBatch(Base):
+    __tablename__ = "import_batches"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    filename: Mapped[str] = mapped_column(String(240))
+    template_type: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(40), default="Preview")
+    uploaded_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    rows_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ImportRow(Base):
+    __tablename__ = "import_rows"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    batch_id: Mapped[str] = mapped_column(ForeignKey("import_batches.id"), index=True)
+    row_number: Mapped[int] = mapped_column(Integer)
+    record_identifier: Mapped[str] = mapped_column(String(100), default="")
+    action_taken: Mapped[str] = mapped_column(String(60))
+    severity: Mapped[str] = mapped_column(String(30))
+    validation_message: Mapped[str] = mapped_column(Text)
+    corrective_guidance: Mapped[str] = mapped_column(Text, default="")
+
+
+class SavedView(Base):
+    __tablename__ = "saved_views"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_saved_view_user_name"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    route: Mapped[str] = mapped_column(String(160))
+    query_string: Mapped[str] = mapped_column(Text, default="")
+
+
+class MetricDefinition(Base):
+    __tablename__ = "metric_definitions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    key: Mapped[str] = mapped_column(String(80), unique=True)
+    title: Mapped[str] = mapped_column(String(160))
+    definition: Mapped[str] = mapped_column(Text)
+    formula: Mapped[str] = mapped_column(Text)
+    data_owner: Mapped[str] = mapped_column(String(160))
+    source: Mapped[str] = mapped_column(String(160), default="DDC5I-PM PostgreSQL")
+    thresholds: Mapped[str] = mapped_column(Text, default="")
+    limitations: Mapped[str] = mapped_column(Text, default="")
+    last_refresh: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

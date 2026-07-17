@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ddc5i_portfolio}
+      POSTGRES_USER: ${POSTGRES_USER:-ddc5i}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ddc5i-local-change-me}
+    volumes:
+      - ddc5i_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ddc5i} -d ${POSTGRES_DB:-ddc5i_portfolio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ddc5i}:${POSTGRES_PASSWORD:-ddc5i-local-change-me}@db:5432/${POSTGRES_DB:-ddc5i_portfolio}
+      SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEMO_AUTH_ENABLED: "true"
+      APP_PORT: ${APP_PORT:-8080}
+      UPLOAD_DIR: /app/storage
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+      MAILPIT_URL: http://mailpit:8025
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - ddc5i_storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  ddc5i_pgdata:
+  ddc5i_storage:

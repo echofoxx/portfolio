@@ -1,0 +1,1084 @@
+You are a principal product architect, enterprise portfolio-management expert, senior UX designer, security engineer, data architect, and full-stack software development team.
+Build a comprehensive, functional, Docker-deployable enterprise Portfolio Management Tool based on the two attached DDC5I requirements artifacts:
+
+1. DDC5I Enterprise Portfolio Requirements Draft 1.2
+2. DDC5I Requirements Traceability Matrix Draft 1.2
+The resulting application must be usable immediately after the first build. Do not produce only wireframes, static mockups, screenshots, or disconnected pages. Build a working application with persistent data, functional workflows, role-based permissions, drill-down dashboards, seeded demonstration data, tests, documentation, and a realistic roadmap.
+============================================================
+
+1. PRODUCT MISSION ============================================================
+Create a unified DDC5I Enterprise Demand, Portfolio, Project, Resource, Financial, Investment, Outcome, and Benefits Management platform.
+The application must connect:
+Mission and strategy → core functions and organizational responsibilities → demand and work intake → assessment and prioritization → leadership decisions → portfolio and program management → project execution → resources and skills → budgets and investments → risks, dependencies, and decisions → outcomes and benefits → executive reporting and the DDC5I story.
+The organizational hierarchy must initially include:
+
+* DDC5I Enterprise
+* JAD
+* DSD
+* AID
+* CID
+* JFID
+* C3OD2
+The hierarchy must remain configurable for branches, teams, shared services, cross-division initiatives, and future organizational changes.
+============================================================ 2. PRODUCT BOUNDARY AND ARCHITECTURE PRINCIPLES
+Treat the application as a vendor-neutral operational reference implementation that can operate independently for the MVP and later integrate with:
+
+* ServiceNow Strategic Portfolio Management
+* ProjectOS
+* Microsoft Outlook and Microsoft 365
+* SharePoint
+* Power BI
+* Advana or War Data Platform
+* Financial systems
+* Workforce and personnel systems
+* Enterprise identity providers
+* Jira
+* Azure DevOps
+* Enterprise records-management services
+Architect the application so that:
+
+1. It is fully usable before any external integration is connected.
+2. Every integrated field has one authoritative owner.
+3. The system never allows ServiceNow, ProjectOS, or this application to independently overwrite the same authoritative field without a defined synchronization contract.
+4. Stable canonical identifiers are used for organizations, missions, demands, projects, milestones, tasks, resources, financial records, risks, decisions, benefits, and integrations.
+5. Integrations use documented APIs, events, retries, reconciliation, error handling, audit records, and source lineage.
+6. Configuration is preferred over custom code.
+7. The MVP is implemented as a modular monolith that can later be separated into services without redesigning the core data model.
+8. No critical feature depends on an internet connection or an external CDN.
+Do not claim that all 307 requirements are implemented unless they actually are. Import or represent the RTM in the application and classify each requirement as:
+
+* Implemented
+* Partially implemented
+* Planned
+* Deferred
+* Requires integration
+* Requires policy or governance decision
+============================================================ 3. REQUIRED TECHNOLOGY BASELINE
+Use a modern, maintainable, locally deployable stack.
+Preferred implementation:
+
+* Next.js with React and TypeScript
+* PostgreSQL
+* Prisma ORM
+* Tailwind CSS
+* Accessible component library such as shadcn/ui
+* Recharts or an equivalent locally bundled charting library
+* dnd-kit or an equivalent library for Kanban interactions
+* Zod or equivalent server-side and client-side validation
+* REST API with generated OpenAPI documentation
+* Background-job abstraction for notifications, report generation, imports, reconciliations, and scheduled checks
+* Docker and Docker Compose
+* Automated database migration and seed process
+* Local file-storage adapter using a Docker volume, with a future object-storage adapter
+* Local demonstration authentication for development, with an interface for future OIDC, SAML, CAC, or PIV integration
+A comparable stack may be used only when it preserves the same deployment, security, maintainability, accessibility, testing, and integration capabilities.
+The entire MVP must start on Docker Desktop using:
+docker compose up -d --build
+The application must automatically:
+
+* Create the database
+* Run migrations
+* Seed demonstration data
+* Create demonstration users
+* Pass container health checks
+* Expose the web interface on a clearly documented port
+============================================================ 4. NON-NEGOTIABLE FIRST-BUILD EXPERIENCE
+On the first successful build, a user must be able to:
+
+1. Sign in using documented demonstration accounts.
+2. Open a populated DDC5I senior-leadership dashboard.
+3. switch between enterprise and division views.
+4. Submit a new demand using a guided intake process.
+5. Save the demand as a draft.
+6. Validate and submit it.
+7. Triage it and request clarification.
+8. Assess and score it.
+9. Compare it with other demands.
+10. Route it for approval.
+11. Record a decision with rationale and conditions.
+12. Convert an approved demand into a project without re-entering approved data.
+13. Create project milestones, tasks, risks, issues, dependencies, and actions.
+14. Update project status.
+15. See changes automatically roll up to division and enterprise dashboards.
+16. Drill from an executive metric into the contributing source records.
+17. Filter, sort, search, export, and save views.
+18. View an audit trail showing who changed what and when.
+19. Import validated records from an Excel template.
+20. Receive row-level import success, warning, and error results.
+No visible button should be decorative. Every visible action must either work or be omitted from the MVP interface.
+Use actual PostgreSQL persistence. Do not depend on browser localStorage as the primary data store.
+============================================================ 5. MVP FUNCTIONAL SCOPE
+Build coherent end-to-end vertical slices rather than shallow versions of every possible module.
+5.1 Executive Dashboard
+Create a decision-oriented DDC5I Senior Dashboard containing:
+
+* Enterprise priorities
+* Mission gaps
+* Demand pipeline
+* Approved versus available capacity
+* Portfolio health
+* Projects and core functions at risk
+* Decisions required
+* Roadblocks
+* Cross-division dependencies
+* Upcoming critical milestones
+* Basic budget, forecast, and actual summaries
+* Workforce and skill-gap summaries
+* Benefits and value at risk
+* Changes since the previous reporting period
+* Data-quality and stale-data indicators
+* Concise DDC5I mission and value narrative
+Executive views must emphasize exceptions and decisions rather than presenting only large totals.
+Every metric and chart must support drill-down to source records and expose:
+
+* Metric definition
+* Formula
+* Data owner
+* Source
+* Last refresh
+* Thresholds
+* Known limitations
+5.2 Division Dashboard
+Create division dashboards for all six divisions showing:
+
+* Mission and core functions
+* Division priorities
+* Demand stages
+* Project inventory
+* Project and core-function health
+* Milestones
+* RAID records
+* Staffing and capacity
+* Skill gaps
+* Budget and forecast
+* Stakeholder contributions
+* External dependencies
+* Required leadership actions
+* Division narrative
+Users must be able to move from the enterprise roll-up to a division, project, milestone, risk, resource, or financial record.
+5.3 Strategy and Mission Alignment
+Implement configurable records for:
+
+* Strategies
+* Objectives
+* Key results
+* Missions
+* Core functions
+* Capabilities
+* Mandates
+* Lines of effort
+* Customers and beneficiaries
+* Outcomes
+* Measures
+Every demand, project, and core function must link to at least one mission, objective, or mandate.
+Identify unaligned work and require an exception rationale before approval.
+Provide bidirectional navigation from strategy to delivery and delivery back to strategy.
+5.4 Demand and Work Intake
+Create one governed intake funnel for:
+
+* Ideas
+* Named projects
+* Recurring core functions
+* Emergent taskers
+* Mandates
+* Unfunded requirements
+* Capability gaps
+* Modernization efforts
+* Process improvements
+* Technical debt
+* Data and standards work
+* Experiments
+* Change requests
+The intake form must support:
+
+* Conditional questions
+* Help text and examples
+* Draft saving
+* Co-authoring metadata
+* Attachments
+* Sensitivity marking
+* Sponsor
+* Requesting organization
+* Purpose
+* Problem or opportunity
+* Mission need
+* Desired measurable end state
+* Beneficiaries
+* Required date
+* Urgency
+* Consequence of inaction
+* Preliminary scope
+* Deliverables
+* Assumptions
+* Dependencies
+* Required roles and skills
+* Rough-order cost
+* Expected benefits
+* Confidence
+* Comments and revision history
+Provide demand stages including:
+
+* Draft
+* Submitted
+* Triage
+* Clarification required
+* Assessment
+* Awaiting portfolio recommendation
+* Awaiting decision
+* Approved
+* Deferred
+* Declined
+* Withdrawn
+* Converted to execution
+* Closed
+Show the requester the current owner, next action, pending information, target decision date, and disposition.
+5.5 Assessment and Prioritization
+Implement the initial configurable weighted scoring model:
+
+* Mission criticality: 25%
+* Strategic alignment: 20%
+* Operational impact: 15%
+* Urgency and time sensitivity: 10%
+* Risk reduction: 10%
+* Readiness or interoperability contribution: 10%
+* Feasibility and resource confidence: 5%
+* Expected value or ROI: 5%
+Scoring must:
+
+* Be configurable without source-code changes
+* Preserve score rationale
+* Capture confidence
+* Distinguish urgency from importance
+* Support mandatory-work overrides
+* Record why a mandatory item differs from the normal ranking
+* Allow multiple assessors
+* Highlight scoring variance
+* Support comments and adjudication
+* Compare candidate demands side by side
+* Present cost, resource, risk, value, dependencies, and confidence together
+Include options for:
+
+* Approve
+* Decline
+* Defer
+* Merge
+* Pilot
+* Re-scope
+* Perform as core work
+* Outsource
+* Request additional analysis
+5.6 Stage Gates and Decisions
+Support these gates:
+
+* Gate 0: Submission readiness
+* Gate 1: Division validation
+* Gate 2: Assessment complete
+* Gate 3: Portfolio recommendation
+* Gate 4: Leadership decision
+* Gate 5: Execution initiation
+A decision record must capture:
+
+* Decision
+* Authority
+* Date and time
+* Participants
+* Rationale
+* Evidence
+* Conditions
+* Caveats or dissent
+* Affected work
+* Resource implications
+* Financial implications
+* Review date
+* Follow-up actions
+Decision conditions must become trackable actions, constraints, controls, or milestones.
+When work is approved beyond available capacity, require identification of:
+
+* Work to stop
+* Work to delay
+* Work to reduce
+* Work to de-scope
+* An approved capacity increase
+5.7 Portfolio Management
+Support:
+
+* Enterprise portfolios
+* Division portfolios
+* Sub-portfolios
+* Programs
+* Projects
+* Products and services
+* Value streams
+* Core-function work packages
+* Unfunded requirements
+Provide:
+
+* Portfolio inventory
+* Roadmap
+* Timeline
+* Health summaries
+* Start, stop, continue, accelerate, defer, and merge recommendations
+* Portfolio baselines
+* Change history
+* Cross-division ownership
+* Lead and supporting divisions
+* Stakeholder contributions
+* Benefits
+* Risks
+* Dependencies
+* Decisions
+* Archival and lessons learned
+Clearly distinguish named projects from recurring core functions while allowing both to consume and report the same limited capacity.
+5.8 Project Execution Workspace
+Include a built-in execution workspace so the MVP remains usable before ProjectOS integration.
+Each project workspace must contain:
+
+* Purpose
+* Mission alignment
+* Desired end state
+* Sponsor
+* Accountable owner
+* Lead and supporting divisions
+* Team
+* Scope
+* Deliverables
+* WBS
+* Kanban board
+* Milestones
+* Timeline
+* Dependencies
+* RAID
+* Actions
+* Decisions
+* Documents
+* Status reports
+* Resource estimates
+* Cost estimates
+* Benefits
+* Activity history
+Implement:
+
+* Create, edit, indent, sequence, and baseline WBS items
+* Configurable Kanban columns
+* Drag-and-drop task movement
+* Task details
+* Task owners and contributors
+* Dates
+* Estimated and actual effort
+* Percent complete
+* Checklists
+* Notes
+* Comments
+* Attachments
+* Acceptance evidence
+* Milestone confidence
+* Basic baseline-versus-current variance
+* Periodic status-report submission
+* Project closure checklist
+Build a documented ProjectOS adapter interface and synchronization registry, but do not require a live ProjectOS instance for the MVP.
+5.9 RAID and Dependency Management
+Support:
+
+* Risks
+* Assumptions
+* Issues
+* Dependencies
+* Decisions
+* Roadblocks
+* Actions
+* Lessons learned
+Each record should include:
+
+* Title
+* Description
+* Type
+* Owner
+* Status
+* Severity
+* Likelihood
+* Consequence
+* Exposure
+* Response or mitigation
+* Due date
+* Aging
+* Escalation level
+* Impacted missions
+* Impacted projects
+* Evidence
+* Closure rationale
+Visualize cross-division dependencies using both a table and an interactive relationship view.
+5.10 Basic Resource and Financial Planning
+The detailed workforce and financial modules are later-roadmap capabilities, but the MVP must include enough functionality to support credible decisions.
+MVP resource functionality:
+
+* Generic role-based demand
+* Named resource assignments
+* Team and division capacity
+* Planned allocation
+* Basic actual effort
+* Over-allocation warning
+* Skill requirements
+* Skill-gap summary
+* Minimum core-function coverage indicator
+MVP financial functionality:
+
+* Rough-order cost
+* Approved budget
+* Actual cost
+* Forecast
+* Variance
+* Funding status
+* Minimum viable funding
+* Full requirement
+* Basic cost categories
+* Unfunded and underfunded indicators
+* Benefit register
+* Qualitative and quantitative value
+Sensitive rate data must not be exposed in general dashboards.
+5.11 Collaboration and Notifications
+Implement:
+
+* Comments
+* Mentions
+* Questions
+* Evidence attachments
+* Discussion resolution
+* In-app notification center
+* Assignment notifications
+* Due-date reminders
+* Approval notifications
+* Escalation indicators
+* Daily or weekly digest configuration
+* Notification audit history
+For the local MVP, use in-app notifications and an optional local Mailpit container. Provide a future Outlook and Microsoft Graph integration adapter.
+Email notifications must contain minimal information and link users back to the authenticated authoritative record.
+5.12 Excel Import and Export
+Provide versioned templates for at least:
+
+* Demands
+* Projects
+* Tasks
+* Risks
+* Resources
+* Budgets
+* Benefits
+* Reference data
+Before import, show a preview identifying:
+
+* New records
+* Updated records
+* Duplicates
+* Warnings
+* Errors
+* Permission exclusions
+After import, provide row-level results including:
+
+* Row number
+* Record identifier
+* Action taken
+* Validation message
+* Corrective guidance
+Allow downloading a correction file.
+Exports must preserve:
+
+* Stable identifiers
+* Data types
+* Dates
+* Units
+* Timestamps
+* Applied filters
+* Security rules
+5.13 Requirements Traceability
+Create an administrator-facing RTM view using the attached spreadsheet.
+Allow filtering by:
+
+* Requirement ID
+* Domain
+* Priority
+* Phase
+* Preliminary fit
+* Owner
+* Verification method
+* Status
+* Release
+Include fields for:
+
+* Implementation status
+* Design reference
+* API or module reference
+* Test case
+* UAT result
+* Release
+* Acceptance notes
+* Decision or comments
+Link implemented features and automated tests to relevant requirement IDs.
+============================================================ 6. USER ROLES AND ACCESS
+Implement role-based permissions and organizational scoping for:
+
+* DDC5I Senior Leader
+* Enterprise Portfolio Owner
+* PMO or Portfolio Manager
+* Division Chief
+* Division Portfolio Manager
+* Demand Sponsor or Requester
+* Assessor
+* Approval Authority
+* Project Manager
+* Team Member
+* Resource Manager
+* Financial Manager
+* Benefits Owner
+* Data Steward
+* Security or Privacy Reviewer
+* Auditor
+* Platform Administrator
+Users may hold more than one role.
+Implement:
+
+* Least privilege
+* Division-level scope
+* Project membership scope
+* Sensitive-record restrictions
+* Field-level protection for restricted financial and workforce data
+* Separation-of-duties warnings
+* Delegation and acting-role support
+* Full audit history
+Seed demonstration accounts for the major roles and document their credentials in the development README.
+Clearly label local demonstration authentication as non-production. Provide an authentication adapter for future enterprise SSO, OIDC, SAML, CAC, or PIV.
+============================================================ 7. CANONICAL DATA MODEL
+Create a documented relational model covering at least:
+Strategy and mission:
+
+* Strategy
+* Objective
+* Key result
+* Mission
+* Core function
+* Capability
+* Mandate
+* Customer
+* Outcome
+* Measure
+Organization:
+
+* Organization
+* Division
+* Team
+* Role
+* User
+* Delegation
+* Stakeholder
+* RACI relationship
+Demand:
+
+* Demand
+* Demand revision
+* Intake response
+* Attachment
+* Assessment
+* Assessment criterion
+* Score
+* Recommendation
+* Approval
+* Decision condition
+Portfolio:
+
+* Portfolio
+* Program
+* Product or service
+* Value stream
+* Roadmap
+* Baseline
+* Portfolio item
+* Review forum
+Execution:
+
+* Project
+* Workstream
+* WBS item
+* Task
+* Board column
+* Milestone
+* Deliverable
+* Schedule baseline
+* Status report
+* Action
+Assurance:
+
+* Risk
+* Assumption
+* Issue
+* Dependency
+* Decision
+* Roadblock
+* Control
+* Acceptance evidence
+* Lesson
+Resource:
+
+* Person
+* Team
+* Position
+* Resource role
+* Skill
+* Proficiency
+* Capacity
+* Allocation
+* Effort record
+* Vacancy
+Financial and value:
+
+* Funding source
+* Budget
+* Cost
+* Commitment
+* Actual
+* Forecast
+* Benefit
+* Value increment
+* ROI measure
+Integration and governance:
+
+* Source system
+* Field ownership rule
+* Interface
+* Business event
+* Import batch
+* Reconciliation result
+* Data-quality rule
+* Audit event
+* Notification
+* Requirement traceability record
+Use UUIDs and human-readable identifiers where appropriate. Include created, updated, version, source-system, source-record, and audit metadata.
+============================================================ 8. USER EXPERIENCE
+Create a modern, professional, mission-oriented interface suitable for DDC5I leadership and portfolio staff.
+Use:
+
+* Responsive desktop and tablet layouts
+* Left navigation
+* Top command bar
+* Breadcrumbs
+* Global search
+* Enterprise and division selectors
+* Reporting-period selector
+* Saved filters
+* Light and dark modes
+* Consistent health-state language
+* Accessible charts and tables
+* Keyboard navigation
+* Visible focus states
+* Clear empty states
+* Confirmation for destructive actions
+* Toast and inline validation feedback
+* Skeleton loading states
+* Helpful tooltips
+* Contextual help
+Recommended navigation:
+
+* Executive
+* Divisions
+* Strategy
+* Demand
+* Assessments
+* Decisions
+* Portfolios
+* Projects
+* Roadmaps
+* Resources
+* Financials
+* Risks & Dependencies
+* Benefits
+* Reports
+* My Work
+* Notifications
+* Administration
+Use governed health states:
+
+* On Track
+* At Risk
+* Off Track
+* Blocked
+* Completed
+* On Hold
+* Not Reported
+Differentiate:
+
+* System-calculated health
+* Owner-reported health
+* Authorized override
+============================================================ 9. DEMONSTRATION DATA
+Seed realistic, internally consistent demonstration data for all six divisions.
+Include at least:
+
+* 6 division portfolios
+* 12 core functions
+* 20 demands across multiple lifecycle stages
+* 12 active projects
+* 3 completed projects
+* 2 canceled or archived projects
+* 35 milestones
+* 80 tasks
+* 20 risks or issues
+* 15 dependencies
+* 10 decisions
+* 12 roadblocks or actions
+* 25 users
+* Multiple role and division assignments
+* Resource-capacity records
+* Skill requirements and gaps
+* Budget, actual, and forecast records
+* Expected and realized benefits
+* Status history spanning multiple reporting periods
+* Several stale or incomplete records to demonstrate data-quality alerts
+* At least one sensitive demand restricted to approved users
+* Cross-division initiatives with one lead division and multiple supporting divisions
+The data must tell a coherent story. Dashboard totals must reconcile to the underlying records.
+============================================================ 10. REPORTING
+Implement:
+
+* Executive portfolio summary
+* Division summary
+* Demand pipeline report
+* Assessment and prioritization report
+* Decision log
+* Project status report
+* Milestone report
+* RAID report
+* Dependency report
+* Resource summary
+* Basic financial summary
+* Benefits report
+* Data-quality report
+* Requirements traceability report
+Support:
+
+* Screen view
+* Print-friendly view
+* CSV or XLSX export
+* PDF-ready browser printing
+* Reporting-period filters
+* Division filters
+* Mission filters
+* Saved views
+Generate a concise, editable DDC5I narrative connecting:
+
+* Mission
+* Division functions
+* Key projects
+* Resources applied
+* Outcomes
+* Operational value
+* Decisions required
+Generated narratives must use source records and must not fabricate unsupported facts.
+============================================================ 11. SECURITY, QUALITY, AND OPERATIONS
+Implement or document:
+
+* Server-side authorization
+* Input validation
+* Protection from insecure direct-object references
+* Secure password hashing for demonstration accounts
+* CSRF protection where applicable
+* Content security policy
+* Rate limiting on sensitive endpoints
+* File-type and file-size validation
+* Secure filename handling
+* Audit logging
+* Record and field access checks
+* Backup and restore procedure
+* Health checks
+* Structured logs
+* Error handling
+* Migration rollback guidance
+* Secrets through environment variables
+* No hard-coded production credentials
+* No secrets committed to source control
+Design toward:
+
+* Section 508
+* WCAG 2.2 AA
+* 95th-percentile common interaction target under three seconds
+* 99.9% production availability objective
+* Recovery testing
+* Data portability
+* Upgradeability
+* Browser support for current enterprise-approved Microsoft Edge and Chrome
+Do not state that the application is RMF-authorized, production-authorized, or CAC-enabled unless those capabilities are actually implemented and approved.
+============================================================ 12. AUTOMATED TESTS
+Include:
+
+* Unit tests for scoring and health calculations
+* Unit tests for permission rules
+* API integration tests
+* Database constraint tests
+* Workflow transition tests
+* Excel-import validation tests
+* Audit-event tests
+* End-to-end tests for primary workflows
+* Accessibility checks for critical pages
+* Docker health-check validation
+At minimum, automate these acceptance scenarios:
+Scenario 1: Requester submits a demand, demand manager triages it, assessors score it, leadership approves it, and the approved demand becomes a project without re-entering data.
+Scenario 2: A project manager submits a status update and the division and enterprise dashboards immediately reflect the new health, milestone, risk, and decision information.
+Scenario 3: An executive drills from an at-risk metric through the division, project, milestone, dependency, and responsible owner.
+Scenario 4: A user imports an Excel file containing valid rows, warnings, duplicates, and errors and receives accurate row-level results.
+Scenario 5: A division-scoped user cannot access restricted records from another division.
+Scenario 6: An auditor can see material record changes but cannot alter business data.
+============================================================ 13. IMPLEMENTATION APPROACH
+Use this delivery order:
+Iteration 1 — Foundation
+
+* Repository structure
+* Docker Compose
+* PostgreSQL
+* Migrations
+* Seed data
+* Authentication
+* RBAC
+* Organizational hierarchy
+* Application shell
+* Health checks
+Iteration 2 — Strategy and Demand
+
+* Mission and core-function catalog
+* Guided demand intake
+* Drafts
+* Triage
+* Attachments
+* Status tracking
+* Activity history
+Iteration 3 — Assessment and Decisions
+
+* Scoring
+* Gates
+* Comparison
+* Recommendations
+* Approvals
+* Decision records
+* Conditions and actions
+Iteration 4 — Portfolio and Projects
+
+* Portfolio inventory
+* Project conversion
+* Project workspace
+* WBS
+* Kanban
+* Milestones
+* RAID
+* Status reporting
+Iteration 5 — Dashboards
+
+* Senior dashboard
+* Division dashboards
+* Drill-down
+* Metrics metadata
+* Saved filters
+* Reporting
+Iteration 6 — Supporting Capabilities
+
+* Basic resource planning
+* Basic financial planning
+* Benefits
+* Notifications
+* Excel import and export
+* RTM administration
+* Audit and data-quality views
+Iteration 7 — Hardening
+
+* Tests
+* Accessibility
+* Security review
+* Performance review
+* Backup and restore
+* Documentation
+* Screenshots
+* Release package
+After each iteration, leave the repository in a runnable state. Do not postpone all integration and testing until the end.
+============================================================ 14. ROADMAP AFTER MVP
+Create a product roadmap aligned to these phases.
+Phase 1 — Foundation and Usable MVP
+
+* Governance and organization
+* Strategy and mission alignment
+* Demand intake
+* Triage
+* Assessment and scoring
+* Approvals and decisions
+* Project conversion
+* Basic project execution
+* Senior and division dashboards
+* Excel import and export
+* Notifications
+* Audit
+* Requirements traceability
+Phase 2 — Portfolio and Execution Expansion
+
+* Full WBS and schedule management
+* Enhanced Kanban and agile delivery
+* Reusable portfolio and project blueprints
+* Template-set catalog
+* Blueprint versioning
+* Advanced RAID
+* Executive brief generation
+* Recurring report packs
+* Division-specific configuration
+* ProjectOS bidirectional integration
+* Document-management integration
+* Meeting agenda, decisions, notes, and action generation
+Phase 3 — Resource and Financial Management
+
+* Detailed capacity calendars
+* Person, role, team, and skill planning
+* Vacancy and contractor planning
+* Resource-request workflow
+* Planned versus actual effort
+* Core-function minimum coverage
+* Budget lifecycle
+* Commitments, obligations, expenditures, and EAC
+* Multi-year cost profiles
+* ROI and value framework
+* Outlook actionable approvals
+* Calendar synchronization
+* Power BI and enterprise analytics feeds
+Phase 4 — Forecasting and Enterprise Integration
+
+* Non-destructive what-if scenarios
+* Three-scenario comparison
+* Demand-surge analysis
+* Priority-change impact
+* Budget-change impact
+* Workforce-change impact
+* Schedule-change propagation
+* Dependency analytics
+* Portfolio-level critical path
+* Stop, start, continue optimization
+* Financial-system integration
+* Workforce-system integration
+* Advana or WDP integration
+* SharePoint integration
+* Jira or Azure DevOps integration
+* Business-event publishing
+* Full reconciliation monitoring
+Phase 5 — Optimization and Responsible AI
+
+* Forecast-accuracy analysis
+* Early-warning indicators
+* Decision-latency impact
+* Resource optimization recommendations
+* Portfolio optimization
+* Explainable scenario recommendations
+* Duplicate-demand detection
+* Draft executive summaries
+* Draft risk and project summaries
+* Human-reviewed DDC5I narrative generation
+* Model evaluation, versioning, feedback, and audit
+* Continuous-improvement analytics
+For every roadmap item, include:
+
+* Business value
+* Dependencies
+* Requirement IDs
+* Estimated complexity
+* Primary owner
+* Acceptance criteria
+* Security implications
+* Integration implications
+* Recommended release
+Do not introduce AI until data quality, access control, metrics, source lineage, audit, and human-review controls are established.
+============================================================ 15. REQUIRED PROJECT DELIVERABLES
+Produce:
+
+1. Complete source code
+2. Dockerfile
+3. docker-compose.yml
+4. .env.example
+5. Database schema and migrations
+6. Seed-data scripts
+7. API documentation
+8. Architecture diagram
+9. Canonical data-model diagram
+10. Role and permission matrix
+11. Integration architecture
+12. Requirements traceability report
+13. Automated tests
+14. Sample Excel import templates
+15. Backup and restore instructions
+16. Comprehensive README
+17. Installation guide for Docker Desktop
+18. Administrator guide
+19. User guide by role
+20. Demonstration walkthrough
+21. Troubleshooting guide
+22. Security and production-hardening guide
+23. Screenshots of all major views
+24. Feature inventory
+25. Known limitations
+26. Five-phase roadmap
+27. Release notes
+28. MVP acceptance checklist
+The README must include:
+
+* Product overview
+* Major capabilities
+* Screenshots
+* System requirements
+* Docker Desktop installation
+* First-run instructions
+* Ports
+* Demonstration credentials
+* Environment variables
+* Database migration instructions
+* Data reset instructions
+* Backup and restore
+* Testing
+* Troubleshooting
+* Architecture
+* Security considerations
+* Integration strategy
+* Roadmap
+* Known limitations
+============================================================ 16. DEFINITION OF DONE
+The MVP is complete only when:
+
+* docker compose up -d --build starts the full application.
+* All containers become healthy.
+* The application contains populated demonstration data.
+* Major navigation routes work.
+* There are no decorative or dead controls.
+* Data persists after container restart.
+* A demand can complete the end-to-end workflow.
+* An approved demand becomes a project without rekeying.
+* Project updates roll up to dashboards.
+* Executive metrics drill down to source records.
+* RBAC and division scoping work.
+* Excel import produces row-level validation.
+* Exports respect access permissions.
+* Audit events are recorded.
+* Automated acceptance tests pass.
+* Documentation is sufficient for another user to install and operate the tool.
+* Remaining requirements are transparently identified in the RTM and roadmap.
+============================================================ 17. EXECUTION INSTRUCTIONS
+Begin by:
+
+1. Reading both attached requirements artifacts completely.
+2. Summarizing the target operating model.
+3. Identifying the MVP requirement IDs.
+4. Producing the proposed architecture and repository structure.
+5. Identifying assumptions and unresolved decisions.
+6. Creating an implementation backlog grouped by vertical slice.
+7. Building the application.
+Make reasonable assumptions where requirements are unresolved, but document each assumption. Do not block progress on minor questions.
+Prioritize a working end-to-end application over excessive framework abstraction.
+Do not simplify the solution into a static dashboard.
+Do not remove traceability, security, audit, drill-down, or data ownership to make development easier.
+At the end, report:
+
+* What was implemented
+* What was partially implemented
+* What was deferred
+* Which requirements were satisfied
+* Which requirements require integration
+* Which open decisions remain
+* How to run the application
+* Demonstration credentials
+* Test results
+* Recommended next release. add the Readme details to include comprehensive screenshots, User Guide, roadmap, and installation instructions.
