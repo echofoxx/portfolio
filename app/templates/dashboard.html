@@ -1,22 +1,114 @@
-{% extends "base.html" %}{% block title %}Executive Dashboard · DDC5I Portfolio{% endblock %}{% block content %}
-<div class="page-head"><div><h2>DDC5I Senior Leadership Dashboard</h2><p>Exception-focused portfolio view connecting mission, demand, capacity, delivery, investments, decisions, dependencies, and value.</p></div><div class="actions"><a class="btn" href="/reports" target="_blank">Print / PDF</a><a class="btn btn-primary" href="/demands/new">New Demand</a></div></div>
-<div class="grid grid-5">
-<a class="card kpi kpi-alert" href="/projects?health=At+Risk"><span class="metric-info" title="View metric definition">i</span><div class="kpi-label">Projects at risk</div><div class="kpi-value">{{ at_risk|length }}</div><div class="kpi-foot">At Risk, Off Track, or Blocked</div></a>
-<a class="card kpi kpi-warn" href="/demands?status=Awaiting+Decision"><span class="metric-info">i</span><div class="kpi-label">Decisions required</div><div class="kpi-value">{{ decisions_required|length }}</div><div class="kpi-foot">Leadership disposition pending</div></a>
-<a class="card kpi {% if capacity_pct>100 %}kpi-alert{% elif capacity_pct>90 %}kpi-warn{% else %}kpi-ok{% endif %}" href="/resources"><span class="metric-info">i</span><div class="kpi-label">Capacity utilized</div><div class="kpi-value">{{ capacity_pct }}%</div><div class="kpi-foot">Role-based planned allocation</div></a>
-<a class="card kpi {% if forecast>budget*1.05 %}kpi-alert{% elif forecast>budget %}kpi-warn{% else %}kpi-ok{% endif %}" href="/financials"><span class="metric-info">i</span><div class="kpi-label">Forecast variance</div><div class="kpi-value">{{ (forecast-budget)|money }}</div><div class="kpi-foot">Forecast {{ forecast|money }} / Budget {{ budget|money }}</div></a>
-<a class="card kpi {% if stale %}kpi-warn{% else %}kpi-ok{% endif %}" href="/projects"><span class="metric-info">i</span><div class="kpi-label">Stale records</div><div class="kpi-value">{{ stale|length }}</div><div class="kpi-foot">No status in 14 days</div></a>
+{% extends "base.html" %}
+{% block title %}Portfolio Overview · JSJ6 Enterprise Portfolio Management{% endblock %}
+{% block content %}
+<div class="page-head dashboard-head">
+  <div>
+    <h2>Portfolio Overview</h2>
+    <p>Welcome back, {{ user.full_name.split(' ')[0] }}. Here is the current enterprise portfolio picture.</p>
+  </div>
+  <div class="actions dashboard-actions">
+    <details class="quick-menu">
+      <summary class="btn btn-primary">＋ Quick Add <span>⌄</span></summary>
+      <div class="quick-menu-popover">
+        <a href="/demands/new"><strong>New demand</strong><small>Start a governed intake request</small></a>
+        <a href="/scenarios#new-scenario"><strong>New scenario</strong><small>Model a non-destructive change</small></a>
+        <a href="/portfolio-reviews"><strong>Portfolio review</strong><small>Open the governance workspace</small></a>
+      </div>
+    </details>
+    <a class="btn" href="/projects">⌁ Filters</a>
+    <a class="btn icon-btn" href="/reports" aria-label="More reporting options">•••</a>
+  </div>
 </div>
-<div class="grid grid-3" style="margin-top:16px">
-<div class="card"><h3>Demand pipeline</h3><p class="card-subtitle">Click a stage to inspect source records.</p><div class="bar-list">{% for s in pipeline_order %}{% if pipeline.get(s,0) %}<a class="bar-row" href="/demands?status={{ s|urlencode }}"><span>{{ s }}</span><span class="bar-track"><span class="bar-fill" style="width:{{ pipeline.get(s,0)/max_pipeline*100 }}%"></span></span><strong>{{ pipeline.get(s,0) }}</strong></a>{% endif %}{% endfor %}</div></div>
-<div class="card"><h3>Leadership exceptions</h3><p class="card-subtitle">Highest-priority records requiring intervention.</p><div class="exception-list">{% for p in at_risk[:6] %}<a class="exception-item {% if p.health_owner in ['Off Track','Blocked'] %}critical{% endif %}" href="/projects/{{ p.id }}"><strong>{{ p.human_id }} · {{ p.title }}</strong><small>{{ p.health_override or p.health_owner }} · {{ p.percent_complete }}% complete · updated {{ p.last_status_date|datefmt }}</small></a>{% else %}<div class="empty">No accessible project health exceptions.</div>{% endfor %}</div></div>
-<div class="card"><h3>Financial and value summary</h3><div class="grid grid-2"><div><div class="kpi-label">Approved</div><div class="kpi-value" style="font-size:22px">{{ budget|money }}</div></div><div><div class="kpi-label">Actual</div><div class="kpi-value" style="font-size:22px">{{ actual|money }}</div></div><div><div class="kpi-label">Forecast</div><div class="kpi-value" style="font-size:22px">{{ forecast|money }}</div></div><div><div class="kpi-label">Benefit realization</div><div class="kpi-value" style="font-size:22px">{% if benefit_target %}{{ (benefit_realized/benefit_target*100)|round(0) }}%{% else %}—{% endif %}</div></div></div><div class="progress"><span style="width:{% if benefit_target %}{{ [100, benefit_realized/benefit_target*100]|min }}{% else %}0{% endif %}%"></span></div><p class="help">Benefit index aggregates accessible qualitative and quantitative demonstration measures.</p></div>
-</div>
-<div class="grid grid-2" style="margin-top:16px">
-<div class="card"><h3>Upcoming critical milestones</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Milestone</th><th>Project</th><th>Confidence</th></tr></thead><tbody>{% for m,p in milestones %}<tr><td>{{ m.current_date|datefmt }}</td><td><a href="/projects/{{ p.id }}?tab=milestones">{{ m.title }}</a>{% if m.critical %} <span class="badge badge-At-Risk">Critical</span>{% endif %}</td><td>{{ p.human_id }}</td><td><span class="badge badge-{{ ('At Risk' if m.confidence=='Low' else 'On Track')|badge }}">{{ m.confidence }}</span></td></tr>{% else %}<tr><td colspan="4" class="empty">No milestones in the next 60 days.</td></tr>{% endfor %}</tbody></table></div></div>
-<div class="card"><h3>Cross-division dependencies</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Due</th><th>Dependency</th><th>Source</th><th>Status</th></tr></thead><tbody>{% for d,p in dependencies %}<tr><td>{{ d.due_date|datefmt }}</td><td><a href="/projects/{{ p.id }}?tab=raid">{{ d.title }}</a></td><td>{{ p.human_id }}</td><td><span class="badge badge-{{ d.status|badge }}">{{ d.status }}</span></td></tr>{% else %}<tr><td colspan="4" class="empty">No open dependencies.</td></tr>{% endfor %}</tbody></table></div></div>
-</div>
-<div class="section-title"><h3>Division portfolio pulse</h3><a href="/divisions">View all divisions</a></div><div class="grid grid-3">{% for row in division_rows %}<a class="card kpi" href="/divisions/{{ row.org.code }}"><div class="kpi-label">{{ row.org.code }}</div><h3>{{ row.org.name }}</h3><div class="grid grid-3"><div><strong>{{ row.projects }}</strong><small class="muted"> Projects</small></div><div><strong class="{% if row.at_risk %}text-bad{% endif %}">{{ row.at_risk }}</strong><small class="muted"> At risk</small></div><div><strong>{{ row.capacity }}%</strong><small class="muted"> Capacity</small></div></div></a>{% endfor %}</div>
-<div class="card narrative" style="margin-top:16px"><h3>DDC5I mission and value narrative</h3><p>{{ narrative }}</p><p class="help">Generated only from current accessible source records. No unsupported facts are added.</p></div>
-<div class="section-title"><h3>Metric governance</h3></div><div class="grid grid-5">{% for key,m in metrics.items() %}<a class="card" href="/metrics/{{ key }}"><strong>{{ m.title }}</strong><p class="help">Owner: {{ m.data_owner }}<br>Refresh: {{ m.last_refresh|datefmt }}</p></a>{% endfor %}</div>
+
+<section class="kpi-grid-6" aria-label="Portfolio key performance indicators">
+  <a class="card kpi premium-kpi" href="/projects">
+    <span class="kpi-icon blue">▧</span><div class="kpi-label">Active Projects</div><div class="kpi-value">{{ projects|length }}</div><div class="kpi-trend positive">↑ {{ projects|length - stale|length }} <span>current this period</span></div>
+  </a>
+  <a class="card kpi premium-kpi" href="/financials">
+    <span class="kpi-icon purple">◎</span><div class="kpi-label">Total Investment</div><div class="kpi-value">{{ budget|money }}</div><div class="kpi-trend {% if forecast <= budget %}positive{% else %}negative{% endif %}">{% if forecast <= budget %}↑{% else %}↓{% endif %} {{ ((forecast-budget)/budget*100)|abs|round(1) if budget else 0 }}% <span>forecast variance</span></div>
+  </a>
+  <a class="card kpi premium-kpi" href="/projects">
+    <span class="kpi-spark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><div class="kpi-label">Health Score</div><div class="kpi-value">{{ health_score }}</div><div class="kpi-trend positive">↑ {{ health_segments.on_track|round(0) }} pts <span>on-track share</span></div>
+  </a>
+  <a class="card kpi premium-kpi" href="/demands?status=Awaiting+Decision">
+    <span class="kpi-icon blue">?</span><div class="kpi-label">Decisions Pending</div><div class="kpi-value">{{ decisions_required|length }}</div><div class="kpi-trend {% if decisions_required %}negative{% else %}positive{% endif %}">{% if decisions_required %}↓{% else %}↑{% endif %} {{ decisions_required|length }} <span>awaiting action</span></div>
+  </a>
+  <a class="card kpi premium-kpi" href="/risks?severity=High">
+    <span class="kpi-icon amber">△</span><div class="kpi-label">Risks High</div><div class="kpi-value">{{ high_risks|length }}</div><div class="kpi-trend {% if high_risks %}negative{% else %}positive{% endif %}">↑ {{ high_risks|length }} <span>open high / critical</span></div>
+  </a>
+  <a class="card kpi premium-kpi" href="/benefits">
+    <span class="kpi-icon green">◉</span><div class="kpi-label">Benefits Realized</div><div class="kpi-value">{{ benefit_realized|money }}</div><div class="kpi-trend positive">↑ {{ (benefit_realized/benefit_target*100)|round(1) if benefit_target else 0 }}% <span>of target</span></div>
+  </a>
+</section>
+
+<section class="dashboard-panel-grid">
+  <article class="card dashboard-panel portfolio-health-panel">
+    <div class="panel-head"><h3>Portfolio Health</h3><span class="metric-info" title="Weighted current project health">i</span></div>
+    <div class="chart-layout">
+      <div class="donut health-donut" style="--on-track:{{ health_segments.on_track }}%;--at-risk:{{ health_segments.at_risk }}%"><div><strong>{{ health_score }}</strong><span>Overall</span></div></div>
+      <div class="chart-legend">
+        <div><span class="legend-dot ok"></span><span>On Track</span><strong>{{ health_segments.on_track|round(0) }}%</strong></div>
+        <div><span class="legend-dot warn"></span><span>At Risk</span><strong>{{ health_segments.at_risk|round(0) }}%</strong></div>
+        <div><span class="legend-dot bad"></span><span>Off Track</span><strong>{{ health_segments.off_track|round(0) }}%</strong></div>
+      </div>
+    </div>
+    <a class="panel-link" href="/projects">View full dashboard <span>→</span></a>
+  </article>
+
+  <article class="card dashboard-panel investment-panel">
+    <div class="panel-head"><h3>Investment by Category</h3><span class="metric-info" title="Approved investment by financial category">i</span></div>
+    <div class="chart-layout investment-layout">
+      <div class="donut investment-donut" style="background:conic-gradient({{ investment_gradient }})"><div><strong>{{ budget|money }}</strong><span>Total</span></div></div>
+      <div class="chart-legend compact">
+        {% for category in investment_categories[:5] %}<div><span class="legend-dot" style="background:{{ category.color }}"></span><span>{{ category.name }}</span><strong>{{ category.amount|money }} ({{ category.percentage|round(0) }}%)</strong></div>{% else %}<div class="empty">No investment records.</div>{% endfor %}
+      </div>
+    </div>
+    <a class="panel-link" href="/financials">View details <span>→</span></a>
+  </article>
+
+  <article class="card dashboard-panel decisions-panel">
+    <div class="panel-head"><h3>Recent Decisions</h3></div>
+    <div class="dashboard-list">
+      {% for decision in recent_decisions %}
+      {% set decision_status = 'Approved' if decision.decision in ['Approve','Pilot'] else 'Pending' if decision.decision=='Defer' else 'Rejected' %}
+      <a class="dashboard-list-row" href="/decisions"><span class="list-main">{{ decision_sources.get(decision.project_id or decision.demand_id, 'Enterprise portfolio') }}</span><span class="status-chip status-{{ decision_status|lower }}">{{ decision_status }}</span><time>{{ decision.created_at|datefmt }}</time></a>
+      {% else %}<div class="empty">No recent decisions.</div>{% endfor %}
+    </div>
+    <a class="panel-link" href="/decisions">View all decisions <span>→</span></a>
+  </article>
+
+  <article class="card dashboard-panel tasks-panel">
+    <div class="panel-head"><h3>My Tasks</h3></div>
+    <div class="dashboard-list task-list">
+      {% for task, project in my_tasks %}<a class="dashboard-list-row" href="/projects/{{ project.id }}/tasks/{{ task.id }}"><span class="task-bullet"></span><span class="list-main"><strong>{{ task.title }}</strong><small>{{ project.human_id }} · {{ task.priority }} priority</small></span><time>Due {{ task.due_date|datefmt }}</time></a>{% endfor %}
+      {% for action in my_actions %}<a class="dashboard-list-row" href="/my-work"><span class="task-bullet action"></span><span class="list-main"><strong>{{ action.title }}</strong><small>{{ action.human_id }} · {{ action.source_type }}</small></span><time>Due {{ action.due_date|datefmt }}</time></a>{% endfor %}
+      {% if not my_tasks and not my_actions %}<div class="empty">No open assigned work.</div>{% endif %}
+    </div>
+    <a class="panel-link" href="/my-work">View all tasks <span>→</span></a>
+  </article>
+</section>
+
+<section class="card glance-panel">
+  <div class="panel-head glance-head"><h3>Portfolio at a Glance</h3><div class="glance-controls"><label>View: <select class="select" aria-label="Portfolio table view"><option>Standard</option></select></label><a class="panel-link" href="/projects">View full portfolio <span>→</span></a></div></div>
+  <div class="table-wrap dashboard-table-wrap">
+    <table class="data-table portfolio-glance-table">
+      <thead><tr><th>Project / Investment</th><th>Category</th><th>Health</th><th>Stage</th><th>Budget</th><th>Spend to Date</th><th>Schedule</th><th>Benefits</th><th>Risks</th><th></th></tr></thead>
+      <tbody>
+        {% for row in portfolio_rows %}<tr>
+          <td><a href="/projects/{{ row.project.id }}"><span class="favorite">{% if loop.first %}★{% else %}☆{% endif %}</span><strong>{{ row.project.title }}</strong></a></td>
+          <td>{{ row.category }}</td>
+          <td><span class="health-label health-{{ row.health|badge|lower }}"><i></i>{{ row.health }}</span></td>
+          <td><span class="stage-label"><i></i>{{ row.stage }}</span></td>
+          <td>{{ row.budget|money }}</td>
+          <td>{{ row.spend|money }} {% if row.budget %}<small>({{ (row.spend/row.budget*100)|round(0) }}%)</small>{% endif %}</td>
+          <td><span class="health-label health-{{ row.schedule|badge|lower }}"><i></i>{{ row.schedule }}</span></td>
+          <td class="{% if row.benefits > 0 %}text-ok{% else %}muted{% endif %}">{{ row.benefits|money }}</td>
+          <td class="{% if row.risks > 0 %}text-bad{% else %}text-ok{% endif %}">{{ row.risks if row.risks else 'Low' }}</td>
+          <td><a class="row-menu" href="/projects/{{ row.project.id }}" aria-label="Open {{ row.project.title }}">•••</a></td>
+        </tr>{% else %}<tr><td colspan="10" class="empty">No active projects are accessible.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-footer"><span>Showing 1 to {{ portfolio_rows|length }} of {{ projects|length }} items</span><div class="pagination"><span>Rows per page: {{ portfolio_rows|length }}</span><a href="/projects">‹</a><b>1</b><a href="/projects">2</a><a href="/projects">3</a><a href="/projects">›</a></div></div>
+</section>
 {% endblock %}

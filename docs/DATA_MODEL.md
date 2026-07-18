@@ -11,7 +11,7 @@ The MVP schema implements the records required for the usable vertical slices:
 - Demand and Demand Revision
 - Assessment
 - Portfolio and Project
-- Task and Milestone
+- Task, Task Comment, Task Attachment, Task Relationship, and Milestone
 - RAID Item and Dependency
 - Decision and Action
 - Resource Capacity
@@ -47,8 +47,8 @@ The full enterprise model in the requirements includes additional normalized ent
 | Intake responses and conditional form schema | Demand fields | configurable form/version/question tables |
 | Assessment criteria and score | configured Python weights plus Assessment JSON | database-configured models and criterion versions |
 | Program, product/service, value stream, roadmap, baseline | Portfolio/Project fields | portfolio taxonomy and baseline tables |
-| Workstream, WBS item, board column, deliverable, schedule baseline, status report | Task/Project/Milestone fields | full execution schema and baseline/version tables |
-| Risk, assumption, issue, roadblock, control, evidence, lesson | polymorphic RaidItem plus Action | normalized assurance subtypes and evidence records |
+| Workstream, WBS item, board column, deliverable, schedule baseline, status report | Task/Project/Milestone fields plus TaskRelationship | full execution schema, calendars, dependency validation and baseline/version tables |
+| Risk, assumption, issue, roadblock, control, evidence, lesson | polymorphic RaidItem plus Action; task acceptance evidence and TaskAttachment | normalized assurance subtypes, evidence records, repository versions and retention |
 | Funding source, cost, commitment, actual, forecast, value increment, ROI | FinancialRecord and Benefit | multi-year investment ledger and benefit baseline |
 | Source system, interface, event, reconciliation, data quality | service contracts and audit/import metadata | persistent integration governance tables |
 
@@ -63,3 +63,37 @@ The full enterprise model in the requirements includes additional normalized ent
 - import updates match by stable Human ID.
 
 Production should add database-level check constraints for health/status enumerations, stronger temporal constraints, optimistic concurrency enforcement, retention markers, and immutable event identifiers.
+
+
+## v0.3.0 task execution entities
+
+### Task
+
+In addition to the stable task ID and project foreign key, the task record includes description/acceptance criteria, priority, owner, contributor UUIDs, status, board column, sequence, indent level, start/due/baseline dates, planned/actual effort, percent complete, tags, checklist JSON, notes, and acceptance evidence.
+
+### TaskComment
+
+Stores the task, author, body, mention UUIDs, resolved flag, and timestamps. Mention notifications are separate Notification records so delivery state does not alter the comment.
+
+### TaskAttachment
+
+Stores task/project linkage, original and stored names, storage key, media type, extension, size, SHA-256, uploader, sensitivity, description, and timestamps. File bytes remain in the storage adapter rather than in PostgreSQL.
+
+### TaskRelationship
+
+Stores source task, target task, relationship type, creator, and timestamps. v0.3.0 prevents duplicate/self links at the route/data-integrity layer; future schedule services should add lag/lead, calendars, critical path, and invalid-relationship analysis.
+
+## v0.5.0 canonical entities
+
+| Domain | Entities | Purpose |
+|---|---|---|
+| Delegation | `Delegation` | dated acting-role and organization-scope governance evidence |
+| Integration | `IntegrationConnection`, `FieldOwnershipRuleRecord`, `SyncRun` | connection metadata, authoritative ownership, dry-run/live result evidence |
+| Governance forum | `PortfolioReview`, `PortfolioReviewItem` | period-based review agenda, recommendation, decision/action linkage |
+| Resource | `ResourceRequest` | role/skill/hour demand, period, priority, decision and resolution |
+| Financial | `FinancialTransaction` | transaction-like planning/evidence entries linked to a financial baseline |
+| Scenario | `Scenario`, `ScenarioChange`, `ScenarioResult` | non-destructive proposed values, comparison metrics, approval/apply status |
+| Data quality | `DataQualityIssue` | rule finding, source record, severity, owner, due date, disposition, resolution |
+| Operations/reporting | `ReportPack`, `JobRun` | source-grounded report snapshot and persistent operation evidence |
+
+All new entities use UUID primary keys. Business-facing records use stable human IDs where appropriate (`REV`, `RRQ`, `FTX`, `SCN`, `DQI`, `RPT`). Existing audit events retain actor, entity, action, timestamp, client address, and before/after evidence.

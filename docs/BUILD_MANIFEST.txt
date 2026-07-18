@@ -1,127 +1,160 @@
-# DDC5I Portfolio MVP Build Manifest
-
-Generated for release 0.1.0-mvp.
-
-- `.dockerignore`
-- `.env.example`
-- `.gitignore`
-- `Dockerfile`
-- `Makefile`
-- `README.md`
-- `VERSION`
-- `alembic.ini`
-- `app/__init__.py`
-- `app/config.py`
-- `app/data/requirements.json`
-- `app/database.py`
-- `app/main.py`
-- `app/models.py`
-- `app/seed.py`
-- `app/services/__init__.py`
-- `app/services/audit.py`
-- `app/services/imports.py`
-- `app/services/integrations.py`
-- `app/services/jobs.py`
-- `app/services/scoring.py`
-- `app/services/security.py`
-- `app/services/storage.py`
-- `app/services/workflow.py`
-- `app/services/xlsx_reader.py`
-- `app/static/app.css`
-- `app/static/app.js`
-- `app/static/templates/DDC5I_All_Import_Templates_v1.0.xlsx`
-- `app/static/templates/DDC5I_Demand_Import_Demo_v1.0.xlsx`
-- `app/static/templates/DDC5I_Demand_Import_Template_v1.0.xlsx`
-- `app/static/templates/DDC5I_Import_Templates_v1.0.xlsx`
-- `app/templates/administration.html`
-- `app/templates/api_docs.html`
-- `app/templates/assessments.html`
-- `app/templates/audit.html`
-- `app/templates/base.html`
-- `app/templates/benefits.html`
-- `app/templates/dashboard.html`
-- `app/templates/decisions.html`
-- `app/templates/demand_detail.html`
-- `app/templates/demand_form.html`
-- `app/templates/demands.html`
-- `app/templates/division_detail.html`
-- `app/templates/divisions.html`
-- `app/templates/error.html`
-- `app/templates/financials.html`
-- `app/templates/import_preview.html`
-- `app/templates/imports.html`
-- `app/templates/login.html`
-- `app/templates/metric.html`
-- `app/templates/my_work.html`
-- `app/templates/notifications.html`
-- `app/templates/project_detail.html`
-- `app/templates/projects.html`
-- `app/templates/reports.html`
-- `app/templates/requirements.html`
-- `app/templates/resources.html`
-- `app/templates/risks.html`
-- `app/templates/search.html`
-- `app/templates/strategy.html`
-- `conftest.py`
-- `docker-compose.yml`
-- `docs/ADMIN_GUIDE.md`
-- `docs/API.md`
-- `docs/ARCHITECTURE.md`
-- `docs/ASSUMPTIONS_DECISIONS.md`
-- `docs/BACKUP_RESTORE.md`
-- `docs/BUILD_VALIDATION.md`
-- `docs/DATA_MODEL.md`
-- `docs/DDC5I_RTM_MVP_Status.csv`
-- `docs/DEMONSTRATION_WALKTHROUGH.md`
-- `docs/FEATURE_INVENTORY.md`
-- `docs/IMPLEMENTATION_BACKLOG.md`
-- `docs/INSTALLATION.md`
-- `docs/INTEGRATION_ARCHITECTURE.md`
-- `docs/KNOWN_LIMITATIONS.md`
-- `docs/MVP_ACCEPTANCE_CHECKLIST.md`
-- `docs/RELEASE_NOTES.md`
-- `docs/REQUIREMENTS_TRACEABILITY.md`
-- `docs/ROADMAP.md`
-- `docs/ROLE_PERMISSION_MATRIX.md`
-- `docs/SECURITY_HARDENING.md`
-- `docs/TARGET_OPERATING_MODEL.md`
-- `docs/TEST_RESULTS.md`
-- `docs/TROUBLESHOOTING.md`
-- `docs/USER_GUIDE.md`
-- `docs/diagrams/architecture.svg`
-- `docs/diagrams/data-model.svg`
-- `docs/diagrams/integration-architecture.svg`
-- `docs/screenshots/01-login.png`
-- `docs/screenshots/02-executive-dashboard.png`
-- `docs/screenshots/03-division-dashboard.png`
-- `docs/screenshots/04-demand-pipeline.png`
-- `docs/screenshots/05-demand-detail.png`
-- `docs/screenshots/06-project-kanban.png`
-- `docs/screenshots/07-project-raid.png`
-- `docs/screenshots/08-resource-capacity.png`
-- `docs/screenshots/09-excel-import.png`
-- `docs/screenshots/10-requirements-rtm.png`
-- `docs/source/DDC5I_Enterprise_Portfolio_Requirements_Draft_1.2.txt`
-- `docs/source/DDC5I_Requirements_Traceability_Matrix_Draft_1.2.xlsx`
-- `e2e/test_status_rollup.py`
-- `migrations/env.py`
-- `migrations/script.py.mako`
-- `migrations/versions/0001_initial.py`
-- `requirements.txt`
-- `sample-imports/DDC5I_All_Import_Templates_v1.0.xlsx`
-- `sample-imports/DDC5I_Demand_Import_Demo_v1.0.xlsx`
-- `sample-imports/DDC5I_Demand_Import_Template_v1.0.xlsx`
-- `sample-imports/DDC5I_Import_Templates_v1.0.xlsx`
-- `scripts/backup.sh`
-- `scripts/entrypoint.sh`
-- `scripts/restore.sh`
-- `storage/.gitkeep`
-- `tests/__init__.py`
-- `tests/test_app.py`
-- `tests/test_audit.py`
-- `tests/test_database.py`
-- `tests/test_imports.py`
-- `tests/test_permissions.py`
-- `tests/test_scoring.py`
-- `tests/test_service_interfaces.py`
-- `tests/test_workflow.py`
+ddc5i-portfolio-mvp/.dockerignore
+ddc5i-portfolio-mvp/.env.example
+ddc5i-portfolio-mvp/.gitignore
+ddc5i-portfolio-mvp/Dockerfile
+ddc5i-portfolio-mvp/Makefile
+ddc5i-portfolio-mvp/README.md
+ddc5i-portfolio-mvp/VERSION
+ddc5i-portfolio-mvp/alembic.ini
+ddc5i-portfolio-mvp/app/__init__.py
+ddc5i-portfolio-mvp/app/config.py
+ddc5i-portfolio-mvp/app/data/requirements.json
+ddc5i-portfolio-mvp/app/database.py
+ddc5i-portfolio-mvp/app/main.py
+ddc5i-portfolio-mvp/app/models.py
+ddc5i-portfolio-mvp/app/seed.py
+ddc5i-portfolio-mvp/app/services/__init__.py
+ddc5i-portfolio-mvp/app/services/audit.py
+ddc5i-portfolio-mvp/app/services/imports.py
+ddc5i-portfolio-mvp/app/services/integrations.py
+ddc5i-portfolio-mvp/app/services/jobs.py
+ddc5i-portfolio-mvp/app/services/schedule.py
+ddc5i-portfolio-mvp/app/services/scoring.py
+ddc5i-portfolio-mvp/app/services/security.py
+ddc5i-portfolio-mvp/app/services/storage.py
+ddc5i-portfolio-mvp/app/services/v050.py
+ddc5i-portfolio-mvp/app/services/workflow.py
+ddc5i-portfolio-mvp/app/services/xlsx_reader.py
+ddc5i-portfolio-mvp/app/static/app.css
+ddc5i-portfolio-mvp/app/static/app.js
+ddc5i-portfolio-mvp/app/static/templates/DDC5I_All_Import_Templates_v1.0.xlsx
+ddc5i-portfolio-mvp/app/static/templates/DDC5I_Demand_Import_Demo_v1.0.xlsx
+ddc5i-portfolio-mvp/app/static/templates/DDC5I_Demand_Import_Template_v1.0.xlsx
+ddc5i-portfolio-mvp/app/static/templates/DDC5I_Import_Templates_v1.0.xlsx
+ddc5i-portfolio-mvp/app/templates/_task_drawer.html
+ddc5i-portfolio-mvp/app/templates/administration.html
+ddc5i-portfolio-mvp/app/templates/api_docs.html
+ddc5i-portfolio-mvp/app/templates/assessments.html
+ddc5i-portfolio-mvp/app/templates/audit.html
+ddc5i-portfolio-mvp/app/templates/base.html
+ddc5i-portfolio-mvp/app/templates/benefits.html
+ddc5i-portfolio-mvp/app/templates/dashboard.html
+ddc5i-portfolio-mvp/app/templates/data_quality.html
+ddc5i-portfolio-mvp/app/templates/decisions.html
+ddc5i-portfolio-mvp/app/templates/demand_detail.html
+ddc5i-portfolio-mvp/app/templates/demand_form.html
+ddc5i-portfolio-mvp/app/templates/demands.html
+ddc5i-portfolio-mvp/app/templates/division_detail.html
+ddc5i-portfolio-mvp/app/templates/divisions.html
+ddc5i-portfolio-mvp/app/templates/error.html
+ddc5i-portfolio-mvp/app/templates/financials.html
+ddc5i-portfolio-mvp/app/templates/import_preview.html
+ddc5i-portfolio-mvp/app/templates/imports.html
+ddc5i-portfolio-mvp/app/templates/integrations.html
+ddc5i-portfolio-mvp/app/templates/login.html
+ddc5i-portfolio-mvp/app/templates/metric.html
+ddc5i-portfolio-mvp/app/templates/my_work.html
+ddc5i-portfolio-mvp/app/templates/notifications.html
+ddc5i-portfolio-mvp/app/templates/operations.html
+ddc5i-portfolio-mvp/app/templates/portfolio_review_detail.html
+ddc5i-portfolio-mvp/app/templates/portfolio_reviews.html
+ddc5i-portfolio-mvp/app/templates/project_detail.html
+ddc5i-portfolio-mvp/app/templates/project_templates.html
+ddc5i-portfolio-mvp/app/templates/projects.html
+ddc5i-portfolio-mvp/app/templates/record_detail.html
+ddc5i-portfolio-mvp/app/templates/reports.html
+ddc5i-portfolio-mvp/app/templates/requirement_detail.html
+ddc5i-portfolio-mvp/app/templates/requirements.html
+ddc5i-portfolio-mvp/app/templates/resources.html
+ddc5i-portfolio-mvp/app/templates/risks.html
+ddc5i-portfolio-mvp/app/templates/roadmaps.html
+ddc5i-portfolio-mvp/app/templates/scenario_detail.html
+ddc5i-portfolio-mvp/app/templates/scenarios.html
+ddc5i-portfolio-mvp/app/templates/search.html
+ddc5i-portfolio-mvp/app/templates/status_report_detail.html
+ddc5i-portfolio-mvp/app/templates/strategy.html
+ddc5i-portfolio-mvp/app/templates/task_detail.html
+ddc5i-portfolio-mvp/conftest.py
+ddc5i-portfolio-mvp/docker-compose.yml
+ddc5i-portfolio-mvp/docs/ADMIN_GUIDE.md
+ddc5i-portfolio-mvp/docs/API.md
+ddc5i-portfolio-mvp/docs/ARCHITECTURE.md
+ddc5i-portfolio-mvp/docs/ASSUMPTIONS_DECISIONS.md
+ddc5i-portfolio-mvp/docs/BACKUP_RESTORE.md
+ddc5i-portfolio-mvp/docs/BUILD_MANIFEST.txt
+ddc5i-portfolio-mvp/docs/BUILD_VALIDATION.md
+ddc5i-portfolio-mvp/docs/DATA_MODEL.md
+ddc5i-portfolio-mvp/docs/DDC5I_RTM_MVP_Status.csv
+ddc5i-portfolio-mvp/docs/DEMONSTRATION_WALKTHROUGH.md
+ddc5i-portfolio-mvp/docs/FEATURE_INVENTORY.md
+ddc5i-portfolio-mvp/docs/IMPLEMENTATION_BACKLOG.md
+ddc5i-portfolio-mvp/docs/INSTALLATION.md
+ddc5i-portfolio-mvp/docs/INTEGRATION_ARCHITECTURE.md
+ddc5i-portfolio-mvp/docs/KNOWN_LIMITATIONS.md
+ddc5i-portfolio-mvp/docs/MVP_ACCEPTANCE_CHECKLIST.md
+ddc5i-portfolio-mvp/docs/RELEASE_NOTES.md
+ddc5i-portfolio-mvp/docs/REQUIREMENTS_TRACEABILITY.md
+ddc5i-portfolio-mvp/docs/REVERSE_PROXY.md
+ddc5i-portfolio-mvp/docs/ROADMAP.md
+ddc5i-portfolio-mvp/docs/ROLE_PERMISSION_MATRIX.md
+ddc5i-portfolio-mvp/docs/SECURITY_HARDENING.md
+ddc5i-portfolio-mvp/docs/TARGET_OPERATING_MODEL.md
+ddc5i-portfolio-mvp/docs/TEST_RESULTS.md
+ddc5i-portfolio-mvp/docs/TROUBLESHOOTING.md
+ddc5i-portfolio-mvp/docs/UPGRADE_0.2.0.md
+ddc5i-portfolio-mvp/docs/UPGRADE_0.3.0.md
+ddc5i-portfolio-mvp/docs/UPGRADE_0.3.1.md
+ddc5i-portfolio-mvp/docs/UPGRADE_0.4.0.md
+ddc5i-portfolio-mvp/docs/UPGRADE_0.5.0.md
+ddc5i-portfolio-mvp/docs/UPGRADE_0.6.0.md
+ddc5i-portfolio-mvp/docs/USER_GUIDE.md
+ddc5i-portfolio-mvp/docs/diagrams/architecture.svg
+ddc5i-portfolio-mvp/docs/diagrams/data-model.svg
+ddc5i-portfolio-mvp/docs/diagrams/integration-architecture.svg
+ddc5i-portfolio-mvp/docs/screenshots/00-v0.2.0-design-direction.png
+ddc5i-portfolio-mvp/docs/screenshots/01-login.png
+ddc5i-portfolio-mvp/docs/screenshots/02-executive-dashboard.png
+ddc5i-portfolio-mvp/docs/screenshots/03-division-dashboard.png
+ddc5i-portfolio-mvp/docs/screenshots/04-demand-pipeline.png
+ddc5i-portfolio-mvp/docs/screenshots/05-demand-detail.png
+ddc5i-portfolio-mvp/docs/screenshots/06-project-kanban.png
+ddc5i-portfolio-mvp/docs/screenshots/07-project-raid.png
+ddc5i-portfolio-mvp/docs/screenshots/08-resource-capacity.png
+ddc5i-portfolio-mvp/docs/screenshots/09-excel-import.png
+ddc5i-portfolio-mvp/docs/screenshots/10-requirements-rtm.png
+ddc5i-portfolio-mvp/docs/screenshots/11-v0.3.0-task-workspace.png
+ddc5i-portfolio-mvp/docs/screenshots/12-v0.3.0-search.png
+ddc5i-portfolio-mvp/docs/source/DDC5I_Enterprise_Portfolio_Requirements_Draft_1.2.txt
+ddc5i-portfolio-mvp/docs/source/DDC5I_Requirements_Traceability_Matrix_Draft_1.2.xlsx
+ddc5i-portfolio-mvp/e2e/test_status_rollup.py
+ddc5i-portfolio-mvp/migrations/env.py
+ddc5i-portfolio-mvp/migrations/script.py.mako
+ddc5i-portfolio-mvp/migrations/versions/0001_initial.py
+ddc5i-portfolio-mvp/migrations/versions/0002_task_workspace_v030.py
+ddc5i-portfolio-mvp/migrations/versions/0003_v031_reliability_hotfix.py
+ddc5i-portfolio-mvp/migrations/versions/0004_execution_roadmap_v040.py
+ddc5i-portfolio-mvp/migrations/versions/0005_portfolio_governance_v050.py
+ddc5i-portfolio-mvp/requirements.txt
+ddc5i-portfolio-mvp/sample-imports/DDC5I_All_Import_Templates_v1.0.xlsx
+ddc5i-portfolio-mvp/sample-imports/DDC5I_Demand_Import_Demo_v1.0.xlsx
+ddc5i-portfolio-mvp/sample-imports/DDC5I_Demand_Import_Template_v1.0.xlsx
+ddc5i-portfolio-mvp/sample-imports/DDC5I_Import_Templates_v1.0.xlsx
+ddc5i-portfolio-mvp/scripts/backup.sh
+ddc5i-portfolio-mvp/scripts/entrypoint.sh
+ddc5i-portfolio-mvp/scripts/restore.sh
+ddc5i-portfolio-mvp/storage/.gitkeep
+ddc5i-portfolio-mvp/tests/__init__.py
+ddc5i-portfolio-mvp/tests/test_app.py
+ddc5i-portfolio-mvp/tests/test_audit.py
+ddc5i-portfolio-mvp/tests/test_database.py
+ddc5i-portfolio-mvp/tests/test_imports.py
+ddc5i-portfolio-mvp/tests/test_permissions.py
+ddc5i-portfolio-mvp/tests/test_scoring.py
+ddc5i-portfolio-mvp/tests/test_service_interfaces.py
+ddc5i-portfolio-mvp/tests/test_v020.py
+ddc5i-portfolio-mvp/tests/test_v030.py
+ddc5i-portfolio-mvp/tests/test_v031.py
+ddc5i-portfolio-mvp/tests/test_v040.py
+ddc5i-portfolio-mvp/tests/test_v050.py
+ddc5i-portfolio-mvp/tests/test_v060.py
+ddc5i-portfolio-mvp/tests/test_workflow.py

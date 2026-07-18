@@ -1,55 +1,52 @@
-# Known Limitations
+# Known Limitations — v0.5.0
 
 ## Deployment and authorization
 
-- Docker Compose was not executed inside the artifact-build environment because no Docker daemon was exposed. Source, migrations, seed, local server, routes, tests, and health behavior were validated; the target Docker Desktop host must execute the Compose acceptance check.
-- The application is not RMF-authorized, production-authorized, CAC-enabled, or PIV-enabled.
-- Local demonstration accounts and synthetic data are not suitable for operational use.
+- Docker Compose could not be launched in the artifact environment because a Docker daemon is unavailable. Target-host startup, reverse-proxy, browser, restart-persistence, and backup/restore validation remain required.
+- The application is not RMF-authorized, production-authorized, CAC-enabled, PIV-enabled, or connected to an enterprise identity provider.
+- Local demonstration authentication and synthetic data are development capabilities only.
+- Acting-role delegations are stored, scoped, dated, and audited, but v0.5.0 does not yet inject delegated roles into every authorization decision. Administrators must treat the registry as governance evidence rather than a complete temporary-access engine.
+- Rate limiting is process-local. Multiple production replicas require an approved shared rate-limit store.
 
-## Functional depth
+## Integration depth
 
-- Demand is the only workbook type with complete preview/commit behavior. Other sheets are versioned contracts.
-- Attachments do not yet have a complete UI, malware scanning, records metadata, or repository lifecycle.
-- The built-in WBS and schedule capability does not provide a critical-path engine, resource leveling, advanced recurrence, or full baseline/version management.
-- Kanban supports card movement but not WIP limits, swimlanes, bulk operations, or full accessibility parity with keyboard reordering.
-- Project closure checklist, formal status-report versions, lessons workflow, and acceptance-signature process require expansion.
-- Portfolio roadmaps and baselines are represented at a basic level rather than a full interactive planning tool.
-- Relationship dependencies are shown in tables; an interactive graph is planned.
+- The ProjectOS connector is a canonical-payload mock/dry run. It does not authenticate to, read from, or write to a live ProjectOS instance.
+- Microsoft 365 and SharePoint entries are disabled registry records. Microsoft Graph mail/calendar, SharePoint List/library, Teams, Power BI, Advana/WDP, ServiceNow, Jira, Azure DevOps, financial, workforce, records, and identity adapters remain integration work.
+- External retries, durable queues, dead-letter handling, scheduled synchronization, credential vault integration, reconciliation assignment, and conflict-resolution UI require a target enterprise environment.
+- Field-ownership rules are operational governance data; they do not yet block every possible external write because no live external writers are enabled.
 
-## Resource, financial, and value data
+## Portfolio reviews
 
-- capacity is role/skill based and synthetic, not authoritative person-level availability.
-- vacancies, contractors, leave calendars, position management, and skill proficiency are not implemented.
-- financials are basic budget/actual/forecast demonstration values; commitments, obligations, expenditures, rates, EAC methods, and multi-year profiles are not authoritative.
-- benefit attribution and ROI analysis are basic.
+- Review agendas, recommendations, decisions, and actions are operational. Calendar invitations, electronic signatures, formal meeting-minute approval, document-package versioning, and Outlook/Teams integration remain planned.
+- Review items support governed record references but do not yet provide automated agenda optimization or comprehensive meeting transcription.
 
-## Collaboration and reporting
+## Resources and financials
 
-- in-app notifications work; digest scheduling and outbound SMTP/Graph messages are not fully wired.
-- comments are represented through rationale, notes, and revision history rather than a complete threaded mention/resolution system.
-- PDF uses browser printing; no server-generated signed PDF package is present.
-- narrative generation is deterministic and source-grounded but not yet an editable, approved report artifact.
+- Resource requests are role/skill/hour planning records, not authoritative billets, personnel assignments, labor calendars, timekeeping, or contractor data.
+- Financial transactions are planning/evidence entries, not official commitments, obligations, expenditures, disbursements, accounting postings, or reconciliation with a financial system.
+- Multi-year profiles, appropriations controls, labor-rate protection, EAC methods, cost-account structures, and formal funds-control rules remain planned or integration-dependent.
 
-## Administration
+## Scenarios
 
-- no full UI for user creation, role assignment, delegation, organization editing, reference-data editing, or configuration promotion.
-- scoring weights and many thresholds are service configuration rather than database-managed records.
-- project membership and row/field policy management are not fully normalized.
-- audit events are not tamper-evident and are not forwarded to a SIEM.
+- Scenarios support a controlled set of project, resource-capacity, and financial fields. They do not yet simulate dependency propagation, resource leveling, schedule critical-path changes, benefit probability, risk Monte Carlo analysis, or portfolio optimization.
+- Apply is governed and audited but is not an enterprise electronic approval/signature workflow.
+- A scenario should be recalculated if authoritative source records change materially before approval or application; automatic staleness invalidation is not yet implemented.
 
-## Integrations
+## Data quality and operations
 
-- no live ServiceNow SPM, ProjectOS, Microsoft Graph, SharePoint, Power BI, Advana/WDP, financial, workforce, Jira, Azure DevOps, records, or enterprise identity connection.
-- adapter protocols and field-ownership registry are present, but durable events, retry queues, dead-letter handling, reconciliation UI, and service credentials are not.
+- Data-quality scans use deterministic application rules. Rule authoring, version approval, threshold configuration, lineage to enterprise data catalogs, and federated quality monitoring need expansion.
+- Report packs are source-grounded snapshots with editable narrative and approval. Scheduled distribution, immutable signed archives, server-generated PDF, SharePoint publication, and recurring delivery are not included.
+- Job runs are persistent evidence, but there is no external durable scheduler, distributed worker, automatic retry daemon, or high-availability queue.
+
+## Existing execution limitations
+
+- Critical path remains a basic finish-to-start calculation without calendars, lag/lead, resource leveling, constraints, probabilistic risk, or portfolio critical path.
+- Gantt remains a review/edit companion rather than a full drag-reschedule engine.
+- Office documents download rather than render in-browser; local file controls are not malware scanning, DLP, content disarm/reconstruction, or records disposition.
+- Search does not index attachment contents and is not semantic or federated search.
 
 ## Nonfunctional evidence
 
-- formal WCAG 2.2 AA/Section 508 expert certification has not been performed.
-- representative performance/load testing and the three-second 95th-percentile target have not been demonstrated.
-- 99.9% availability, high availability, recovery objectives, disaster recovery, and restore exercises have not been demonstrated.
-- dependency, container, SAST, DAST, penetration, and formal threat-model evidence are not included.
-- browser validation is focused on current Chromium rendering; target enterprise Edge/Chrome versions require acceptance testing.
-
-## AI
-
-No operational AI is included. This is intentional. Responsible AI requirements are deferred until data quality, lineage, access, metrics, evaluation, audit, and human-review controls are established.
+- Formal WCAG 2.2 AA/Section 508 certification, approved-browser certification, load testing, 99.9% availability evidence, recovery exercise, penetration testing, SAST/DAST, container scanning, and RMF control evidence are not included.
+- New v0.5.0 screenshots should be captured on the target Docker host; the artifact environment cannot reliably capture authenticated local browser views.
+- AI remains intentionally deferred until source authority, access, lineage, quality, evaluation, audit, and human-review controls are established.

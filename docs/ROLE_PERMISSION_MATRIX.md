@@ -40,3 +40,24 @@ Users may hold multiple roles. In production, role claims should be provisioned 
 ## Current limitations
 
 The UI does not yet provide full user/role administration, project-membership grants, field-level policy configuration, delegation approval, or separation-of-duties conflict resolution. These requirements are recorded as partial/planned/governance-dependent in the RTM.
+
+## v0.5.0 permission additions
+
+| Capability | Senior Leader | Enterprise Portfolio Owner | PMO | Division Chief / Portfolio Manager | Resource Manager | Financial Manager | Data Steward | Auditor | Administrator |
+|---|---|---|---|---|---|---|---|---|---|
+| View portfolio reviews | Yes | Yes | Yes | Scoped | No by default | No by default | No by default | Read if assigned role permits | Yes |
+| Create/manage review | Yes | Yes | Yes | Scoped | No | No | No | No | Yes |
+| Decide review item | Yes/authority | Yes | Yes | Scoped authority | No | No | No | No | Yes |
+| View integrations/ownership | No by default | No by default | Yes | No | No | No | Yes | Read | Yes |
+| Configure connection/ownership | No | No | Limited operation | No | No | No | Health/sync operation | No | Yes |
+| Submit resource request | Permitted through portfolio roles | Yes | Yes | Scoped | Yes | No | No | Read only | Yes |
+| Decide resource request | No by default | Yes | Yes | Scoped | Yes | No | No | Read only | Yes |
+| Add financial transaction | No | Yes | Yes | No by default | No | Yes | No | Read only | Yes |
+| Create/calculate scenario | Yes | Yes | Yes | Scoped | Supporting role only | Supporting role only | No | Read only | Yes |
+| Approve/apply scenario | Approval role | Yes | Yes | Scoped approval where authorized | No | No | No | No | Yes |
+| Run/update data-quality scan | View | No by default | Yes | No by default | No | No | Yes | Read | Yes |
+| Generate report pack | View/approve | Generate/approve | Generate | No by default | No | No | Generate | Read | Yes |
+| Create/update local user | No | No | No | No | No | No | No | No | Yes |
+| Create delegation registry record | No | No | No | No | No | No | No | Read | Yes |
+
+Server-side checks remain authoritative. Division/sensitive/project scope continues to restrict records even when a role grants access to the module. Delegations do not yet augment these checks in v0.5.0.

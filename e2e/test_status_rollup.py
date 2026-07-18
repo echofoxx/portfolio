@@ -22,4 +22,5 @@ def test_project_status_update_rolls_to_dashboard(client, db):
     dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
     assert project.title in dashboard.text
-    assert "Projects at risk" in dashboard.text
+    assert "Risks High" in dashboard.text
+    assert "Off Track" in dashboard.text

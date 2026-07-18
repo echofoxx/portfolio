@@ -71,3 +71,18 @@ The MVP can support a practical cadence:
 - release-based RTM verification and UAT.
 
 Cadence automation and governance calendars are partially implemented or planned; policy owners must approve final timelines and escalation rules.
+
+## v0.5.0 operating-model expansion
+
+The platform now supports a closed governance loop beyond demand and delivery:
+
+**Operational records → data-quality controls → portfolio review → decision/action → non-destructive scenario → approved change → report pack → integration/reconciliation evidence**.
+
+Accountability is divided as follows:
+
+- Platform Administrators manage local demonstration users, role/scope configuration, delegation records, and connector metadata.
+- Data Stewards own field-ownership rules, data-quality issues, source lineage, and reconciliation governance.
+- Portfolio Owners and Division Leaders chair reviews, approve scenarios, and make explicit trade-space decisions.
+- Resource and Financial Managers decide planning requests and maintain restricted planning evidence.
+- Integration Owners configure and operate adapters only after authority, security, and reconciliation contracts are approved.
+- Auditors inspect the decision, synchronization, scenario, quality, report, and record-change evidence without changing business data.

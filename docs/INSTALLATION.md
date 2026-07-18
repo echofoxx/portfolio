@@ -74,7 +74,7 @@ The `web` entrypoint performs these steps on every start:
 
 1. Retry database connectivity for up to approximately two minutes.
 2. Run `alembic upgrade head`.
-3. Run the idempotent seed command. Seed exits without duplicating records when users already exist.
+3. Run the idempotent seed command. Existing user-created records are preserved while required v0.5.0 reference data and packaged RTM evidence are synchronized.
 4. Start Uvicorn on `0.0.0.0:8080`.
 5. Docker polls `/health/ready` until PostgreSQL and the web service are ready.
 
@@ -92,7 +92,9 @@ Expected services show `healthy`. Sign in as `admin / Demo123!` and confirm:
 - the executive dashboard is populated;
 - the division selector and navigation work;
 - a demand detail page opens;
-- a project board opens;
+- a project board opens and a task detail drawer can save notes;
+- a permitted task file can be uploaded and downloaded;
+- global search returns a task by stable ID and shows no visible `K` artifact;
 - Requirements RTM shows 307 rows before filtering;
 - Administration shows 25 users, 20 demands, and 17 projects.
 
@@ -111,7 +113,7 @@ Then use `http://localhost:8088`.
 ## Upgrade procedure
 
 1. Back up the current database.
-2. Review release notes and migration notes.
+2. Review release notes and [`UPGRADE_0.5.0.md`](UPGRADE_0.5.0.md).
 3. Pull or replace source files.
 4. Rebuild:
 
@@ -141,3 +143,62 @@ The second command is destructive and should be preceded by a backup.
 ## Offline operation
 
 Runtime pages, styles, scripts, charts, database operations, and demonstration workflows have no CDN dependency. The initial image build requires access to the configured container registry and Python package index unless images and packages are pre-staged in an approved offline repository.
+
+## v0.4.0 reverse-proxy configuration
+
+Direct local access:
+
+```env
+PUBLIC_BASE_URL=http://localhost:8080
+TRUST_PROXY_HOPS=0
+```
+
+One controlled reverse proxy:
+
+```env
+PUBLIC_BASE_URL=https://your-portfolio-host.example
+TRUST_PROXY_HOPS=1
+```
+
+After changing `.env`:
+
+```bash
+docker compose up -d --build
+docker compose logs -f web
+```
+
+Open Administration and verify the effective proxy and rate-limit settings. Refer to `docs/REVERSE_PROXY.md` for multi-proxy paths and security limitations.
+
+
+## v0.4.0 environment settings
+
+Set these values in `.env` before building:
+
+```env
+PUBLIC_BASE_URL=http://localhost:8080
+TRUST_PROXY_HOPS=0
+RATE_LIMIT_REQUESTS=300
+RATE_LIMIT_WINDOW_SECONDS=900
+```
+
+Use `TRUST_PROXY_HOPS=1` only when exactly one controlled reverse proxy sits between the browser and the application. See `REVERSE_PROXY.md` for Synology, Nginx, Traefik, and tunnel patterns.
+
+## v0.5.0 first-run verification
+
+After containers become healthy, sign in as `admin` and verify:
+
+1. **Administration** lists users, organizations, roles, and the seeded delegation/reference areas.
+2. **Integrations** lists ProjectOS Mock plus disabled Microsoft 365 and SharePoint entries and field-ownership rules.
+3. **Portfolio Reviews**, **Scenarios**, **Data Quality**, and **Operations** open without errors.
+4. **Resources** includes resource requests and **Financials** includes transaction evidence.
+5. The Requirements RTM contains 307 rows.
+
+Run the release regression suite:
+
+```bash
+docker compose run --rm web pytest -q
+```
+
+The packaged workspace passed 57 tests. Target-host results should be captured as local acceptance evidence.
+
+For an upgrade, follow `UPGRADE_0.5.0.md`; do not delete named volumes.

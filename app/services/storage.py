@@ -10,7 +10,7 @@ from typing import BinaryIO, Protocol
 
 from app.config import settings
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".csv", ".txt", ".md", ".png", ".jpg", ".jpeg"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt", ".md", ".json", ".png", ".jpg", ".jpeg"}
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -70,3 +70,23 @@ class LocalVolumeStorage:
         if self.root.resolve() not in target.parents:
             raise ValueError("Invalid storage key")
         target.unlink(missing_ok=True)
+
+
+def validate_file_signature(stream: BinaryIO, filename: str) -> None:
+    """Apply lightweight magic-byte checks for common binary formats."""
+    extension = Path(filename).suffix.lower()
+    position = stream.tell()
+    head = stream.read(16)
+    stream.seek(position)
+    signatures = {
+        ".pdf": (b"%PDF",),
+        ".png": (b"\x89PNG\r\n\x1a\n",),
+        ".jpg": (b"\xff\xd8\xff",),
+        ".jpeg": (b"\xff\xd8\xff",),
+        ".docx": (b"PK\x03\x04",),
+        ".xlsx": (b"PK\x03\x04",),
+        ".pptx": (b"PK\x03\x04",),
+    }
+    expected = signatures.get(extension)
+    if expected and not any(head.startswith(sig) for sig in expected):
+        raise ValueError(f"File content does not match the {extension} extension")

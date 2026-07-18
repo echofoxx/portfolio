@@ -8,6 +8,9 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["UPLOAD_DIR"] = str(Path(__file__).resolve().parent / "uploads")
 os.environ["ENVIRONMENT"] = "test"
+os.environ["RATE_LIMIT_REQUESTS"] = "10000"
+os.environ["RATE_LIMIT_WINDOW_SECONDS"] = "60"
+os.environ["TRUST_PROXY_HOPS"] = "0"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,4 +54,4 @@ def login(client: TestClient, username: str = "admin") -> None:
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert "DDC5I Senior Leadership Dashboard" in response.text
+    assert "Portfolio Overview" in response.text

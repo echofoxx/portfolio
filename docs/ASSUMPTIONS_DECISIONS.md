@@ -47,3 +47,16 @@
 - pagination and scale targets;
 - browser and accessibility validation tooling;
 - approved dependency registry and software-composition process.
+
+## v0.5.0 assumptions and unresolved decisions
+
+1. ProjectOS remains Mock/Dry Run until a target test endpoint, service identity, field mapping, idempotency key, retry policy, conflict authority, and reconciliation owner are approved.
+2. Local user administration is for the reference deployment; enterprise identity remains authoritative in production.
+3. Delegation records do not grant access until delegated-role enforcement and separation-of-duties policy are approved.
+4. Resource requests represent role/skill/hour demand and do not create official personnel assignments.
+5. Financial transactions are portfolio planning/evidence records, not official accounting postings or funds-control actions.
+6. Scenario application is permitted only for the supported application fields and does not replace required external financial/workforce/leadership approvals.
+7. Data-quality findings are owned by business/data stewards; the scanner does not silently correct authoritative source records.
+8. Report packs are snapshots, not signed records. The approved repository, retention schedule, distribution policy, and electronic signature method remain decisions.
+9. Job runs provide persisted evidence; an approved queue/worker/scheduler technology remains unresolved.
+10. OIDC is the recommended first enterprise identity adapter, but the approved broker and CAC/PIV path remain organizational decisions.

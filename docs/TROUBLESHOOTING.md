@@ -94,7 +94,7 @@ docker compose up -d --build
 
 ## Mailpit is empty
 
-The MVP includes in-app notifications and a Mailpit container boundary. Not every notification currently emits SMTP mail. Mailpit demonstrates the local delivery destination for the planned sender job; in-app notification records are authoritative in 0.1.0.
+The MVP includes in-app notifications and a Mailpit container boundary. Not every notification currently emits SMTP mail. Mailpit demonstrates the local delivery destination for the planned sender job; in-app notification records are authoritative in 0.4.0.
 
 ## Browser layout problem
 
@@ -107,3 +107,78 @@ Verify the backup file exists, gzip can read it, the database container is healt
 ## Tests fail outside Docker
 
 The test suite configures SQLite before importing the application. Install dependencies from `requirements.txt` and run from the repository root. Docker remains the supported deployment database; local SQLite is not the production datastore.
+
+
+## Search shows a stray K or does not submit
+
+Confirm the application reports v0.4.0 and the generated page references `/static/app.js?v=0.4.0`. Rebuild the web image if an older unversioned bundle is served. The search form contains a submit button and no visible keyboard-label element. Command/Ctrl+K still focuses search.
+
+## Task drawer does not open
+
+Task controls in v0.4.0 remain normal links with progressive drawer enhancement. If the drawer cannot open, the browser should navigate to the full task page. Confirm the link points to `/projects/<project-id>/tasks/<task-id>`, then inspect `docker compose logs -f web` for a failed `/panel` request. A 404 means the task is outside the current user’s project, division, or sensitivity scope.
+
+## Task file upload is rejected
+
+- Check the extension against PDF, DOCX, XLSX, PPTX, CSV, TXT, MD, JSON, PNG, JPG, and JPEG.
+- Check `MAX_UPLOAD_MB`.
+- Do not rename a different binary to an allowed extension; PDF/image/Office signatures are checked.
+- Confirm the storage volume is writable and has free space.
+- Review the redirected validation message and web logs.
+
+## Reverse proxy or rate-limit identity problems
+
+v0.4.0 uses `TRUST_PROXY_HOPS`, not Express `app.set('trust proxy')`.
+
+- Direct access: `TRUST_PROXY_HOPS=0`
+- One Synology/Nginx/Traefik/tunnel proxy: `TRUST_PROXY_HOPS=1`
+- Two controlled proxies: `TRUST_PROXY_HOPS=2`
+
+Rebuild after changing `.env`. Inspect response headers with:
+
+```bash
+curl -I https://your-host/health/ready
+```
+
+Confirm `X-Resolved-Client-IP-Source` is `forwarded` when proxied. Do not use more hops than the actual controlled path.
+
+## Task drawer does not open
+
+The Details link is a full-page fallback. Open it in a new tab or reload the page. Confirm `/static/app.js?v=0.4.0` loads with HTTP 200 and clear any proxy/browser cache that ignores query-string versioning.
+
+## A Kanban move is rejected
+
+The target column may have reached its WIP limit or may have been archived. Open Board Configuration and review the current count, limit, and criteria.
+
+## A status report cannot be edited
+
+Only Draft and Returned reports are editable. Submitted reports must be returned by an authorized reviewer. Approved reports remain locked as reporting baselines.
+
+## v0.5.0 troubleshooting
+
+### ProjectOS sync says dry run or no remote write
+
+This is expected. The seeded ProjectOS connection is `Mock`; v0.5.0 validates and stores the canonical payload but does not contact an external endpoint. Do not mark it External until the target API, credentials, ownership rules, retry/reconciliation, and network access are approved.
+
+### Integration health says External Test Required
+
+The base URL is structurally valid, but the application cannot prove target authentication/connectivity in the local reference environment. Check enabled state, mode, base URL, secret-manager integration, reverse proxy/firewall, and target API availability.
+
+### Scenario cannot be applied
+
+Calculate the scenario first, then approve it with an authorized portfolio/approval role. Only status `Approved` can be applied. Approved or applied scenarios are locked against new proposed changes.
+
+### Scenario result appears stale
+
+v0.5.0 does not automatically invalidate results when source data changes. Recalculate before approval/apply whenever project, capacity, or financial baselines have changed.
+
+### Delegation does not change access
+
+This is a known v0.5.0 boundary. The application records and audits delegation terms but does not yet inject delegated roles into every authorization decision. Assign approved temporary local roles directly only under administrator/security governance, or wait for v0.6.0 enforcement.
+
+### Data-quality scan returns the same issue
+
+The scanner refreshes existing open findings rather than duplicating them. Correct the authoritative source or document an approved disposition, then update the issue status. A future rule engine will support rule versions and automatic revalidation.
+
+### Report pack is not emailed or scheduled
+
+Report generation is currently an operator action and job record. Mail/SharePoint distribution and a durable scheduler/worker are planned for v0.6.0.

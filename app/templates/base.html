@@ -1,55 +1,85 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <title>{% block title %}DDC5I Portfolio{% endblock %}</title>
-  <link rel="stylesheet" href="/static/app.css">
-  <script defer src="/static/app.js"></script>
+  <meta name="theme-color" content="#050c16">
+  <title>{% block title %}JSJ6 Enterprise Portfolio Management{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ app_version }}">
+  <script defer src="/static/app.js?v={{ app_version }}"></script>
 </head>
 <body>
 <a href="#main-content" class="sr-only">Skip to main content</a>
-<div class="app">
+<div class="app" id="app-shell">
   <nav class="sidebar" aria-label="Primary navigation">
-    <div class="brand"><div class="brand-mark">D5</div><div><h1>DDC5I Portfolio</h1><small>Enterprise MVP {{ app_version }}</small></div></div>
-    <div class="nav-group">Decision Support</div>
-    <a class="nav-link {% if request.url.path=='/dashboard' %}active{% endif %}" href="/dashboard">▦ Executive</a>
-    <a class="nav-link {% if request.url.path.startswith('/divisions') %}active{% endif %}" href="/divisions">⌂ Divisions</a>
-    <a class="nav-link {% if request.url.path=='/strategy' %}active{% endif %}" href="/strategy">◎ Strategy & Mission</a>
-    <a class="nav-link {% if request.url.path.startswith('/demands') %}active{% endif %}" href="/demands">⇢ Demand</a>
-    <a class="nav-link {% if request.url.path=='/assessments' %}active{% endif %}" href="/assessments">◫ Assessments</a>
-    <a class="nav-link {% if request.url.path=='/decisions' %}active{% endif %}" href="/decisions">✓ Decisions</a>
-    <div class="nav-group">Delivery</div>
-    <a class="nav-link {% if request.url.path.startswith('/projects') %}active{% endif %}" href="/projects">▤ Projects</a>
-    <a class="nav-link {% if request.url.path=='/risks' %}active{% endif %}" href="/risks">△ Risks & Dependencies</a>
-    <a class="nav-link {% if request.url.path=='/resources' %}active{% endif %}" href="/resources">♟ Resources</a>
-    <a class="nav-link {% if request.url.path=='/financials' %}active{% endif %}" href="/financials">$ Financials</a>
-    <a class="nav-link {% if request.url.path=='/benefits' %}active{% endif %}" href="/benefits">◇ Benefits</a>
-    <a class="nav-link {% if request.url.path=='/reports' %}active{% endif %}" href="/reports">▥ Reports</a>
-    <div class="nav-group">Personal</div>
-    <a class="nav-link {% if request.url.path=='/my-work' %}active{% endif %}" href="/my-work">☑ My Work</a>
-    <a class="nav-link {% if request.url.path=='/notifications' %}active{% endif %}" href="/notifications">◉ Notifications {% if unread_notifications %}<span class="badge badge-At-Risk">{{ unread_notifications }}</span>{% endif %}</a>
-    {% if saved_views %}<div class="nav-group">Saved Views</div>{% for v in saved_views %}<a class="nav-link" href="{{ v.route }}{% if v.query_string %}?{{ v.query_string }}{% endif %}">★ {{ v.name }}</a>{% endfor %}{% endif %}
-    {% if 'ADMIN' in user.roles or 'PMO' in user.roles or 'AUDITOR' in user.roles or 'DATA_STEWARD' in user.roles or 'SENIOR_LEADER' in user.roles or 'ENTERPRISE_PORTFOLIO_OWNER' in user.roles %}
-    <div class="nav-group">Governance</div>
-    {% if 'ADMIN' in user.roles or 'PMO' in user.roles or 'DATA_STEWARD' in user.roles %}<a class="nav-link {% if request.url.path.startswith('/imports') %}active{% endif %}" href="/imports">⇩ Excel Imports</a>{% endif %}
-    <a class="nav-link {% if request.url.path=='/requirements' %}active{% endif %}" href="/requirements">≡ Requirements RTM</a>
-    {% if 'AUDITOR' in user.roles or 'ADMIN' in user.roles or 'SECURITY_REVIEWER' in user.roles or 'PMO' in user.roles %}<a class="nav-link {% if request.url.path=='/audit' %}active{% endif %}" href="/audit">⌕ Audit</a>{% endif %}
-    {% if 'ADMIN' in user.roles %}<a class="nav-link {% if request.url.path=='/administration' %}active{% endif %}" href="/administration">⚙ Administration</a>{% endif %}
-    {% endif %}
+    <div class="brand">
+      <a class="brand-lockup" href="/dashboard" aria-label="JSJ6 Portfolio home">
+        <div class="brand-mark">J6</div>
+        <div class="brand-copy"><h1>JSJ6</h1><small>Enterprise Portfolio Management</small></div>
+      </a>
+      <button class="sidebar-toggle" type="button" data-action="toggle-sidebar" aria-label="Collapse navigation">‹</button>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-group">Portfolio</div>
+      <a class="nav-link {% if request.url.path=='/dashboard' %}active{% endif %}" href="/dashboard"><span class="nav-icon">▦</span><span>Overview</span></a>
+      <a class="nav-link {% if request.url.path=='/strategy' %}active{% endif %}" href="/strategy"><span class="nav-icon">⌁</span><span>Strategy</span></a>
+      <a class="nav-link {% if request.url.path.startswith('/demands') or request.url.path=='/assessments' %}active{% endif %}" href="/demands"><span class="nav-icon">◷</span><span>Demand Intake</span></a>
+      <a class="nav-link {% if request.url.path.startswith('/portfolio-reviews') or request.url.path.startswith('/divisions') %}active{% endif %}" href="/portfolio-reviews"><span class="nav-icon">▣</span><span>Portfolio</span></a>
+      <a class="nav-link {% if request.url.path.startswith('/projects') or request.url.path=='/roadmaps' or request.url.path=='/templates' %}active{% endif %}" href="/projects"><span class="nav-icon">▤</span><span>Projects</span></a>
+      <a class="nav-link {% if request.url.path=='/resources' %}active{% endif %}" href="/resources"><span class="nav-icon">♙</span><span>Resources</span></a>
+      <a class="nav-link {% if request.url.path=='/financials' or request.url.path=='/benefits' %}active{% endif %}" href="/financials"><span class="nav-icon">◫</span><span>Investments</span></a>
+      <a class="nav-link {% if request.url.path=='/reports' or request.url.path=='/operations' %}active{% endif %}" href="/reports"><span class="nav-icon">▥</span><span>Reports &amp; Analytics</span></a>
+      {% if 'SENIOR_LEADER' in user.roles or 'ENTERPRISE_PORTFOLIO_OWNER' in user.roles or 'DIVISION_CHIEF' in user.roles or 'DIVISION_PORTFOLIO_MANAGER' in user.roles or 'RESOURCE_MANAGER' in user.roles or 'FINANCIAL_MANAGER' in user.roles or 'PMO' in user.roles or 'ADMIN' in user.roles %}<a class="nav-link {% if request.url.path.startswith('/scenarios') %}active{% endif %}" href="/scenarios"><span class="nav-icon">◇</span><span>Scenarios</span></a>{% endif %}
+
+      <div class="nav-group">Quick Access</div>
+      <a class="nav-link {% if request.url.path=='/my-work' %}active{% endif %}" href="/my-work"><span class="nav-icon">☑</span><span>My Work</span></a>
+      <a class="nav-link {% if request.url.path=='/roadmaps' %}active{% endif %}" href="/roadmaps"><span class="nav-icon">↝</span><span>Roadmaps</span></a>
+      <a class="nav-link {% if request.url.path=='/templates' %}active{% endif %}" href="/templates"><span class="nav-icon">▦</span><span>Blueprints</span></a>
+      <a class="nav-link {% if request.url.path=='/notifications' %}active{% endif %}" href="/notifications"><span class="nav-icon">◉</span><span>Notifications</span>{% if unread_notifications %}<b class="nav-count">{{ unread_notifications }}</b>{% endif %}</a>
+      <a class="nav-link {% if request.url.path=='/decisions' %}active{% endif %}" href="/decisions"><span class="nav-icon">✓</span><span>Decisions</span></a>
+      <a class="nav-link {% if request.url.path=='/risks' %}active{% endif %}" href="/risks"><span class="nav-icon">△</span><span>Risks &amp; Dependencies</span></a>
+      {% for v in saved_views %}<a class="nav-link" href="{{ v.route }}{% if v.query_string %}?{{ v.query_string }}{% endif %}"><span class="nav-icon">★</span><span>{{ v.name }}</span></a>{% endfor %}
+
+      {% if 'ADMIN' in user.roles or 'PMO' in user.roles or 'AUDITOR' in user.roles or 'DATA_STEWARD' in user.roles or 'SENIOR_LEADER' in user.roles or 'ENTERPRISE_PORTFOLIO_OWNER' in user.roles %}
+      <div class="nav-group">Administration</div>
+      {% if 'ADMIN' in user.roles %}<a class="nav-link {% if request.url.path=='/administration' %}active{% endif %}" href="/administration"><span class="nav-icon">♧</span><span>Users &amp; Teams</span></a>{% endif %}
+      {% if 'ADMIN' in user.roles or 'PMO' in user.roles or 'DATA_STEWARD' in user.roles %}<a class="nav-link {% if request.url.path.startswith('/imports') %}active{% endif %}" href="/imports"><span class="nav-icon">⇩</span><span>Excel Imports</span></a>{% endif %}
+      <a class="nav-link {% if request.url.path.startswith('/requirements') %}active{% endif %}" href="/requirements"><span class="nav-icon">≡</span><span>Requirements RTM</span></a>
+      {% if 'DATA_STEWARD' in user.roles or 'ADMIN' in user.roles or 'AUDITOR' in user.roles or 'PMO' in user.roles or 'SENIOR_LEADER' in user.roles %}<a class="nav-link {% if request.url.path=='/data-quality' %}active{% endif %}" href="/data-quality"><span class="nav-icon">◆</span><span>Data Quality</span></a>{% endif %}
+      {% if 'ADMIN' in user.roles or 'PMO' in user.roles or 'DATA_STEWARD' in user.roles or 'AUDITOR' in user.roles %}<a class="nav-link {% if request.url.path=='/integrations' %}active{% endif %}" href="/integrations"><span class="nav-icon">⇄</span><span>Integrations</span></a>{% endif %}
+      {% if 'AUDITOR' in user.roles or 'ADMIN' in user.roles or 'SECURITY_REVIEWER' in user.roles or 'PMO' in user.roles %}<a class="nav-link {% if request.url.path=='/audit' %}active{% endif %}" href="/audit"><span class="nav-icon">⌕</span><span>Audit &amp; Activity</span></a>{% endif %}
+      {% endif %}
+    </div>
+    <div class="sidebar-foot"><button class="collapse-control" type="button" data-action="toggle-sidebar"><span>‹</span><span>Collapse</span></button><small>v{{ app_version }}</small></div>
   </nav>
+
   <div class="main">
     <header class="topbar">
       <div class="top-left">
-        <form action="/search" method="get"><label class="sr-only" for="global-q">Global search</label><input id="global-q" aria-label="Global search" class="input global-search" name="q" placeholder="Search IDs, demands, projects, requirements…" required></form>
+        <button class="mobile-menu btn icon-btn" type="button" data-action="toggle-sidebar" aria-label="Open navigation">☰</button>
+        <div class="search-shell"><form action="/search" method="get" class="search-form" role="search"><span class="search-icon" aria-hidden="true">⌕</span><label class="sr-only" for="global-q">Global search</label><input id="global-q" aria-label="Global search" class="global-search" name="q" value="{{ search_query }}" placeholder="Search projects, investments, decisions, resources…" autocomplete="off" aria-autocomplete="list" aria-controls="search-suggestions" required><kbd>⌘K</kbd><button class="search-submit" type="submit" aria-label="Submit search">Search</button></form><div id="search-suggestions" class="search-suggestions" role="listbox" hidden></div></div>
       </div>
       <div class="top-actions">
-        <span class="muted">{{ user.full_name }} · {{ user.roles|join(', ') }}</span>
-        <button class="btn icon-btn" type="button" onclick="toggleTheme()" aria-label="Toggle light and dark theme">◐</button>
-        <form action="/logout" method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn" type="submit">Sign out</button></form>
+        <a class="top-icon" href="/notifications" aria-label="Notifications"><span>♧</span>{% if unread_notifications %}<b>{{ unread_notifications }}</b>{% endif %}</a>
+        <button class="top-icon" type="button" data-action="toggle-theme" aria-label="Toggle light and dark theme" title="Toggle light/dark theme">◐</button>
+        <div class="user-menu"><div class="avatar small">{{ user.full_name[:1] }}</div><div class="user-copy"><strong>{{ user.full_name }}</strong><small>{{ user.roles[0]|replace('_',' ')|title if user.roles else 'Portfolio Owner' }}</small></div></div>
+        <form action="/logout" method="post" class="signout-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn btn-ghost btn-small" type="submit">Sign out</button></form>
       </div>
     </header>
+
+    <nav class="top-tabs" aria-label="Portfolio sections">
+      <a class="{% if request.url.path=='/dashboard' %}active{% endif %}" href="/dashboard"><span>⌂</span>Home</a>
+      <a class="{% if request.url.path=='/strategy' %}active{% endif %}" href="/strategy"><span>⌁</span>Strategy</a>
+      <a class="{% if request.url.path.startswith('/demands') %}active{% endif %}" href="/demands"><span>▱</span>Demand Intake</a>
+      <a class="{% if request.url.path.startswith('/portfolio-reviews') %}active{% endif %}" href="/portfolio-reviews"><span>▦</span>Portfolio</a>
+      <a class="{% if request.url.path.startswith('/projects') %}active{% endif %}" href="/projects"><span>▧</span>Projects</a>
+      <a class="{% if request.url.path=='/resources' %}active{% endif %}" href="/resources"><span>♙</span>Resources</a>
+      <a class="{% if request.url.path=='/financials' %}active{% endif %}" href="/financials"><span>▤</span>Investments</a>
+      <a class="{% if request.url.path=='/reports' %}active{% endif %}" href="/reports"><span>▥</span>Reports &amp; Analytics</a>
+      <a class="{% if request.url.path.startswith('/scenarios') %}active{% endif %}" href="/scenarios"><span>◇</span>Scenarios</a>
+    </nav>
+
     <main id="main-content" class="content">
       {% if message %}<div class="flash {{ level }}" role="status">{{ message }}</div>{% endif %}
       {% block content %}{% endblock %}

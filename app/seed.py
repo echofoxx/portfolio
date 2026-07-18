@@ -12,22 +12,38 @@ from app.models import (
     Assessment,
     AuditEvent,
     Benefit,
+    BoardColumn,
     CoreFunction,
     Decision,
     Demand,
     Dependency,
     FinancialRecord,
+    FinancialTransaction,
+    FieldOwnershipRuleRecord,
+    IntegrationConnection,
+    JobRun,
     MetricDefinition,
     Milestone,
     Mission,
     Notification,
     Organization,
     Portfolio,
+    PortfolioReview,
+    PortfolioReviewItem,
     Project,
+    ProjectTemplate,
     RaidItem,
     RequirementTrace,
     ResourceCapacity,
+    ResourceRequest,
+    ReportPack,
+    Scenario,
+    ScenarioChange,
+    StatusReport,
     Task,
+    TaskComment,
+    TaskNoteRevision,
+    TaskRelationship,
     User,
 )
 from app.services.scoring import calculate_weighted_score
@@ -82,8 +98,189 @@ def next_action_id(db: Session) -> str:
     return f"ACT-26-{n:03d}"
 
 
+
+def ensure_v040_reference_data(db: Session) -> None:
+    """Idempotently add v0.4 board, template, note, and reporting demonstration data."""
+    projects = db.query(Project).order_by(Project.human_id).all()
+    default_columns = [
+        ("Backlog", 0, 0, "Captured and ready for refinement", "Ready for prioritization"),
+        ("Ready", 1, 8, "Scope and owner are clear", "Capacity is available"),
+        ("In Progress", 2, 6, "Owner accepted work", "Acceptance criteria are satisfied"),
+        ("Review", 3, 4, "Evidence is attached", "Reviewer accepts completion"),
+        ("Done", 4, 0, "Acceptance evidence approved", "Work is closed"),
+    ]
+    for project in projects:
+        if db.query(BoardColumn).filter(BoardColumn.project_id == project.id).count() == 0:
+            for name, position, wip_limit, entry, exit_criteria in default_columns:
+                db.add(BoardColumn(project_id=project.id, name=name, position=position, wip_limit=wip_limit, entry_criteria=entry, exit_criteria=exit_criteria))
+
+    admin = db.query(User).filter(User.username == "admin").first()
+    templates = [
+        {
+            "code": "GENERAL", "name": "General Governed Project", "category": "General",
+            "description": "A balanced delivery blueprint with initiation, delivery, validation, and transition controls.",
+            "blueprint": {
+                "columns": [
+                    {"name": "Backlog", "wip_limit": 0}, {"name": "Ready", "wip_limit": 8},
+                    {"name": "In Progress", "wip_limit": 6}, {"name": "Review", "wip_limit": 4}, {"name": "Done", "wip_limit": 0}
+                ],
+                "tasks": [
+                    {"title": "Confirm charter and decision authority", "type": "Approval", "priority": "High", "offset": 7, "effort": 16},
+                    {"title": "Baseline scope, WBS, schedule, resources, and risks", "type": "Summary", "priority": "High", "offset": 14, "effort": 40},
+                    {"title": "Deliver approved capability increment", "type": "Deliverable", "priority": "High", "offset": 60, "effort": 160},
+                    {"title": "Validate acceptance evidence", "type": "Approval", "priority": "High", "offset": 75, "effort": 48},
+                    {"title": "Transition, close, and capture lessons", "type": "Task", "priority": "Medium", "offset": 90, "effort": 32}
+                ],
+                "milestones": [
+                    {"title": "Baseline approved", "offset": 14, "critical": True},
+                    {"title": "Operational acceptance", "offset": 75, "critical": True},
+                    {"title": "Transition complete", "offset": 90, "critical": False}
+                ]
+            }
+        },
+        {
+            "code": "ASSESSMENT", "name": "Joint Assessment Event", "category": "Assessment",
+            "description": "Decision-centered assessment planning, execution, analysis, adjudication, and reporting blueprint.",
+            "blueprint": {
+                "columns": [
+                    {"name": "Planned", "wip_limit": 0}, {"name": "Ready for Collection", "wip_limit": 10},
+                    {"name": "Collecting", "wip_limit": 6}, {"name": "Analysis", "wip_limit": 5},
+                    {"name": "Adjudication", "wip_limit": 4}, {"name": "Complete", "wip_limit": 0}
+                ],
+                "tasks": [
+                    {"title": "Approve purpose, hypothesis, objectives, and critical questions", "type": "Approval", "priority": "Critical", "offset": 10, "effort": 24},
+                    {"title": "Build measures and data collection plan", "type": "Deliverable", "priority": "High", "offset": 25, "effort": 80},
+                    {"title": "Validate instruments, collectors, and evidence handling", "type": "Approval", "priority": "High", "offset": 40, "effort": 48},
+                    {"title": "Execute event data collection", "type": "Task", "priority": "Critical", "offset": 65, "effort": 200},
+                    {"title": "Analyze and adjudicate findings", "type": "Summary", "priority": "High", "offset": 85, "effort": 120},
+                    {"title": "Deliver executive report and action tracker", "type": "Deliverable", "priority": "Critical", "offset": 100, "effort": 64}
+                ],
+                "milestones": [
+                    {"title": "Assessment plan approved", "offset": 40, "critical": True},
+                    {"title": "On-site execution complete", "offset": 65, "critical": True},
+                    {"title": "Final report accepted", "offset": 100, "critical": True}
+                ]
+            }
+        },
+        {
+            "code": "DATASTD", "name": "Data and Standards Initiative", "category": "Data and Standards",
+            "description": "Standards modernization blueprint with governance, engineering, conformance support, and transition evidence.",
+            "blueprint": {
+                "columns": [
+                    {"name": "Candidate", "wip_limit": 0}, {"name": "Governance Review", "wip_limit": 5},
+                    {"name": "Engineering", "wip_limit": 6}, {"name": "Validation", "wip_limit": 4}, {"name": "Published", "wip_limit": 0}
+                ],
+                "tasks": [
+                    {"title": "Confirm authoritative baseline and stakeholder need", "type": "Approval", "priority": "High", "offset": 10, "effort": 32},
+                    {"title": "Develop canonical model and change package", "type": "Deliverable", "priority": "High", "offset": 50, "effort": 160},
+                    {"title": "Conduct implementation and conformance-support review", "type": "Task", "priority": "High", "offset": 70, "effort": 96},
+                    {"title": "Resolve comments and publish transition package", "type": "Deliverable", "priority": "Critical", "offset": 95, "effort": 80}
+                ],
+                "milestones": [
+                    {"title": "Change package accepted for coordination", "offset": 50, "critical": True},
+                    {"title": "Validation evidence complete", "offset": 70, "critical": True},
+                    {"title": "Publication decision", "offset": 95, "critical": True}
+                ]
+            }
+        }
+    ]
+    for spec in templates:
+        if not db.query(ProjectTemplate).filter_by(code=spec["code"], version=1).first():
+            db.add(ProjectTemplate(code=spec["code"], name=spec["name"], description=spec["description"], version=1, category=spec["category"], blueprint=spec["blueprint"], created_by_id=admin.id if admin else None))
+
+    # Preserve initial working-note evidence in a revision stream.
+    for task in db.query(Task).filter(Task.notes != "").all():
+        if db.query(TaskNoteRevision).filter(TaskNoteRevision.task_id == task.id).count() == 0:
+            db.add(TaskNoteRevision(task_id=task.id, author_id=task.owner_id or (admin.id if admin else task.owner_id), revision=1, body=task.notes, change_summary="Initial imported working notes"))
+
+    # Seed approved status reports for executive comparison and governed reporting roll-up.
+    if admin:
+        for index, project in enumerate(projects[:8]):
+            if db.query(StatusReport).filter(StatusReport.project_id == project.id).count() == 0:
+                period_end = date.today() - timedelta(days=(index % 3) * 14)
+                report = StatusReport(
+                    human_id=f"SR-26-{index + 1:03d}", project_id=project.id,
+                    period_start=period_end - timedelta(days=13), period_end=period_end, version=1,
+                    status="Approved", health=project.health_owner, percent_complete=project.percent_complete,
+                    accomplishments=f"Advanced the approved scope for {project.title} and retained supporting evidence.",
+                    planned_work="Resolve open dependencies, complete the next milestone, and update acceptance evidence.",
+                    decisions_required="Leadership decision required on capacity or dependency escalation." if project.health_owner in {"At Risk", "Off Track", "Blocked"} else "No immediate leadership decision required.",
+                    risks_and_dependencies="See linked RAID and dependency records in the authoritative project workspace.",
+                    summary=f"{project.human_id} is {project.health_owner.lower()} at {project.percent_complete}% complete. Current evidence is sourced from project tasks, milestones, RAID, dependencies, resources, and financial records.",
+                    submitted_by_id=project.manager_id, submitted_at=datetime.now(timezone.utc) - timedelta(days=2),
+                    approved_by_id=admin.id, approved_at=datetime.now(timezone.utc) - timedelta(days=1),
+                )
+                db.add(report)
+    db.flush()
+
+
+def ensure_v050_reference_data(db: Session) -> None:
+    admin = db.query(User).filter_by(username="admin").first()
+    pmo = db.query(User).filter_by(username="pmo").first() or admin
+    approver = db.query(User).filter_by(username="approver").first() or admin
+    if not admin:
+        return
+    connections = [
+        ("PROJECTOS-MOCK", "ProjectOS Local Sandbox", "ProjectOS", "Mock", True),
+        ("M365", "Microsoft 365 / Graph", "Microsoft Graph", "Disabled", False),
+        ("SHAREPOINT", "SharePoint", "SharePoint", "Disabled", False),
+    ]
+    for code, name, kind, mode, enabled in connections:
+        if not db.query(IntegrationConnection).filter_by(code=code).first():
+            db.add(IntegrationConnection(code=code, name=name, kind=kind, mode=mode, enabled=enabled, status="Healthy (Mock)" if mode=="Mock" else "Not Tested", created_by_id=admin.id))
+    rules = [
+        ("Demand", "status", "DDC5I-PM", ["DDC5I-PM"]),
+        ("Project", "portfolio_id", "DDC5I-PM", ["DDC5I-PM"]),
+        ("Task", "percent_complete", "ProjectOS", ["ProjectOS"]),
+        ("FinancialRecord", "actual_cost", "Financial System", ["Financial System"]),
+        ("User", "employment_status", "Workforce System", ["Workforce System"]),
+    ]
+    for entity, field, authority, writers in rules:
+        if not db.query(FieldOwnershipRuleRecord).filter_by(entity_type=entity, field_name=field).first():
+            db.add(FieldOwnershipRuleRecord(entity_type=entity, field_name=field, authoritative_system=authority, allowed_writers=writers))
+    db.flush()
+    if not db.query(PortfolioReview).count():
+        portfolio = db.query(Portfolio).order_by(Portfolio.code).first()
+        org = db.query(Organization).filter_by(org_type="Division").first()
+        review = PortfolioReview(human_id="REV-26-001", title="FY26 Q4 Enterprise Portfolio Review", review_type="Portfolio Review", portfolio_id=portfolio.id if portfolio else None, org_id=None, period_start=date.today()-timedelta(days=90), period_end=date.today(), status="In Review", chair_id=approver.id, participant_ids=[admin.id, pmo.id, approver.id], summary="Review mission impact, capacity conflicts, funding posture, dependencies, and decisions required across the DDC5I portfolio.", decisions_required="Resolve at-risk delivery and approve capacity tradeoffs for the next reporting period.")
+        db.add(review); db.flush()
+        project = db.query(Project).filter(Project.status=="Active").order_by(Project.human_id).first()
+        if project:
+            db.add(PortfolioReviewItem(review_id=review.id, item_type="Decision", entity_type="Project", entity_id=project.id, title=f"Recovery decision for {project.human_id}", recommendation="Accelerate" if project.health_owner in {"At Risk","Off Track","Blocked"} else "Continue", rationale="Source record indicates schedule, dependency, capacity, and funding posture should be reviewed together.", owner_id=project.manager_id, sort_order=1))
+    if not db.query(ResourceRequest).count():
+        org = db.query(Organization).filter_by(org_type="Division").first(); project = db.query(Project).filter(Project.lead_org_id==org.id).first() if org else None
+        db.add(ResourceRequest(human_id="RRQ-26-001", org_id=org.id, project_id=project.id if project else None, role_name="Data Engineer", skill="Semantic interoperability", requested_hours=240, period_start=date.today(), period_end=date.today()+timedelta(days=90), priority="High", status="Submitted", requested_by_id=project.manager_id if project else pmo.id, rationale="Resolve a forecast skill gap affecting a cross-division mission dependency."))
+    if not db.query(FinancialTransaction).count():
+        financial = db.query(FinancialRecord).first()
+        if financial:
+            db.add(FinancialTransaction(human_id="FIN-26-001", financial_record_id=financial.id, transaction_type="Commitment", amount=25000, transaction_date=date.today()-timedelta(days=10), reference="DEMO-COMMIT-001", source_system="DDC5I-PM", notes="Demonstration commitment retained for investment-review workflow.", created_by_id=admin.id))
+    if not db.query(Scenario).count():
+        scenario = Scenario(human_id="SCN-26-001", name="Enterprise 10 Percent Budget Reduction", scenario_type="Budget Change", baseline_date=date.today(), status="Draft", assumptions="Model a non-destructive reduction against selected project funding while preserving mission-critical and mandatory work.", created_by_id=pmo.id)
+        db.add(scenario); db.flush()
+        project = db.query(Project).filter(Project.status=="Active").order_by(Project.budget.desc()).first()
+        if project:
+            db.add(ScenarioChange(scenario_id=scenario.id, entity_type="Project", entity_id=project.id, field_name="budget", baseline_value=float(project.budget), proposed_value=float(project.budget)*0.9, rationale="Illustrate mission and portfolio effects of a constrained funding profile."))
+    if not db.query(ReportPack).count():
+        db.add(ReportPack(human_id="RPT-26-001", name="DDC5I Enterprise Portfolio Summary", pack_type="Executive Portfolio Summary", period_start=date.today()-timedelta(days=30), period_end=date.today(), status="Generated", sections=[{"title":"Portfolio health","value":db.query(Project).count(),"detail":"Seeded operational portfolio inventory"},{"title":"Demand pipeline","value":db.query(Demand).count(),"detail":"Seeded governed demand funnel"}], narrative="This source-grounded demonstration pack summarizes the current portfolio and demand pipeline without fabricating external facts.", generated_by_id=pmo.id))
+    if not db.query(JobRun).count():
+        db.add(JobRun(job_type="Initial v0.5.0 Seed Validation", status="Succeeded", started_at=datetime.now(timezone.utc), completed_at=datetime.now(timezone.utc), attempts=1, result={"status":"reference data available"}, created_by_id=admin.id))
+    # Keep upgraded databases synchronized with the packaged RTM evidence without
+    # creating duplicate requirement rows.
+    requirements_path = Path(__file__).parent / "data" / "requirements.json"
+    for spec in json.loads(requirements_path.read_text(encoding="utf-8")):
+        trace = db.query(RequirementTrace).filter_by(requirement_id=spec["requirement_id"]).first()
+        if not trace:
+            continue
+        for field in ("implementation_status", "design_reference", "module_reference", "test_case", "uat_result", "release", "acceptance_notes", "decision_comments"):
+            if field in spec:
+                setattr(trace, field, spec[field])
+    db.flush()
+
 def seed_database(db: Session) -> None:
     if db.query(User).count() > 0:
+        ensure_v040_reference_data(db)
+        ensure_v050_reference_data(db)
+        db.commit()
         return
     random.seed(42)
     enterprise = Organization(code="DDC5I", name="DDC5I Enterprise", org_type="Enterprise", narrative="DDC5I synchronizes command-and-control, data, standards, architecture, assessment, infrastructure, and integration portfolios to improve Joint and coalition decision advantage.")
@@ -187,11 +384,36 @@ def seed_database(db: Session) -> None:
     demands[10].disposition = f"Converted to {projects[0].human_id}"
 
     columns = ["Backlog", "Ready", "In Progress", "Review", "Done"]
+    tasks: list[Task] = []
     for i in range(80):
         p = projects[i % 12]
         col = columns[i % len(columns)]
         complete = {"Backlog":0,"Ready":10,"In Progress":50,"Review":85,"Done":100}[col]
-        db.add(Task(human_id=f"TSK-26-{i+1:04d}", project_id=p.id, title=f"{['Define','Design','Build','Validate','Transition'][i%5]} work package {i+1}", status="Completed" if col=="Done" else "In Progress" if col in {"In Progress","Review"} else "Not Started", board_column=col, owner_id=pm_users[i%len(pm_users)].id, start_date=date.today()-timedelta(days=i%30), due_date=date.today()+timedelta(days=7+(i%45)), estimated_effort=16+(i%5)*8, actual_effort=complete/100*(16+(i%5)*8), percent_complete=complete, checklist=[{"text":"Definition complete","done":complete>=25},{"text":"Evidence attached","done":complete>=85}], notes="Seeded work item with traceable owner and dates.", acceptance_evidence="Demonstration evidence" if col=="Done" else "", sequence=i+1, indent_level=i%3, baseline_due_date=date.today()+timedelta(days=5+(i%45))))
+        task = Task(
+            human_id=f"TSK-26-{i+1:04d}", project_id=p.id,
+            title=f"{['Define','Design','Build','Validate','Transition'][i%5]} work package {i+1}",
+            description=f"Execute the {['definition','design','build','validation','transition'][i%5]} activities, retain evidence, and coordinate affected stakeholders for {p.title}.",
+            priority=["Low","Medium","High","Critical"][i%4],
+            tags=[["planning","mission"],["design","architecture"],["delivery","integration"],["validation","evidence"]][i%4],
+            status="Completed" if col=="Done" else "In Progress" if col in {"In Progress","Review"} else "Not Started",
+            board_column=col, owner_id=pm_users[i%len(pm_users)].id,
+            contributor_ids=[pm_users[(i+1)%len(pm_users)].id],
+            start_date=date.today()-timedelta(days=i%30), due_date=date.today()+timedelta(days=7+(i%45)),
+            estimated_effort=16+(i%5)*8, actual_effort=complete/100*(16+(i%5)*8), percent_complete=complete,
+            checklist=[{"id":f"seed-{i}-definition","text":"Definition complete","done":complete>=25},{"id":f"seed-{i}-evidence","text":"Evidence attached","done":complete>=85}],
+            notes="Coordinate with the accountable owner, document blockers, and capture handoff notes in this task workspace.",
+            acceptance_evidence="Demonstration evidence reviewed and accepted." if col=="Done" else "",
+            sequence=i+1, indent_level=i%3, baseline_due_date=date.today()+timedelta(days=5+(i%45))
+        )
+        db.add(task)
+        tasks.append(task)
+    db.flush()
+    for i, task in enumerate(tasks[:24]):
+        db.add(TaskComment(task_id=task.id, author_id=pm_users[(i+1)%len(pm_users)].id, body=f"Initial coordination note for {task.human_id}: confirm evidence owner and next review date.", mentions=[task.owner_id] if task.owner_id else []))
+    for i in range(12):
+        source = tasks[i]
+        target = tasks[i+12]
+        db.add(TaskRelationship(source_task_id=source.id, target_task_id=target.id, relationship_type=["Finish-to-start","Start-to-start","Finish-to-finish"][i%3], created_by_id=source.owner_id or users["admin"].id))
     for i in range(35):
         p=projects[i%12]; status="Completed" if i%6==0 else "At Risk" if i%7==0 else "In Progress"
         db.add(Milestone(human_id=f"MS-26-{i+1:03d}", project_id=p.id, title=f"{['Requirements approved','Prototype ready','Integration test','Operational demonstration','Transition decision'][i%5]}", baseline_date=date.today()+timedelta(days=i*8-40), current_date=date.today()+timedelta(days=i*8-40+(12 if status=="At Risk" else 0)), status=status, confidence="Low" if status=="At Risk" else "High" if status=="Completed" else "Medium", owner_id=pm_users[i%len(pm_users)].id, critical=(i%4==0)))
@@ -245,6 +467,9 @@ def seed_database(db: Session) -> None:
     for i,u in enumerate(list(users.values())[:12]):
         db.add(Notification(user_id=u.id, title="Portfolio action assigned", message="Review the latest decision, milestone, or demand assignment in the authoritative record.", link="/my-work", notification_type="Assignment"))
     db.add(AuditEvent(actor_id=users["admin"].id, entity_type="System", entity_id="seed", action="DEMO_DATA_SEEDED", after_json={"demands":20,"projects":17,"tasks":80,"requirements":307}))
+    db.flush()
+    ensure_v040_reference_data(db)
+    ensure_v050_reference_data(db)
     db.commit()
 
 

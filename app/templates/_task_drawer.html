@@ -1,0 +1,107 @@
+<div class="task-drawer-panel" role="dialog" aria-modal="{{ 'false' if task_full_page else 'true' }}" aria-labelledby="task-workspace-title">
+  <div class="drawer-header">
+    <div>
+      <div class="eyebrow">{{ project.human_id }} · {{ task.task_type }} · Authoritative Task Workspace</div>
+      <h2 id="task-workspace-title">{{ task.human_id }} · {{ task.title }}</h2>
+      <p>{{ task.description or 'No detailed description has been entered.' }}</p>
+    </div>
+    <div class="actions">
+      {% if not task_full_page %}<a class="btn btn-small" href="/projects/{{ project.id }}/tasks/{{ task.id }}">Full Page</a><button class="drawer-close" type="button" data-task-drawer-close aria-label="Close task details">×</button>{% else %}<a class="btn" href="/projects/{{ project.id }}?tab=board">Back to Board</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="task-workspace-tabs" aria-label="Task workspace sections">
+    <a href="#task-overview">Overview</a><a href="#task-checklist">Checklist</a><a href="#task-notes">Notes</a><a href="#task-comments">Comments</a><a href="#task-files">Files</a><a href="#task-dependencies">Dependencies</a><a href="#task-history">History</a><a href="#task-traceability">Traceability</a>
+  </div>
+
+  <section class="drawer-section" id="task-overview">
+    <div class="panel-head"><div><div class="eyebrow">Task Details</div><h3>Accountability, schedule, effort, and acceptance</h3></div><span class="badge badge-{{ task.status|badge }}">{{ task.status }}</span></div>
+    {% if editable %}
+      <form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/update">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <div class="form-grid">
+          <div class="field field-span-2"><label for="task-title-{{ task.id }}">Title</label><input class="input" id="task-title-{{ task.id }}" name="title" value="{{ task.title }}" required></div>
+          <div class="field"><label>Task type</label><select class="select" name="task_type">{% for x in ['Task','Summary','Milestone','Deliverable','Approval','Recurring'] %}<option {% if task.task_type==x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Priority</label><select class="select" name="priority">{% for x in ['Low','Medium','High','Critical'] %}<option {% if task.priority==x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></div>
+          <div class="field field-span-2"><label>Description / acceptance criteria</label><textarea class="textarea" name="description">{{ task.description }}</textarea></div>
+          <div class="field"><label>Status</label><select class="select" name="status">{% for x in ['Not Started','In Progress','Blocked','Completed','On Hold'] %}<option {% if task.status==x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Board column</label><select class="select" name="board_column">{% for x in columns %}<option {% if task.board_column==x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Owner</label><select class="select" name="owner_id"><option value="">Unassigned</option>{% for uid,u in users_map.items() %}<option value="{{ uid }}" {% if task.owner_id==uid %}selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Contributors</label><select class="select" name="contributor_ids" multiple size="4">{% for uid,u in users_map.items() %}<option value="{{ uid }}" {% if uid in task.contributor_ids %}selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Watchers</label><select class="select" name="watcher_ids" multiple size="4">{% for uid,u in users_map.items() %}<option value="{{ uid }}" {% if uid in task.watcher_ids %}selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Start date</label><input class="input" name="start_date" type="date" value="{{ task.start_date.isoformat() if task.start_date else '' }}"></div>
+          <div class="field"><label>Due date</label><input class="input" name="due_date" type="date" value="{{ task.due_date.isoformat() if task.due_date else '' }}"></div>
+          <div class="field"><label>Baseline due</label><input class="input" name="baseline_due_date" type="date" value="{{ task.baseline_due_date.isoformat() if task.baseline_due_date else '' }}"></div>
+          <div class="field"><label>Actual start</label><input class="input" name="actual_start_date" type="date" value="{{ task.actual_start_date.isoformat() if task.actual_start_date else '' }}"></div>
+          <div class="field"><label>Actual finish</label><input class="input" name="actual_finish_date" type="date" value="{{ task.actual_finish_date.isoformat() if task.actual_finish_date else '' }}"></div>
+          <div class="field"><label>Estimated effort (hours)</label><input class="input" name="estimated_effort" type="number" min="0" step="0.5" value="{{ task.estimated_effort }}"></div>
+          <div class="field"><label>Actual effort (hours)</label><input class="input" name="actual_effort" type="number" min="0" step="0.5" value="{{ task.actual_effort }}"></div>
+          <div class="field"><label>Percent complete</label><input class="input" name="percent_complete" type="number" min="0" max="100" value="{{ task.percent_complete }}"></div>
+          <div class="field"><label>Tags (comma separated)</label><input class="input" name="tags" value="{{ task.tags|join(', ') }}"></div>
+          <div class="field field-span-2"><label>Custom fields (JSON object)</label><textarea class="textarea mono" name="custom_fields" rows="4">{{ task.custom_fields|tojson(indent=2) }}</textarea></div>
+          <div class="field field-span-2" id="task-notes"><label>Working notes (Markdown supported)</label><textarea class="textarea task-notes-editor" name="notes" rows="8">{{ task.notes }}</textarea></div>
+          <div class="field field-span-2"><label>Notes change summary</label><input class="input" name="notes_change_summary" placeholder="What changed in these notes?" value="Updated working notes"></div>
+          <div class="field field-span-2"><label>Acceptance evidence</label><textarea class="textarea" name="acceptance_evidence">{{ task.acceptance_evidence }}</textarea></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Save Task</button>
+      </form>
+    {% else %}
+      <dl class="task-readonly-grid">
+        <div><dt>Type / priority</dt><dd>{{ task.task_type }} · {{ task.priority }}</dd></div><div><dt>Owner</dt><dd>{{ users_map.get(task.owner_id).full_name if users_map.get(task.owner_id) else 'Unassigned' }}</dd></div>
+        <div><dt>Dates</dt><dd>{{ task.start_date|datefmt }} – {{ task.due_date|datefmt }}</dd></div><div><dt>Actual dates</dt><dd>{{ task.actual_start_date|datefmt }} – {{ task.actual_finish_date|datefmt }}</dd></div>
+        <div><dt>Effort</dt><dd>{{ task.estimated_effort }} planned / {{ task.actual_effort }} actual hours</dd></div><div><dt>Completion</dt><dd>{{ task.percent_complete }}%</dd></div>
+        <div><dt>Notes</dt><dd>{{ task.notes or '—' }}</dd></div><div><dt>Evidence</dt><dd>{{ task.acceptance_evidence or '—' }}</dd></div>
+      </dl>
+    {% endif %}
+  </section>
+
+  <div class="drawer-grid">
+    <section class="drawer-section" id="task-checklist">
+      <div class="panel-head"><div><div class="eyebrow">Checklist</div><h3>{{ task.checklist|selectattr('done')|list|length }} of {{ task.checklist|length }} complete</h3></div></div>
+      <div class="checklist-list">
+        {% for item in task.checklist %}<div class="checklist-item {% if item.done %}done{% endif %}">{% if editable %}<form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/checklist/{{ item.id }}/toggle"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="check-toggle" type="submit" aria-label="Toggle {{ item.text }}">{% if item.done %}✓{% else %}○{% endif %}</button></form>{% else %}<span class="check-toggle">{% if item.done %}✓{% else %}○{% endif %}</span>{% endif %}<span>{{ item.text }}</span>{% if editable %}<form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/checklist/{{ item.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="mini-action danger" type="submit" data-confirm="Remove this checklist item?">×</button></form>{% endif %}</div>{% else %}<div class="empty compact">No checklist items yet.</div>{% endfor %}
+      </div>
+      {% if editable %}<form class="inline-add" method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/checklist"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input class="input" name="text" placeholder="Add checklist item" required><button class="btn" type="submit">Add</button></form>{% endif %}
+    </section>
+
+    <section class="drawer-section" id="task-dependencies">
+      <div class="panel-head"><div><div class="eyebrow">Schedule Logic</div><h3>Task Dependencies and relationships</h3></div></div>
+      <div class="relationship-list">
+        {% for rel in outgoing_relationships %}<div class="relationship-item"><div><strong>{{ rel.relationship_type }}</strong><small>{{ task_map.get(rel.target_task_id).human_id if task_map.get(rel.target_task_id) else rel.target_task_id }} · {{ task_map.get(rel.target_task_id).title if task_map.get(rel.target_task_id) else 'Unavailable task' }}</small></div>{% if editable %}<form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/relationships/{{ rel.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="mini-action danger" type="submit" data-confirm="Remove this task dependency?">×</button></form>{% endif %}</div>{% endfor %}
+        {% for rel in incoming_relationships %}<div class="relationship-item incoming"><div><strong>Incoming · {{ rel.relationship_type }}</strong><small>{{ task_map.get(rel.source_task_id).human_id if task_map.get(rel.source_task_id) else rel.source_task_id }} · {{ task_map.get(rel.source_task_id).title if task_map.get(rel.source_task_id) else 'Unavailable task' }}</small></div></div>{% endfor %}
+        {% if not outgoing_relationships and not incoming_relationships %}<div class="empty compact">No task relationships.</div>{% endif %}
+      </div>
+      {% if editable and all_tasks %}<form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/relationships"><input type="hidden" name="csrf" value="{{ csrf_token }}"><div class="form-grid compact-grid"><div class="field"><label>Relationship</label><select class="select" name="relationship_type"><option>Finish-to-start</option><option>Start-to-start</option><option>Finish-to-finish</option><option>Related</option></select></div><div class="field"><label>Predecessor / related task</label><select class="select" name="target_task_id">{% for item in all_tasks %}<option value="{{ item.id }}">{{ item.human_id }} · {{ item.title }}</option>{% endfor %}</select></div></div><button class="btn" type="submit">Add Relationship</button><small class="help">Finish-to-start links are checked for circular schedule chains.</small></form>{% endif %}
+    </section>
+  </div>
+
+  <section class="drawer-section" id="task-files">
+    <div class="panel-head"><div><div class="eyebrow">Files and Evidence</div><h3>Attachments and version-controlled evidence</h3></div><span class="badge">{{ attachments|length }} current</span></div>
+    <div class="attachment-list">
+      {% for file in attachments %}
+        <div class="attachment-row"><div class="file-icon">{{ file.original_name.rsplit('.',1)[-1]|upper }}</div><div class="attachment-copy"><strong>{{ file.original_name }} <span class="badge">v{{ file.version_number }}</span></strong><small>{{ file.category }} · {{ file.size_bytes|filesize }} · uploaded by {{ users_map.get(file.uploaded_by_id).full_name if users_map.get(file.uploaded_by_id) else 'Unknown' }} on {{ file.created_at|datefmt }} · {{ file.download_count }} downloads</small>{% if file.description %}<p>{{ file.description }}</p>{% endif %}<span class="mono file-hash">SHA-256 {{ file.sha256 }}</span><div class="actions"><a class="btn btn-small" href="/projects/{{ project.id }}/tasks/{{ task.id }}/attachments/{{ file.id }}">Download</a><a class="btn btn-small" target="_blank" href="/projects/{{ project.id }}/tasks/{{ task.id }}/attachments/{{ file.id }}/preview">Preview</a></div></div>{% if editable %}<div class="file-actions-stack"><form class="replace-file-form" method="post" enctype="multipart/form-data" action="/projects/{{ project.id }}/tasks/{{ task.id }}/attachments"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="replace_attachment_id" value="{{ file.id }}"><input type="hidden" name="description" value="{{ file.description }}"><input type="hidden" name="sensitivity" value="{{ file.sensitivity }}"><input type="hidden" name="category" value="{{ file.category }}"><input class="input" type="file" name="attachment" required><button class="btn btn-small" type="submit">Upload New Version</button></form>{% if file.uploaded_by_id==user.id or 'PROJECT_MANAGER' in user.roles or 'ADMIN' in user.roles %}<form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/attachments/{{ file.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn btn-small" type="submit" data-confirm="Move {{ file.original_name }} to file history?">Remove</button></form>{% endif %}</div>{% endif %}</div>
+      {% else %}<div class="empty compact">No files attached. Upload supporting documents, spreadsheets, PDFs, images, or Markdown evidence.</div>{% endfor %}
+    </div>
+    {% if editable %}<form class="attachment-upload" method="post" enctype="multipart/form-data" action="/projects/{{ project.id }}/tasks/{{ task.id }}/attachments"><input type="hidden" name="csrf" value="{{ csrf_token }}"><div class="form-grid"><div class="field"><label>Select file</label><input class="input" type="file" name="attachment" accept=".xlsx,.docx,.pptx,.pdf,.png,.jpg,.jpeg,.md,.txt,.csv,.json" required><small class="help">Allowed: XLSX, DOCX, PPTX, PDF, PNG, JPEG, Markdown, text, CSV, and JSON. Maximum {{ max_upload_mb }} MB.</small></div><div class="field"><label>Category</label><select class="select" name="category"><option>Supporting Document</option><option>Acceptance Evidence</option><option>Decision Evidence</option><option>Schedule</option><option>Financial</option><option>Risk Evidence</option></select></div><div class="field"><label>Marking</label><select class="select" name="sensitivity"><option>Controlled Unclassified</option><option>Public Release</option><option>Restricted</option></select></div><div class="field field-span-2"><label>Description</label><input class="input" name="description" placeholder="What this file contains and how it supports task completion"></div></div><button class="btn btn-primary" type="submit">Upload File</button></form>{% endif %}
+
+    <details class="file-history"><summary>File version and restoration history ({{ attachment_history|length }})</summary><div class="table-wrap"><table class="data-table"><thead><tr><th>File</th><th>Version</th><th>Status</th><th>Uploaded</th><th>Integrity</th><th>Action</th></tr></thead><tbody>{% for file in attachment_history %}<tr><td>{{ file.original_name }}</td><td>v{{ file.version_number }}</td><td>{% if file.deleted_at %}<span class="badge badge-Off-Track">Removed</span>{% elif file.is_current %}<span class="badge badge-On-Track">Current</span>{% else %}<span class="badge">Superseded</span>{% endif %}</td><td>{{ file.created_at|datefmt }}</td><td class="mono">{{ file.sha256[:12] }}…</td><td>{% if file.deleted_at and editable and ('PROJECT_MANAGER' in user.roles or 'ADMIN' in user.roles) %}<form method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/attachments/{{ file.id }}/restore"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn btn-small" type="submit">Restore</button></form>{% else %}<a class="btn btn-small" href="/projects/{{ project.id }}/tasks/{{ task.id }}/attachments/{{ file.id }}">Download</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div></details>
+  </section>
+
+  <div class="drawer-grid">
+    <section class="drawer-section" id="task-comments">
+      <div class="panel-head"><div><div class="eyebrow">Collaboration</div><h3>Notes and comments</h3></div></div>
+      {% if editable %}<form class="comment-form" method="post" action="/projects/{{ project.id }}/tasks/{{ task.id }}/comments"><input type="hidden" name="csrf" value="{{ csrf_token }}"><textarea class="textarea" name="body" required placeholder="Add a comment. Mention a user with @username to notify them."></textarea><button class="btn btn-primary" type="submit">Post Comment</button></form>{% endif %}
+      <div class="comment-list">{% for comment in comments %}<article class="comment-card"><div class="avatar small">{{ users_map.get(comment.author_id).full_name[:1] if users_map.get(comment.author_id) else '?' }}</div><div><div class="comment-head"><strong>{{ users_map.get(comment.author_id).full_name if users_map.get(comment.author_id) else 'Unknown user' }}</strong><time>{{ comment.created_at|datefmt }}</time></div><p>{{ comment.body }}</p></div></article>{% else %}<div class="empty compact">No comments yet.</div>{% endfor %}</div>
+    </section>
+
+    <section class="drawer-section" id="task-notes-history">
+      <div class="panel-head"><div><div class="eyebrow">Notes Governance</div><h3>Working-note revisions</h3></div><span class="badge">{{ note_revisions|length }}</span></div>
+      <div class="revision-list">{% for revision in note_revisions %}<article class="revision-card"><div><strong>Revision {{ revision.revision }}</strong><small>{{ users_map.get(revision.author_id).full_name if users_map.get(revision.author_id) else 'Unknown' }} · {{ revision.created_at|datefmt }}</small></div><p>{{ revision.change_summary }}</p><details><summary>View note snapshot</summary><pre class="note-snapshot">{{ revision.body }}</pre></details></article>{% else %}<div class="empty compact">No note revisions recorded.</div>{% endfor %}</div>
+    </section>
+  </div>
+
+  <div class="drawer-grid">
+    <section class="drawer-section" id="task-traceability"><div class="panel-head"><div><div class="eyebrow">Traceability</div><h3>Applicable requirements</h3></div><a href="/requirements">Full RTM →</a></div><div class="trace-list">{% for req in traceability %}<a class="trace-card compact-trace" href="/requirements/{{ req.requirement_id }}"><span class="mono">{{ req.requirement_id }}</span><strong>{{ req.title }}</strong><small>{{ req.implementation_status }} · {{ req.release or 'Roadmap' }}</small></a>{% endfor %}</div></section>
+    <section class="drawer-section" id="task-history"><div class="panel-head"><div><div class="eyebrow">Audit</div><h3>Recent activity</h3></div><a href="/records/task/{{ task.id }}">Complete record →</a></div><div class="activity-list">{% for event in audit[:20] %}<div class="activity-item"><span class="activity-dot"></span><div><strong>{{ event.action|replace('_',' ')|title }}</strong><small>{{ users_map.get(event.actor_id).full_name if users_map.get(event.actor_id) else 'System' }} · {{ event.created_at|datefmt }}</small></div></div>{% else %}<div class="empty compact">No activity recorded.</div>{% endfor %}</div></section>
+  </div>
+</div>

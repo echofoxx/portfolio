@@ -16,6 +16,7 @@ services:
   web:
     build: .
     environment:
+      APP_NAME: ${APP_NAME:-JSJ6 Enterprise Portfolio Management}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ddc5i}:${POSTGRES_PASSWORD:-ddc5i-local-change-me}@db:5432/${POSTGRES_DB:-ddc5i_portfolio}
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -24,6 +25,10 @@ services:
       UPLOAD_DIR: /app/storage
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
       MAILPIT_URL: http://mailpit:8025
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-300}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-900}
     ports:
       - "${APP_PORT:-8080}:8080"
     volumes:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Settings:
-    app_name: str = os.getenv("APP_NAME", "DDC5I Enterprise Portfolio Management")
+    app_name: str = os.getenv("APP_NAME", "JSJ6 Enterprise Portfolio Management")
     environment: str = os.getenv("ENVIRONMENT", "development")
     database_url: str = os.getenv(
         "DATABASE_URL", "postgresql+psycopg://ddc5i:ddc5i@db:5432/ddc5i_portfolio"
@@ -18,6 +18,10 @@ class Settings:
     app_port: int = int(os.getenv("APP_PORT", "8080"))
     demo_auth_enabled: bool = os.getenv("DEMO_AUTH_ENABLED", "true").lower() == "true"
     mailpit_url: str = os.getenv("MAILPIT_URL", "http://mailpit:8025")
+    public_base_url: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:8080")
+    trust_proxy_hops: int = max(0, int(os.getenv("TRUST_PROXY_HOPS", "0")))
+    rate_limit_requests: int = max(1, int(os.getenv("RATE_LIMIT_REQUESTS", "300")))
+    rate_limit_window_seconds: int = max(1, int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "900")))
 
 
 settings = Settings()

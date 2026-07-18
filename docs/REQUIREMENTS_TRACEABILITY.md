@@ -10,10 +10,10 @@ No claim is made that all requirements are implemented. Status was assigned cons
 
 | Implementation status | Count | Meaning in this release |
 |---|---:|---|
-| Implemented | 83 | usable vertical slice exists in the MVP with design/module reference |
-| Partially implemented | 34 | meaningful capability exists but required depth or configuration is incomplete |
+| Implemented | 84 | usable vertical slice exists in the MVP with design/module reference |
+| Partially implemented | 40 | meaningful capability exists but required depth or configuration is incomplete |
 | Planned | 131 | not implemented in the MVP; assigned to roadmap work |
-| Requires integration | 37 | cannot be completed without an authoritative external system or connector |
+| Requires integration | 30 | cannot be completed without an authoritative external system or connector |
 | Requires policy or governance decision | 12 | technical implementation must wait for an approved operating/policy decision |
 | Deferred | 10 | deliberately beyond the five-phase MVP scope or responsible-AI gate |
 | **Total** | **307** | complete imported matrix |
@@ -61,9 +61,15 @@ The usable MVP emphasizes these groups:
 - selected `DAT-*` Excel demand import/export, OpenAPI, lineage, IDs;
 - selected `SEC-*`, `ADM-*`, `NFR-*`, and `IMP-*` security, audit, configuration, quality, operations, migration, and documentation.
 
+## v0.3.1 evidence additions
+
+- **DMD-008** links to the submitted-demand edit workflow, optimistic version check, revision history, audit evidence, notification behavior, and assessment-stage lock test.
+- **PRJ-007** links to the task drawer, full-page fallback route, versioned local bundle, task workspace, and automated fallback-route test.
+- Migration `0003_v031_reliability_hotfix` updates these evidence references in existing databases without modifying business-data schema.
+
 ## Verification evidence
 
-Automated tests are linked at the suite level in the imported trace records. The suite covers primary workflow, status roll-up, drill-down route access, import validation, scoped access, auditor read-only behavior, scoring, workflow transitions, audit evidence, and database uniqueness. UAT remains Not Run until an authorized DDC5I user group executes and signs the acceptance checklist.
+Automated tests are linked at the suite level in the imported trace records. The suite covers primary workflow, status roll-up, drill-down route access, import validation, scoped access, auditor read-only behavior, scoring, workflow transitions, audit evidence, database uniqueness, comprehensive search, task workspace persistence, comments/mentions, checklist, task relationships, WBS actions, and secure task-file handling. Rows with automated release evidence record Automated test passed; organization-level UAT remains open until an authorized DDC5I user group executes and signs the acceptance checklist.
 
 ## How to update status
 
@@ -86,3 +92,31 @@ Automated tests are linked at the suite level in the imported trace records. The
 ## Acceptance caution
 
 “Implemented” in this reference package means the capability can be demonstrated locally. It does not mean production authorization, enterprise integration acceptance, records approval, operational data certification, accessibility certification, or policy approval.
+
+
+## v0.4.0 evidence additions
+
+- **PRJ-003** links configurable board columns, WIP validation, criteria, ordering, archival, UI, and tests.
+- **PRJ-004** links WBS hierarchy, sequencing, baselines, Gantt, cycle rejection, and basic critical-path evidence.
+- **PRJ-008** links versioned task files, preview, integrity metadata, download evidence, soft deletion, and restoration.
+- **PRJ-012** links versioned project blueprints, complete instantiation, and immutable project provenance.
+- **PRJ-014** links project status-report lifecycle, approval, print view, notifications, audit, and governed reporting roll-up.
+- Migration `0004_execution_roadmap_v040` applies those evidence references to upgraded installations while creating the supporting canonical records.
+
+## v0.5.0 evidence additions
+
+The v0.5.0 release updates conservative design, module, test, release, acceptance, and UAT references for administration, governance forums, integration ownership, resource/financial planning, scenarios, data quality, and report operations. Representative anchors include ORG-007, GOV-006, PFM-015, COL-010, DSH-015, ADM-005, DAT-003, DAT-010, DAT-016–019, RES-004, RES-012, FIN-002, FIN-007–009, FIN-013, and SCN-002–013.
+
+Current 307-row classification:
+
+| Status | Count |
+|---|---:|
+| Implemented | 91 |
+| Partially implemented | 56 |
+| Planned | 111 |
+| Requires integration | 27 |
+| Requires policy or governance decision | 12 |
+| Deferred | 10 |
+| **Total** | **307** |
+
+A requirement is not marked Implemented merely because a database table or screen exists. Live ProjectOS, Microsoft 365, SharePoint, identity, workforce, and financial-system capabilities remain Partially implemented or Requires integration where the external authority, authentication, reconciliation, accreditation, or governance decision is absent.

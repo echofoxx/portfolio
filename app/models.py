@@ -171,6 +171,8 @@ class Project(Base):
     manager_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     mission_id: Mapped[str] = mapped_column(ForeignKey("missions.id"))
     demand_id: Mapped[str | None] = mapped_column(ForeignKey("demands.id"), nullable=True, unique=True)
+    template_code: Mapped[str] = mapped_column(String(60), default="")
+    template_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     desired_end_state: Mapped[str] = mapped_column(Text, default="")
     scope: Mapped[str] = mapped_column(Text, default="")
     deliverables: Mapped[str] = mapped_column(Text, default="")
@@ -198,12 +200,20 @@ class Task(Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(240))
+    task_type: Mapped[str] = mapped_column(String(40), default="Task")
+    description: Mapped[str] = mapped_column(Text, default="")
+    priority: Mapped[str] = mapped_column(String(30), default="Medium")
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(40), default="To Do")
     board_column: Mapped[str] = mapped_column(String(40), default="Backlog")
     owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     contributor_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    watcher_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    custom_fields: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    actual_start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    actual_finish_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     estimated_effort: Mapped[float] = mapped_column(Float, default=0)
     actual_effort: Mapped[float] = mapped_column(Float, default=0)
     percent_complete: Mapped[int] = mapped_column(Integer, default=0)
@@ -215,6 +225,76 @@ class Task(Base):
     baseline_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class BoardColumn(Base):
+    __tablename__ = "board_columns"
+    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_board_column_project_name"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    wip_limit: Mapped[int] = mapped_column(Integer, default=0)
+    entry_criteria: Mapped[str] = mapped_column(Text, default="")
+    exit_criteria: Mapped[str] = mapped_column(Text, default="")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TaskNoteRevision(Base):
+    __tablename__ = "task_note_revisions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    body: Mapped[str] = mapped_column(Text, default="")
+    change_summary: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    mentions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TaskAttachment(Base):
+    __tablename__ = "task_attachments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
+    uploaded_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    original_name: Mapped[str] = mapped_column(String(300))
+    storage_key: Mapped[str] = mapped_column(String(500), unique=True)
+    media_type: Mapped[str] = mapped_column(String(160), default="application/octet-stream")
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    sensitivity: Mapped[str] = mapped_column(String(60), default="Controlled Unclassified")
+    category: Mapped[str] = mapped_column(String(60), default="Supporting Document")
+    logical_file_id: Mapped[str] = mapped_column(String(36), default=uuid4, index=True)
+    version_number: Mapped[int] = mapped_column(Integer, default=1)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+    download_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TaskRelationship(Base):
+    __tablename__ = "task_relationships"
+    __table_args__ = (UniqueConstraint("source_task_id", "target_task_id", "relationship_type", name="uq_task_relationship"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    source_task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
+    target_task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
+    relationship_type: Mapped[str] = mapped_column(String(40), default="Finish-to-start")
+    created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Milestone(Base):
@@ -345,6 +425,46 @@ class Benefit(Base):
     review_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
+class ProjectTemplate(Base):
+    __tablename__ = "project_templates"
+    __table_args__ = (UniqueConstraint("code", "version", name="uq_project_template_code_version"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(60), index=True)
+    name: Mapped[str] = mapped_column(String(180))
+    description: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    category: Mapped[str] = mapped_column(String(80), default="General")
+    blueprint: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StatusReport(Base):
+    __tablename__ = "status_reports"
+    __table_args__ = (UniqueConstraint("project_id", "period_end", "version", name="uq_status_report_period_version"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(30), default="Draft")
+    health: Mapped[str] = mapped_column(String(30), default="On Track")
+    percent_complete: Mapped[int] = mapped_column(Integer, default=0)
+    accomplishments: Mapped[str] = mapped_column(Text, default="")
+    planned_work: Mapped[str] = mapped_column(Text, default="")
+    decisions_required: Mapped[str] = mapped_column(Text, default="")
+    risks_and_dependencies: Mapped[str] = mapped_column(Text, default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    submitted_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class Notification(Base):
     __tablename__ = "notifications"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
@@ -440,3 +560,236 @@ class MetricDefinition(Base):
     thresholds: Mapped[str] = mapped_column(Text, default="")
     limitations: Mapped[str] = mapped_column(Text, default="")
     last_refresh: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class Delegation(Base):
+    __tablename__ = "delegations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    delegator_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    delegate_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    roles: Mapped[list[str]] = mapped_column(JSON, default=list)
+    org_scope_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class IntegrationConnection(Base):
+    __tablename__ = "integration_connections"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(60), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(180))
+    kind: Mapped[str] = mapped_column(String(80), default="ProjectOS")
+    base_url: Mapped[str] = mapped_column(String(500), default="")
+    mode: Mapped[str] = mapped_column(String(40), default="Mock")
+    auth_type: Mapped[str] = mapped_column(String(40), default="None")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(40), default="Not Tested")
+    configuration: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    last_health_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class FieldOwnershipRuleRecord(Base):
+    __tablename__ = "field_ownership_rules"
+    __table_args__ = (UniqueConstraint("entity_type", "field_name", name="uq_field_ownership_entity_field"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    entity_type: Mapped[str] = mapped_column(String(80), index=True)
+    field_name: Mapped[str] = mapped_column(String(120), index=True)
+    authoritative_system: Mapped[str] = mapped_column(String(120))
+    allowed_writers: Mapped[list[str]] = mapped_column(JSON, default=list)
+    conflict_policy: Mapped[str] = mapped_column(String(80), default="Reject and reconcile")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SyncRun(Base):
+    __tablename__ = "sync_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    connection_id: Mapped[str] = mapped_column(ForeignKey("integration_connections.id"), index=True)
+    direction: Mapped[str] = mapped_column(String(30), default="Outbound")
+    entity_type: Mapped[str] = mapped_column(String(80), default="Project")
+    canonical_id: Mapped[str] = mapped_column(String(80), default="")
+    status: Mapped[str] = mapped_column(String(40), default="Queued")
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    message: Mapped[str] = mapped_column(Text, default="")
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PortfolioReview(Base):
+    __tablename__ = "portfolio_reviews"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(240))
+    review_type: Mapped[str] = mapped_column(String(80), default="Portfolio Review")
+    portfolio_id: Mapped[str | None] = mapped_column(ForeignKey("portfolios.id"), nullable=True)
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(40), default="Draft")
+    chair_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    participant_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    agenda: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    decisions_required: Mapped[str] = mapped_column(Text, default="")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class PortfolioReviewItem(Base):
+    __tablename__ = "portfolio_review_items"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    review_id: Mapped[str] = mapped_column(ForeignKey("portfolio_reviews.id"), index=True)
+    item_type: Mapped[str] = mapped_column(String(60), default="Decision")
+    entity_type: Mapped[str] = mapped_column(String(60), default="Project")
+    entity_id: Mapped[str] = mapped_column(String(80), default="")
+    title: Mapped[str] = mapped_column(String(240))
+    recommendation: Mapped[str] = mapped_column(String(80), default="Continue")
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Open")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    decision_id: Mapped[str | None] = mapped_column(ForeignKey("decisions.id"), nullable=True)
+    action_id: Mapped[str | None] = mapped_column(ForeignKey("actions.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ResourceRequest(Base):
+    __tablename__ = "resource_requests"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
+    role_name: Mapped[str] = mapped_column(String(120))
+    skill: Mapped[str] = mapped_column(String(120), default="")
+    requested_hours: Mapped[float] = mapped_column(Float, default=0)
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
+    priority: Mapped[str] = mapped_column(String(30), default="Medium")
+    status: Mapped[str] = mapped_column(String(40), default="Submitted")
+    requested_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    approver_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    resolution: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class FinancialTransaction(Base):
+    __tablename__ = "financial_transactions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    financial_record_id: Mapped[str] = mapped_column(ForeignKey("financial_records.id"), index=True)
+    transaction_type: Mapped[str] = mapped_column(String(60), default="Commitment")
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    transaction_date: Mapped[date] = mapped_column(Date)
+    reference: Mapped[str] = mapped_column(String(160), default="")
+    source_system: Mapped[str] = mapped_column(String(80), default="DDC5I-PM")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Scenario(Base):
+    __tablename__ = "scenarios"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(240))
+    scenario_type: Mapped[str] = mapped_column(String(80), default="Portfolio What-if")
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    baseline_date: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(40), default="Draft")
+    assumptions: Mapped[str] = mapped_column(Text, default="")
+    created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    approved_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ScenarioChange(Base):
+    __tablename__ = "scenario_changes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    scenario_id: Mapped[str] = mapped_column(ForeignKey("scenarios.id"), index=True)
+    entity_type: Mapped[str] = mapped_column(String(60))
+    entity_id: Mapped[str] = mapped_column(String(80))
+    field_name: Mapped[str] = mapped_column(String(80))
+    baseline_value: Mapped[Any] = mapped_column(JSON, nullable=True)
+    proposed_value: Mapped[Any] = mapped_column(JSON, nullable=True)
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ScenarioResult(Base):
+    __tablename__ = "scenario_results"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    scenario_id: Mapped[str] = mapped_column(ForeignKey("scenarios.id"), index=True)
+    metric_key: Mapped[str] = mapped_column(String(100))
+    baseline_value: Mapped[float] = mapped_column(Float, default=0)
+    scenario_value: Mapped[float] = mapped_column(Float, default=0)
+    delta: Mapped[float] = mapped_column(Float, default=0)
+    unit: Mapped[str] = mapped_column(String(40), default="count")
+    impact_level: Mapped[str] = mapped_column(String(30), default="Informational")
+    explanation: Mapped[str] = mapped_column(Text, default="")
+
+
+class DataQualityIssue(Base):
+    __tablename__ = "data_quality_issues"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    rule_code: Mapped[str] = mapped_column(String(60), index=True)
+    entity_type: Mapped[str] = mapped_column(String(60))
+    entity_id: Mapped[str] = mapped_column(String(80), index=True)
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    severity: Mapped[str] = mapped_column(String(30), default="Medium")
+    status: Mapped[str] = mapped_column(String(40), default="Open")
+    title: Mapped[str] = mapped_column(String(240))
+    description: Mapped[str] = mapped_column(Text, default="")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    disposition: Mapped[str] = mapped_column(Text, default="")
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ReportPack(Base):
+    __tablename__ = "report_packs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(240))
+    pack_type: Mapped[str] = mapped_column(String(80), default="Executive Portfolio Summary")
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(40), default="Draft")
+    sections: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    narrative: Mapped[str] = mapped_column(Text, default="")
+    generated_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    approved_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class JobRun(Base):
+    __tablename__ = "job_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    job_type: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(40), default="Queued")
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

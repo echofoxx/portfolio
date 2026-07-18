@@ -75,3 +75,14 @@ The MVP audit log is application evidence, not a tamper-evident enterprise ledge
 ## AI gate
 
 Do not connect generative AI to operational data until access-aware retrieval, source citation, data lineage, evaluation, human approval, prompt/model versioning, feedback, monitoring, and audit controls are approved. AI must not autonomously approve, prioritize, allocate, or overwrite authoritative records.
+
+## v0.4.0 deployment controls
+
+- Keep Uvicorn proxy-header rewriting disabled; the application exact-hop resolver is the authoritative client-IP path.
+
+- Configure the exact trusted-proxy hop count; never infer trust from the mere presence of `X-Forwarded-For`.
+- Require upstream proxies to overwrite forwarding headers and restrict direct access to the application container.
+- Replace the in-memory rate limiter with a shared approved store for multi-replica deployment.
+- Add malware scanning, DLP/content disarm, encrypted object/repository storage, records retention, legal hold, and disposition controls before operational file use.
+- Restrict blueprint and board configuration permissions and include configuration promotion in change management.
+- Treat approved status reports as business records and define retention, signature, distribution, and release policy.

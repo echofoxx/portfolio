@@ -77,3 +77,26 @@ Each integration needs:
 7. closure evidence.
 
 The MVP includes the contract boundary, not a live enterprise connection.
+
+## v0.5.0 implemented integration-control plane
+
+The application now provides a database-backed control plane rather than only a documented interface:
+
+- `integration_connections` records connector identity, endpoint metadata, mode, authentication type, enabled state, health, and non-secret configuration.
+- `field_ownership_rules` records authoritative system, allowed writers, and conflict policy by entity/field.
+- `sync_runs` records direction, canonical entity, dry-run flag, attempts, payload, result, status, message, and timestamps.
+- The ProjectOS dry-run adapter produces a canonical Project payload including related Tasks and Milestones and never performs a remote write in Mock/Dry Run mode.
+
+A live connector must add target-specific credentials through an approved secret manager, HTTP client controls, timeout/retry/idempotency, schema/version negotiation, pagination, reconciliation, conflict assignment, telemetry, and accreditation evidence. The current UI truthfully labels externally configured connections as requiring the target enterprise environment.
+
+### Recommended initial authority contract
+
+| Entity/field group | Default authority | Allowed write direction |
+|---|---|---|
+| Demand intake, assessment, recommendation, approval | DDC5I Portfolio Tool | outbound reference only |
+| Portfolio placement and leadership decisions | DDC5I Portfolio Tool | outbound reference only |
+| Detailed task execution and task progress | ProjectOS after connector approval | inbound to roll-up; conflict queue on local edits |
+| Enterprise/division health roll-up | DDC5I Portfolio Tool | calculated from approved sources |
+| Requirement traceability and audit | DDC5I Portfolio Tool | no external overwrite |
+
+Every live field must have an approved rule before synchronization is enabled.

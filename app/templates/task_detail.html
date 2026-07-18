@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ task.human_id }} · {{ project.human_id }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="eyebrow">{{ project.human_id }} · Authoritative Task Workspace</div><h2>{{ task.human_id }} · {{ task.title }}</h2><p>This full-page workspace is a reliable fallback when the in-project task drawer is unavailable and can be bookmarked or shared with authorized users.</p></div><a class="btn" href="/projects/{{ project.id }}?tab=board">Back to {{ project.human_id }}</a></div>
+<div class="task-detail-page-shell">{% include "_task_drawer.html" %}</div>
+{% endblock %}

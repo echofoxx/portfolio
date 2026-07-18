@@ -1,6 +1,6 @@
 # Implementation Backlog by Vertical Slice
 
-The backlog follows the requested delivery order and keeps the repository runnable after every iteration. Items marked Done are present in release 0.1.0; Partial means a usable subset exists; Next/Planned remain transparent.
+The backlog follows the requested delivery order and keeps the repository runnable after every iteration. Items marked Done are present through release 0.5.0; Partial means a usable subset exists; Next/Planned remain transparent.
 
 ## Iteration 1 — Foundation
 
@@ -50,14 +50,14 @@ The backlog follows the requested delivery order and keeps the repository runnab
 | Six division portfolios | Done | seeded and linked |
 | Demand-to-project conversion | Done | no-rekey test |
 | Project overview and status | Done | owner health, progress, narrative, roll-up |
-| WBS/task list | Partial | task sequencing/indent/baseline fields; richer editor next |
+| WBS/task list | Done baseline | hierarchical numbering, parent tasks, sequence/indent, baseline and task workspace |
 | Kanban | Done for MVP | configurable field and drag/move API |
 | Milestones | Done for MVP | confidence, critical, baseline/current dates |
 | RAID and dependencies | Done for MVP | table views, ownership, severity, due date |
-| Full schedule engine/critical path | Planned | Phase 2/4 |
+| Full schedule engine/critical path | Partial | basic finish-to-start path/Gantt delivered; calendars, lag/lead, leveling next |
 | Document and acceptance-evidence repository | Partial | model fields/storage contract; full UI next |
 | Project closure checklist and lessons workflow | Planned | Phase 2 |
-| ProjectOS synchronization registry | Done contract | live adapter planned |
+| ProjectOS synchronization registry | Partial | database registry, field ownership, sync history and canonical dry run; live adapter planned |
 
 ## Iteration 5 — Dashboards and Reports
 
@@ -69,7 +69,7 @@ The backlog follows the requested delivery order and keeps the repository runnab
 | Saved filters/views | Done for MVP | user route/query saved view |
 | Reports and browser print | Done for MVP | reporting screen, CSV, print-ready route |
 | Editable generated narrative | Partial | source-grounded narrative, editing next |
-| Recurring report packs | Planned | background report jobs and templates |
+| Recurring report packs | Partial | source-grounded pack generation/approval/job evidence; scheduler/distribution next |
 | Power BI / WDP data product | Requires integration | governed analytics feed |
 
 ## Iteration 6 — Supporting Capabilities
@@ -79,20 +79,20 @@ The backlog follows the requested delivery order and keeps the repository runnab
 | Role/skill resource capacity | Done for MVP | utilization and coverage warnings |
 | Detailed workforce module | Planned/integration | people, position, skill, vacancy, contractor data |
 | Basic financial planning | Done for MVP | budget, actual, forecast, variance, funding |
-| Detailed investment ledger | Planned/integration | commitments, obligations, expenditures, EAC |
+| Detailed investment ledger | Partial/integration | transaction evidence delivered; official commitments/obligations/expenditures/EAC require source integration |
 | Benefit register | Done for MVP | target/realized/status/owner |
 | In-app notifications | Done | submission/workflow/approval links |
 | Mailpit option | Done infrastructure | SMTP capture container; notification sender enhancement next |
 | Excel demand preview and commit | Done | row-level outcomes and correction download |
 | Seven additional import contracts | Done template; commit planned | versioned workbook sheets |
 | RTM administration | Done | all 307 rows and status updates |
-| Data-quality views | Partial | stale/unaligned/overallocated/underfunded indicators |
+| Data-quality views | Done baseline | persistent deterministic scans, issue ownership/due date/disposition/resolution and job evidence |
 
 ## Iteration 7 — Hardening
 
 | Item | Status | Acceptance evidence |
 |---|---|---|
-| Unit/integration/end-to-end tests | Done baseline | 25 passing tests; 88% application-code coverage |
+| Unit/integration/end-to-end tests | Done baseline | 57 passing tests; 83% application-code coverage |
 | Accessibility landmarks and keyboard-oriented UI | Done baseline | automated landmark checks; formal audit pending |
 | Security review and headers | Done baseline | CSRF, CSP, role/scope checks, rate limiting |
 | Performance review | Planned | representative load and query plans |
@@ -102,3 +102,29 @@ The backlog follows the requested delivery order and keeps the repository runnab
 | Release package and acceptance checklist | Done | ZIP and documented evidence |
 | Docker daemon execution in build environment | Not available | must be validated on target Docker Desktop host |
 | Formal UAT, accessibility, security and RMF evidence | Not run | owner acceptance required |
+
+## Iteration 8 — v0.5.0 Portfolio Governance and Enterprise Integration
+
+| Item | Status | Acceptance evidence |
+|---|---|---|
+| Local user lifecycle | Done for demonstration | create/update/activate/deactivate, roles, scope, sensitive access, audit |
+| Acting-role delegation | Partial | dated/scoped/audited registry; authorization enforcement next |
+| Portfolio review forum | Done baseline | agenda items, recommendations, linked decisions/actions, completion |
+| Integration control plane | Partial | connection, ownership, health, sync-run history; live credentials/reconciliation next |
+| ProjectOS adapter | Partial | canonical project/task/milestone dry run; no remote write |
+| Resource-request workflow | Done baseline | submit, decide, resolution, audit |
+| Financial transaction evidence | Done baseline | stable planning/evidence entries linked to financial records |
+| Scenario workspace | Done baseline | non-destructive changes, calculate, approve, separate apply, audit |
+| Data-quality command center | Done baseline | scan, assign, disposition, resolve, job evidence |
+| Report packs and operations | Partial | source-grounded generation/approval and persistent job history; durable scheduler/distribution next |
+| Expanded search/RTM | Done baseline | new record types searchable; conservative 307-row evidence update |
+
+## Next vertical slices — v0.6.0
+
+1. OIDC enterprise identity and enforced delegated authority.
+2. Live authenticated ProjectOS test connector with retries, idempotency, reconciliation, and conflict resolution.
+3. Durable worker/scheduler and notification/report distribution.
+4. Microsoft Graph/SharePoint pilot with records and security governance.
+5. Detailed workforce calendars, skills, vacancies, contractors, and core-function coverage.
+6. Multi-year investment lifecycle, EAC, and official financial reconciliation.
+7. Scenario staleness, dependency/schedule/resource propagation, and reconciliation command center.

@@ -19,4 +19,4 @@ for attempt in range(60):
 PY
 alembic upgrade head
 python -m app.seed
-exec uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers
+exec uvicorn app.main:app --host 0.0.0.0 --port 8080
