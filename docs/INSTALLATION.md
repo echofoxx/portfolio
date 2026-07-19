@@ -95,7 +95,7 @@ Expected services show `healthy`. Sign in as `admin / Demo123!` and confirm:
 - a project board opens and a task detail drawer can save notes;
 - a permitted task file can be uploaded and downloaded;
 - global search returns a task by stable ID and shows no visible `K` artifact;
-- Requirements RTM shows 307 rows before filtering;
+- Requirements RTM shows 313 packaged rows before filtering;
 - Administration shows 25 users, 20 demands, and 17 projects.
 
 ## Ports
@@ -191,7 +191,7 @@ After containers become healthy, sign in as `admin` and verify:
 2. **Integrations** lists ProjectOS Mock plus disabled Microsoft 365 and SharePoint entries and field-ownership rules.
 3. **Portfolio Reviews**, **Scenarios**, **Data Quality**, and **Operations** open without errors.
 4. **Resources** includes resource requests and **Financials** includes transaction evidence.
-5. The Requirements RTM contains 307 rows.
+5. The Requirements RTM contains 313 packaged rows.
 
 Run the release regression suite:
 

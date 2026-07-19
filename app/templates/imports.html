@@ -1,1 +1,31 @@
-{% extends "base.html" %}{% block title %}Excel Imports · DDC5I Portfolio{% endblock %}{% block content %}<div class="page-head"><div><h2>Controlled Excel Import</h2><p>Versioned templates, server-side validation, preview, new/update/duplicate classification, permission exclusions, row-level results, and correction files.</p></div><div class="actions"><a class="btn" href="/static/templates/DDC5I_Demand_Import_Template_v1.0.xlsx">Demand Template</a><a class="btn" href="/static/templates/DDC5I_All_Import_Templates_v1.0.xlsx">All Templates</a></div></div><form class="card" action="/imports" method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf_token }}"><div class="form-grid"><div class="field"><label for="template_type">Template type</label><select class="select" id="template_type" name="template_type"><option>Demands</option><option disabled>Projects (staging template provided)</option><option disabled>Tasks (staging template provided)</option><option disabled>Risks (staging template provided)</option><option disabled>Resources (staging template provided)</option><option disabled>Budgets (staging template provided)</option><option disabled>Benefits (staging template provided)</option><option disabled>Reference Data (staging template provided)</option></select></div><div class="field"><label for="file">Excel workbook</label><input class="input" id="file" name="file" type="file" accept=".xlsx" required></div></div><button class="btn btn-primary" type="submit">Validate and Preview</button></form><div class="section-title"><h3>Import history</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Created</th><th>File</th><th>Template</th><th>Status</th><th>New</th><th>Updated</th><th>Warnings</th><th>Errors</th></tr></thead><tbody>{% for b in batches %}<tr><td>{{ b.created_at|datefmt }}</td><td><a href="/imports/{{ b.id }}">{{ b.filename }}</a></td><td>{{ b.template_type }}</td><td><span class="badge badge-{{ b.status|badge }}">{{ b.status }}</span></td><td>{{ b.summary_json.get('new',0) }}</td><td>{{ b.summary_json.get('updated',0) }}</td><td>{{ b.summary_json.get('warnings',0) }}</td><td>{{ b.summary_json.get('errors',0) }}</td></tr>{% else %}<tr><td colspan="8" class="empty">No imports yet.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Controlled Imports · DDC5I Portfolio{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><span class="eyebrow">Data governance</span><h2>Controlled Excel Import</h2><p>Validate, preview, reconcile, and commit source records with row-level evidence and correction guidance.</p></div>
+  <div class="actions">
+    <a class="btn" href="/static/templates/DDC5I_Demand_Import_Template_v1.0.xlsx">Demand template</a>
+    <a class="btn" href="/static/templates/DDC5I_Travel_Request_Import_Demo_v0.7.6.xlsx">Travel request example</a>
+    <a class="btn" href="/static/templates/DDC5I_Trip_Report_Import_Demo_v0.7.6.xlsx">Trip report example</a>
+  </div>
+</div>
+<div class="grid grid-3">
+  <section class="card"><span class="eyebrow">Demand</span><h3>Demand intake</h3><p>Creates or updates governed demand records using stable human IDs.</p></section>
+  <section class="card"><span class="eyebrow">Travel approval</span><h3>Travel requests</h3><p>Imports traveler-level approval data and links each row to a canonical engagement.</p></section>
+  <section class="card"><span class="eyebrow">Post-trip outcome</span><h3>Trip reports</h3><p>Preserves full narratives, proposes request matches, and extracts reviewable outcomes.</p></section>
+</div>
+<form class="card" action="/imports" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <div class="form-grid">
+    <div class="field"><label for="template_type">Template type</label><select class="select" id="template_type" name="template_type"><option>Demands</option><option>Travel Requests</option><option>Trip Reports</option></select></div>
+    <div class="field"><label for="file">Excel workbook</label><input class="input" id="file" name="file" type="file" accept=".xlsx" required></div>
+  </div>
+  <p class="hint">Travel imports retain the source filename, row number, source identifier, raw payload, batch ID, and matching evidence.</p>
+  <button class="btn btn-primary" type="submit">Validate and preview</button>
+</form>
+<div class="section-title"><h3>Import history</h3></div>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Created</th><th>File</th><th>Template</th><th>Status</th><th>Valid/New</th><th>Updated</th><th>Warnings</th><th>Errors</th></tr></thead><tbody>
+{% for b in batches %}<tr><td>{{ b.created_at|datefmt }}</td><td><a href="/imports/{{ b.id }}">{{ b.filename }}</a></td><td>{{ b.template_type }}</td><td><span class="badge badge-{{ b.status|badge }}">{{ b.status }}</span></td><td>{{ b.summary_json.get('valid', b.summary_json.get('new',0)) }}</td><td>{{ b.summary_json.get('updated',0) }}</td><td>{{ b.summary_json.get('warnings',0) }}</td><td>{{ b.summary_json.get('errors',0) }}</td></tr>
+{% else %}<tr><td colspan="8" class="empty">No imports yet.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

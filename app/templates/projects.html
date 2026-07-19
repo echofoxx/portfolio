@@ -1,1 +1,78 @@
-{% extends "base.html" %}{% block title %}Projects · DDC5I Portfolio{% endblock %}{% block content %}<div class="page-head"><div><h2>Portfolio and Project Inventory</h2><p>Named projects and recurring work use the same constrained capacity model while remaining explicitly distinguishable.</p></div><div class="actions"><a class="btn" href="/exports/projects.csv">Export CSV</a></div></div><form class="filters" method="get"><div class="field"><label for="q">Search</label><input class="input" id="q" name="q" value="{{ q }}" placeholder="ID or title"></div><div class="field"><label for="health">Health</label><select class="select" id="health" name="health"><option value="">All</option>{% for h in ['On Track','At Risk','Off Track','Blocked','Completed','On Hold','Not Reported'] %}<option {% if health==h %}selected{% endif %}>{{ h }}</option>{% endfor %}</select></div><div class="field"><label for="status">Status</label><select class="select" id="status" name="status"><option value="">All</option>{% for s in ['Active','Completed','Archived','Canceled','On Hold'] %}<option {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div><div class="field"><label for="division">Division</label><select class="select" id="division" name="division"><option value="">All accessible</option>{% for o in organizations if o.org_type=='Division' %}<option value="{{ o.code }}" {% if division==o.code %}selected{% endif %}>{{ o.code }}</option>{% endfor %}</select></div><button class="btn btn-primary">Apply</button><a class="btn" href="/projects">Reset</a></form><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Project / Core Work</th><th>Division</th><th>Status</th><th>Health</th><th>Progress</th><th>Schedule variance</th><th>Budget / Forecast</th><th>Manager</th><th>Updated</th></tr></thead><tbody>{% for p in projects %}<tr><td class="mono">{{ p.human_id }}</td><td><a href="/projects/{{ p.id }}"><strong>{{ p.title }}</strong></a><br><small class="muted">{{ p.work_type }}</small></td><td>{{ orgs_map.get(p.lead_org_id).code if orgs_map.get(p.lead_org_id) else '—' }}</td><td>{{ p.status }}</td><td><span class="badge badge-{{ (p.health_override or p.health_owner)|badge }}">{{ p.health_override or p.health_owner }}</span>{% if p.health_override %}<br><small class="muted">Authorized override</small>{% endif %}</td><td><div class="progress"><span style="width:{{ p.percent_complete }}%"></span></div>{{ p.percent_complete }}%</td><td>{% if p.baseline_end_date and p.current_end_date %}{{ (p.current_end_date-p.baseline_end_date).days }} days{% else %}—{% endif %}</td><td>{{ p.budget|money }} / {{ p.forecast|money }}</td><td>{{ users_map.get(p.manager_id).full_name if users_map.get(p.manager_id) else '—' }}</td><td>{{ p.last_status_date|datefmt }}</td></tr>{% else %}<tr><td colspan="10" class="empty">No projects match the accessible scope and filters.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% extends "base.html" %}{% block title %}Projects · DDC5I Portfolio{% endblock %}{% block content %}
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><span>Projects</span></div>
+<div class="page-head">
+<div>
+<h2>Portfolio and Project Inventory</h2>
+<p>Division-local and portfolio-managed projects share one execution system while remaining clearly distinguishable.</p>
+</div>
+<div class="actions">{% if pending_promotions %}<a class="btn" href="/projects?promotion=Submitted">{{ pending_promotions }} promotion review{{ 's' if pending_promotions!=1 }}</a>{% endif %}{% if 'PROJECT_MANAGER' in user.roles or 'DIVISION_PORTFOLIO_MANAGER' in user.roles or 'DIVISION_CHIEF' in user.roles or 'PMO' in user.roles or 'ADMIN' in user.roles %}<a class="btn btn-primary" href="/projects/new">＋ New Project</a>{% endif %}
+<a class="btn" href="/exports/projects.csv">Export CSV</a>
+</div>
+</div>
+<form class="filters" method="get">
+<div class="field">
+<label for="q">Search</label>
+<input class="input" id="q" name="q" value="{{ q }}" placeholder="ID or title">
+</div>
+<div class="field">
+<label for="health">Health</label>
+<select class="select" id="health" name="health">
+<option value="">All</option>{% for h in ['On Track','At Risk','Off Track','Blocked','Completed','On Hold','Not Reported'] %}<option {% if health==h %}selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+</div>
+<div class="field">
+<label for="status">Status</label>
+<select class="select" id="status" name="status">
+<option value="">All</option>{% for s in ['Active','Completed','Archived','Canceled','On Hold'] %}<option {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+</div>
+<div class="field">
+<label for="division">Division</label>
+<select class="select" id="division" name="division">
+<option value="">All accessible</option>{% for o in organizations if o.org_type=='Division' %}<option value="{{ o.code }}" {% if division==o.code %}selected{% endif %}>{{ o.code }}</option>{% endfor %}</select>
+</div>
+<button class="btn btn-primary">Apply</button>
+<a class="btn" href="/projects">Reset</a>
+</form>
+<div class="table-wrap">
+<table class="data-table">
+<thead>
+<tr>
+<th>ID</th>
+<th>Project / Core Work</th>
+<th>Division</th>
+<th>Status</th>
+<th>Health</th>
+<th>Progress</th>
+<th>Schedule variance</th>
+<th>Budget / Forecast</th>
+<th>Manager</th>
+<th>Updated</th>
+</tr>
+</thead>
+<tbody>{% for p in projects %}<tr>
+<td class="mono">{{ p.human_id }}</td>
+<td>
+<a href="/projects/{{ p.id }}">
+<strong>{{ p.title }}</strong>
+</a>
+<br>
+<small class="muted">{{ p.work_type }}</small>
+</td>
+<td>{{ orgs_map.get(p.lead_org_id).code if orgs_map.get(p.lead_org_id) else '—' }}</td>
+<td>{{ p.status }}</td>
+<td>
+<span class="badge badge-{{ (p.health_override or p.health_owner)|badge }}">{{ p.health_override or p.health_owner }}</span>{% if p.health_override %}<br>
+<small class="muted">Authorized override</small>{% endif %}</td>
+<td>
+<div class="progress">
+<span style="width:{{ p.percent_complete }}%">
+</span>
+</div>{{ p.percent_complete }}%</td>
+<td>{% if p.baseline_end_date and p.current_end_date %}{{ (p.current_end_date-p.baseline_end_date).days }} days{% else %}—{% endif %}</td>
+<td>{{ p.budget|money }} / {{ p.forecast|money }}</td>
+<td>{{ users_map.get(p.manager_id).full_name if users_map.get(p.manager_id) else '—' }}</td>
+<td>{{ p.last_status_date|datefmt }}</td>
+</tr>{% else %}<tr>
+<td colspan="10" class="empty">No projects match the accessible scope and filters.</td>
+</tr>{% endfor %}</tbody>
+</table>
+</div>{% endblock %}

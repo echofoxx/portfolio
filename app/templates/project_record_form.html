@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{% if record_type=='task' %}New Task{% elif record_type=='milestone' %}New Milestone{% elif record_type=='raid' %}New RAID Record{% else %}New Status Report{% endif %} · {{ project.human_id }}{% endblock %}
+{% block content %}
+<main class="form-page">
+  <header class="form-page-head">
+    <div><div class="eyebrow">{{ project.human_id }} · {{ project.title }}</div><h1>{% if record_type=='task' %}Create work item{% elif record_type=='milestone' %}Create milestone{% elif record_type=='raid' %}Create RAID record{% else %}Prepare status report{% endif %}</h1><p>{% if record_type=='task' %}Define an accountable, schedulable unit of work and place it in the governed project workflow.{% elif record_type=='milestone' %}Add a dated control point for schedule assurance and executive reporting.{% elif record_type=='raid' %}Capture a risk, assumption, issue, roadblock, or lesson with an owner and response.{% else %}Create a source-grounded reporting-period record for review and approval.{% endif %}</p></div>
+    <a class="btn" href="/projects/{{ project.id }}?tab={% if record_type=='task' %}board{% elif record_type=='status-report' %}status{% elif record_type=='milestone' %}milestones{% else %}raid{% endif %}">Cancel</a>
+  </header>
+  <form class="card form-page-card" action="/projects/{{ project.id }}/{% if record_type=='task' %}tasks{% elif record_type=='milestone' %}milestones{% elif record_type=='raid' %}raid{% else %}status-reports{% endif %}" method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="form-grid">
+      {% if record_type=='task' %}
+        <div class="field field-span-2"><label for="task-title">Title</label><input class="input" id="task-title" name="title" required autofocus></div>
+        <div class="field"><label for="task-type">Type</label><select class="select" id="task-type" name="task_type">{% for value in ['Task','Summary','Milestone','Deliverable','Approval','Recurring'] %}<option>{{ value }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="task-priority">Priority</label><select class="select" id="task-priority" name="priority"><option>Low</option><option selected>Medium</option><option>High</option><option>Critical</option></select></div>
+        <div class="field field-span-2"><label for="task-description">Description and acceptance criteria</label><textarea class="textarea" id="task-description" name="description" rows="5"></textarea></div>
+        <div class="field"><label for="task-owner">Owner</label><select class="select" id="task-owner" name="owner_id"><option value="">Unassigned</option>{% for person in users %}<option value="{{ person.id }}">{{ person.full_name }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="task-parent">Parent / summary task</label><select class="select" id="task-parent" name="parent_id"><option value="">None</option>{% for item in tasks %}<option value="{{ item.id }}">{{ item.human_id }} · {{ item.title }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="task-column">Workflow column</label><select class="select" id="task-column" name="board_column">{% for column in board_columns %}<option>{{ column }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="task-effort">Estimated effort (hours)</label><input class="input" id="task-effort" name="estimated_effort" type="number" min="0" step="0.5" value="0"></div>
+        <div class="field"><label for="task-start">Start date</label><input class="input" id="task-start" name="start_date" type="date"></div>
+        <div class="field"><label for="task-due">Due date</label><input class="input" id="task-due" name="due_date" type="date"></div>
+        <div class="field field-span-2"><label for="task-notes">Initial notes</label><textarea class="textarea" id="task-notes" name="notes" rows="4"></textarea></div>
+      {% elif record_type=='milestone' %}
+        <div class="field field-span-2"><label for="ms-title">Milestone title</label><input class="input" id="ms-title" name="title" required autofocus></div>
+        <div class="field"><label for="ms-date">Current target date</label><input class="input" id="ms-date" name="current_date" type="date" required></div>
+        <div class="field"><label for="ms-confidence">Confidence</label><select class="select" id="ms-confidence" name="confidence"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+        <div class="field"><label for="ms-owner">Owner</label><select class="select" id="ms-owner" name="owner_id"><option value="">Current user</option>{% for person in users %}<option value="{{ person.id }}">{{ person.full_name }}</option>{% endfor %}</select></div>
+        <div class="field choice-check"><label><input type="checkbox" name="critical" value="yes"> Critical milestone</label><small>Critical milestones contribute to project health calculations.</small></div>
+      {% elif record_type=='raid' %}
+        <div class="field"><label for="raid-type">Record type</label><select class="select" id="raid-type" name="type">{% for value in ['Risk','Assumption','Issue','Roadblock','Lesson'] %}<option>{{ value }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="raid-title">Title</label><input class="input" id="raid-title" name="title" required autofocus></div>
+        <div class="field field-span-2"><label for="raid-description">Description</label><textarea class="textarea" id="raid-description" name="description" rows="5"></textarea></div>
+        <div class="field"><label for="severity">Severity</label><select class="select" id="severity" name="severity"><option>Low</option><option selected>Medium</option><option>High</option><option>Critical</option></select></div>
+        <div class="field"><label for="likelihood">Likelihood</label><select class="select" id="likelihood" name="likelihood"><option>Unlikely</option><option selected>Possible</option><option>Likely</option></select></div>
+        <div class="field"><label for="raid-owner">Owner</label><select class="select" id="raid-owner" name="owner_id"><option value="">Current user</option>{% for person in users %}<option value="{{ person.id }}">{{ person.full_name }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="raid-due">Response due date</label><input class="input" id="raid-due" name="due_date" type="date"></div>
+        <div class="field field-span-2"><label for="mitigation">Response / mitigation</label><textarea class="textarea" id="mitigation" name="mitigation" rows="5"></textarea></div>
+      {% else %}
+        <div class="field"><label for="period-start">Period start</label><input class="input" id="period-start" name="period_start" type="date"></div><div class="field"><label for="period-end">Period end</label><input class="input" id="period-end" name="period_end" type="date"></div>
+        <div class="field"><label for="report-health">Health</label><select class="select" id="report-health" name="health">{% for value in ['On Track','At Risk','Off Track','Blocked','Completed','On Hold','Not Reported'] %}<option {% if project.health_owner==value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div><div class="field"><label for="report-percent">Percent complete</label><input class="input" id="report-percent" name="percent_complete" type="number" min="0" max="100" value="{{ project.percent_complete }}"></div>
+        <div class="field field-span-2"><label for="accomplishments">Accomplishments</label><textarea class="textarea" id="accomplishments" name="accomplishments" rows="5" required></textarea></div>
+        <div class="field field-span-2"><label for="planned-work">Planned work</label><textarea class="textarea" id="planned-work" name="planned_work" rows="5" required></textarea></div>
+        <div class="field field-span-2"><label for="decisions-required">Decisions required</label><textarea class="textarea" id="decisions-required" name="decisions_required" rows="4" placeholder="State the decision, authority, date needed, and consequence of delay."></textarea></div>
+        <div class="field field-span-2"><label for="risks-dependencies">Risks and dependencies</label><textarea class="textarea" id="risks-dependencies" name="risks_and_dependencies" rows="4"></textarea></div>
+        <div class="field field-span-2"><label for="report-summary">Executive summary</label><textarea class="textarea" id="report-summary" name="summary" rows="5" placeholder="Use supported project, milestone, RAID, dependency, resource, financial, and benefit facts."></textarea></div>
+      {% endif %}
+    </div>
+    <div class="actions">{% if record_type=='status-report' %}<button class="btn" name="action" value="draft" type="submit">Save Draft</button><button class="btn btn-primary" name="action" value="submit" type="submit">Submit for Approval</button>{% else %}<button class="btn btn-primary" type="submit">Create {% if record_type=='task' %}and Open Task{% elif record_type=='milestone' %}Milestone{% else %}RAID Record{% endif %}</button>{% endif %}</div>
+  </form>
+</main>
+{% endblock %}

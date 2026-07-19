@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" role="img" aria-labelledby="title desc">
+  <title id="title">Simplified world map</title>
+  <desc id="desc">A locally packaged, decorative world outline used behind accessible travel location markers.</desc>
+  <g fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M57 114 91 78l65-31 79 8 36 35 50 7 28 35-31 39-23 56-48 34-12 55-45 21-37-38-13-64-48-42-42-8-17-35z"/>
+    <path d="m240 306 42 22 29 51-18 64-28 39-26-34-12-54-17-42z"/>
+    <path d="m410 106 49-37 68 3 35 24 44-10 55 25 34-8 69 29 65 4 67 38-31 38-68 17-33 34-74 8-55-18-42 20-43-8-29-35-42-8-26-38-44-17-11-37z"/>
+    <path d="m485 218 53 4 49 41 18 59-20 85-43 51-39-16-19-67-24-41-5-62z"/>
+    <path d="m797 333 39-26 64 14 34 39-18 52-54 25-57-27-25-43z"/>
+    <path d="m906 209 13-8 16 9-5 20-19 3z"/>
+    <path d="m646 125 12-22 20 5 5 25-18 11z"/>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1" opacity=".35">
+    <path d="M0 250h1000M250 0v500M500 0v500M750 0v500"/>
+  </g>
+</svg>

@@ -1,8 +1,121 @@
 {% extends "base.html" %}{% block title %}Resources · DDC5I Portfolio{% endblock %}{% block content %}
-<div class="page-head"><div><div class="eyebrow">Workforce planning</div><h2>Resource Capacity, Requests & Skill Gaps</h2><p>Compare role-based capacity with allocation, protect core-function coverage, and govern requests for scarce skills.</p></div></div>
-<div class="grid grid-5"><div class="card kpi"><div class="kpi-label">Available capacity</div><div class="kpi-value">{{ total_cap|int }}h</div></div><div class="card kpi"><div class="kpi-label">Allocated</div><div class="kpi-value">{{ total_alloc|int }}h</div></div><div class="card kpi {% if total_alloc>total_cap %}kpi-alert{% elif total_alloc>total_cap*0.9 %}kpi-warn{% else %}kpi-ok{% endif %}"><div class="kpi-label">Utilization</div><div class="kpi-value">{{ (total_alloc/total_cap*100)|round(1) if total_cap else 0 }}%</div></div><div class="card kpi kpi-alert"><div class="kpi-label">Overallocated</div><div class="kpi-value">{{ over|length }}</div></div><div class="card kpi kpi-warn"><div class="kpi-label">Coverage gaps</div><div class="kpi-value">{{ gaps|length }}</div></div></div>
-<div class="section-title"><h3>Capacity profile</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Division</th><th>Role</th><th>Skill</th><th>Period</th><th>Capacity</th><th>Allocated</th><th>Actual</th><th>Core minimum</th><th>Utilization</th><th>Indicator</th></tr></thead><tbody>{% for r in rows %}<tr><td>{{ orgs_map.get(r.org_id).code if orgs_map.get(r.org_id) else '—' }}</td><td>{{ r.role_name }}</td><td>{{ r.skill }}</td><td>{{ r.period }}</td><td>{{ r.capacity_hours|int }}h</td><td>{{ r.allocated_hours|int }}h</td><td>{{ r.actual_hours|int }}h</td><td>{{ r.minimum_core_coverage|int }}h</td><td>{{ (r.allocated_hours/r.capacity_hours*100)|round(1) if r.capacity_hours else 0 }}%</td><td>{% if r.allocated_hours>r.capacity_hours %}<span class="badge badge-Off-Track">Overallocated</span>{% elif r.allocated_hours+r.minimum_core_coverage>r.capacity_hours %}<span class="badge badge-At-Risk">Core coverage risk</span>{% else %}<span class="badge badge-On-Track">Within capacity</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
-<div class="grid grid-2" style="margin-top:16px"><section class="card"><h3>Submit resource request</h3><form action="/resources/requests" method="post" class="form-grid"><input type="hidden" name="csrf" value="{{ csrf_token }}"><label class="field">Organization<select class="select" name="org_id" required>{% for o in organizations if o.org_type=='Division' and (user.division_id==o.id or 'ADMIN' in user.roles or 'PMO' in user.roles or 'ENTERPRISE_PORTFOLIO_OWNER' in user.roles) %}<option value="{{ o.id }}">{{ o.code }} · {{ o.name }}</option>{% endfor %}</select></label><label class="field">Project<select class="select" name="project_id"><option value="">Enterprise or core work</option>{% for p in project_options %}<option value="{{ p.id }}">{{ p.human_id }} · {{ p.title }}</option>{% endfor %}</select></label><label class="field">Role<input class="input" name="role_name" required></label><label class="field">Skill<input class="input" name="skill"></label><label class="field">Requested hours<input class="input" type="number" min="1" step="1" name="requested_hours" required></label><label class="field">Priority<select class="select" name="priority"><option>Low</option><option selected>Medium</option><option>High</option><option>Critical</option></select></label><label class="field">Period start<input class="input" type="date" name="period_start" required></label><label class="field">Period end<input class="input" type="date" name="period_end" required></label><label class="field field-span-2">Mission need and alternatives considered<textarea class="textarea" name="rationale" rows="3" required></textarea></label><div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="submit">Submit request</button></div></form></section><section class="card"><div class="eyebrow">Decision support</div><h3>Request posture</h3><p>{{ resource_requests|selectattr('status','equalto','Submitted')|list|length }} requests await disposition. Approval records the accountable authority and resolution but does not fabricate an authoritative personnel assignment.</p><a class="btn" href="/scenarios">Model workforce scenario</a></section></div>
-<div class="section-title"><h3>Resource-request register</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Request</th><th>Organization / project</th><th>Role and skill</th><th>Hours / period</th><th>Priority</th><th>Status</th><th>Decision</th></tr></thead><tbody>{% for r in resource_requests %}<tr><td><strong>{{ r.human_id }}</strong><br><small>{{ users_map.get(r.requested_by_id).full_name if users_map.get(r.requested_by_id) else '—' }}</small></td><td>{{ orgs_map.get(r.org_id).code if orgs_map.get(r.org_id) else '—' }}<br><small>{{ projects_map.get(r.project_id).human_id if projects_map.get(r.project_id) else 'Core / enterprise work' }}</small></td><td>{{ r.role_name }}<br><small>{{ r.skill }}</small></td><td>{{ r.requested_hours|int }}h<br><small>{{ r.period_start|datefmt }} – {{ r.period_end|datefmt }}</small></td><td><span class="badge badge-{{ r.priority|badge }}">{{ r.priority }}</span></td><td><span class="badge badge-{{ r.status|badge }}">{{ r.status }}</span><br><small>{{ r.resolution }}</small></td><td>{% if r.status=='Submitted' and ('RESOURCE_MANAGER' in user.roles or 'PMO' in user.roles or 'DIVISION_CHIEF' in user.roles or 'ADMIN' in user.roles) %}<form action="/resources/requests/{{ r.id }}/decision" method="post" class="compact-grid"><input type="hidden" name="csrf" value="{{ csrf_token }}"><select class="select" name="decision"><option>Approved</option><option>Partially Approved</option><option>Deferred</option><option>Declined</option></select><input class="input" name="resolution" required placeholder="Source, tradeoff, or rationale"><button class="btn btn-small" type="submit">Record</button></form>{% else %}{{ users_map.get(r.approver_id).full_name if users_map.get(r.approver_id) else '—' }}{% endif %}</td></tr>{% else %}<tr><td colspan="7" class="empty">No resource requests.</td></tr>{% endfor %}</tbody></table></div>
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><span>Resources</span></div>
+<div class="page-head">
+<div>
+<div class="eyebrow">Workforce planning</div>
+<h2>Resource Capacity, Requests & Skill Gaps</h2>
+<p>Compare role-based capacity with allocation, protect core-function coverage, and govern requests for scarce skills.</p>
+</div>
+<div class="actions"><a class="btn btn-primary" href="/resources/requests/new">＋ Submit Resource Request</a>{% if 'ADMIN' in user.roles %}<a class="btn" href="/resources/import">Import / Export Resources</a>{% endif %}</div>
+</div>
+<div class="grid grid-5">
+<div class="card kpi">
+<div class="kpi-label">Available capacity</div>
+<div class="kpi-value">{{ total_cap|int }}h</div>
+</div>
+<div class="card kpi">
+<div class="kpi-label">Allocated</div>
+<div class="kpi-value">{{ total_alloc|int }}h</div>
+</div>
+<div class="card kpi {% if total_alloc>total_cap %}kpi-alert{% elif total_alloc>total_cap*0.9 %}kpi-warn{% else %}kpi-ok{% endif %}">
+<div class="kpi-label">Utilization</div>
+<div class="kpi-value">{{ (total_alloc/total_cap*100)|round(1) if total_cap else 0 }}%</div>
+</div>
+<div class="card kpi kpi-alert">
+<div class="kpi-label">Overallocated</div>
+<div class="kpi-value">{{ over|length }}</div>
+</div>
+<div class="card kpi kpi-warn">
+<div class="kpi-label">Coverage gaps</div>
+<div class="kpi-value">{{ gaps|length }}</div>
+</div>
+</div>
+<div class="section-title">
+<h3>Capacity profile</h3>
+</div>
+<div class="table-wrap">
+<table class="data-table">
+<thead>
+<tr>
+<th>Division</th>
+<th>Role</th>
+<th>Skill</th>
+<th>Period</th>
+<th>Capacity</th>
+<th>Allocated</th>
+<th>Actual</th>
+<th>Core minimum</th>
+<th>Utilization</th>
+<th>Indicator</th>
+</tr>
+</thead>
+<tbody>{% for r in rows %}<tr>
+<td>{{ orgs_map.get(r.org_id).code if orgs_map.get(r.org_id) else '—' }}</td>
+<td>{{ r.role_name }}</td>
+<td>{{ r.skill }}</td>
+<td>{{ r.period }}</td>
+<td>{{ r.capacity_hours|int }}h</td>
+<td>{{ r.allocated_hours|int }}h</td>
+<td>{{ r.actual_hours|int }}h</td>
+<td>{{ r.minimum_core_coverage|int }}h</td>
+<td>{{ (r.allocated_hours/r.capacity_hours*100)|round(1) if r.capacity_hours else 0 }}%</td>
+<td>{% if r.allocated_hours>r.capacity_hours %}<span class="badge badge-Off-Track">Overallocated</span>{% elif r.allocated_hours+r.minimum_core_coverage>r.capacity_hours %}<span class="badge badge-At-Risk">Core coverage risk</span>{% else %}<span class="badge badge-On-Track">Within capacity</span>{% endif %}</td>
+</tr>{% endfor %}</tbody>
+</table>
+</div>
+<div class="grid grid-2" style="margin-top:16px">
+<section class="card action-card-large"><div><div class="eyebrow">Request capacity</div><h3>Need a role or scarce skill?</h3><p>Open the dedicated request page to document the mission need, period, hours, priority, and alternatives considered.</p></div><a class="btn btn-primary" href="/resources/requests/new">Submit resource request</a></section>
+<section class="card">
+<div class="eyebrow">Decision support</div>
+<h3>Request posture</h3>
+<p>{{ resource_requests|selectattr('status','equalto','Submitted')|list|length }} requests await disposition. Approval records the accountable authority and resolution but does not fabricate an authoritative personnel assignment.</p>
+<a class="btn" href="/scenarios">Model workforce scenario</a>
+</section>
+</div>
+<div class="section-title">
+<h3>Resource-request register</h3>
+</div>
+<div class="table-wrap">
+<table class="data-table">
+<thead>
+<tr>
+<th>Request</th>
+<th>Organization / project</th>
+<th>Role and skill</th>
+<th>Hours / period</th>
+<th>Priority</th>
+<th>Status</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>{% for r in resource_requests %}<tr>
+<td>
+<strong>{{ r.human_id }}</strong>
+<br>
+<small>{{ users_map.get(r.requested_by_id).full_name if users_map.get(r.requested_by_id) else '—' }}</small>
+</td>
+<td>{{ orgs_map.get(r.org_id).code if orgs_map.get(r.org_id) else '—' }}<br>
+<small>{{ projects_map.get(r.project_id).human_id if projects_map.get(r.project_id) else 'Core / enterprise work' }}</small>
+</td>
+<td>{{ r.role_name }}<br>
+<small>{{ r.skill }}</small>
+</td>
+<td>{{ r.requested_hours|int }}h<br>
+<small>{{ r.period_start|datefmt }} – {{ r.period_end|datefmt }}</small>
+</td>
+<td>
+<span class="badge badge-{{ r.priority|badge }}">{{ r.priority }}</span>
+</td>
+<td>
+<span class="badge badge-{{ r.status|badge }}">{{ r.status }}</span>
+<br>
+<small>{{ r.resolution }}</small>
+</td>
+<td><a class="btn btn-small" href="/resources/requests/{{ r.id }}">{% if r.status=='Submitted' and ('RESOURCE_MANAGER' in user.roles or 'PMO' in user.roles or 'DIVISION_CHIEF' in user.roles or 'ADMIN' in user.roles) %}Review and decide{% else %}Open request{% endif %}</a></td>
+</tr>{% else %}<tr>
+<td colspan="7" class="empty">No resource requests.</td>
+</tr>{% endfor %}</tbody>
+</table>
+</div>
 <div class="callout warning" style="margin-top:16px">Authoritative personnel, labor categories, vacancies, contractor data, and sensitive rate data remain workforce/financial-system integration requirements.</div>
 {% endblock %}

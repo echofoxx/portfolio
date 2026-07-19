@@ -6,12 +6,13 @@ import json
 import os
 import re
 import time
+import zipfile
 from collections import Counter, defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlencode
 
 import xlsxwriter
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
@@ -21,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.config import APP_VERSION, settings
 from app.database import SessionLocal, get_db
 from app.models import (
     Action,
@@ -31,10 +32,14 @@ from app.models import (
     BoardColumn,
     AuditEvent,
     Benefit,
+    BriefingSection,
+    BriefingSnapshot,
     CoreFunction,
+    DashboardPreference,
     Decision,
     Demand,
     DemandRevision,
+    DivisionProfile,
     Dependency,
     FinancialRecord,
     FinancialTransaction,
@@ -52,11 +57,15 @@ from app.models import (
     PortfolioReview,
     PortfolioReviewItem,
     Project,
+    ProjectPromotionRequest,
     ProjectTemplate,
     RaidItem,
     RequirementTrace,
     ResourceCapacity,
     ResourceRequest,
+    ReviewChangeRequest,
+    ReviewNote,
+    ReviewQuestion,
     ReportPack,
     SavedView,
     Scenario,
@@ -69,10 +78,17 @@ from app.models import (
     TaskNoteRevision,
     TaskRelationship,
     SyncRun,
+    TravelApprovalStep,
+    TravelEngagement,
+    TravelEntityLink,
+    TravelRequest,
+    TripReport,
+    TripReportItem,
     User,
 )
 from app.services.audit import record_audit, snapshot
 from app.services.imports import validate_demand_rows
+from app.services.resource_imports import RESOURCE_COLUMNS, validate_resource_rows
 from app.services.scoring import DEFAULT_WEIGHTS, LABELS, calculate_weighted_score, score_variance
 from app.services.security import (
     can_access_org,
@@ -90,8 +106,22 @@ from app.services.security import (
 from app.services.workflow import ALLOWED_TRANSITIONS, validate_transition
 from app.services.storage import ALLOWED_EXTENSIONS, LocalVolumeStorage, validate_file_signature
 from app.services.xlsx_reader import read_first_sheet_xlsx
+from app.services.travel import (
+    apply_best_match,
+    commit_travel_request_result,
+    commit_trip_report_result,
+    ensure_report_items,
+    match_candidates,
+    refresh_engagement_rollups,
+    resolve_location,
+    travel_dashboard_payload,
+    validate_travel_request_rows,
+    validate_trip_report_rows,
+)
 from app.services.schedule import critical_path, gantt_layout, wbs_numbers, would_create_cycle
 from app.services.v050 import calculate_scenario, projectos_payload, report_pack_sections, scan_data_quality
+from app.services.briefings import division_briefing_payload, ensure_briefing_sections
+from app.services.division_profiles import apply_profile_data, normalize_profile_data, profile_form_values, profile_to_dict
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
@@ -99,8 +129,8 @@ STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.6.0",
-    description="JSJ6 enterprise demand, portfolio, project, resource, investment, benefit, and traceability reference implementation.",
+    version=APP_VERSION,
+    description="JSJ6 enterprise demand, portfolio, project, travel engagement, resource, investment, benefit, and traceability reference implementation.",
     docs_url=None,
     redoc_url=None,
 )
@@ -172,6 +202,17 @@ def require_business_edit(user: User) -> None:
         raise HTTPException(status_code=403, detail="This role has read-only access")
 
 
+def can_manage_division_profile(user: User, org_id: str) -> bool:
+    if has_role(user, "ADMIN", "PMO", "ENTERPRISE_PORTFOLIO_OWNER", "DATA_STEWARD"):
+        return True
+    return can_access_org(user, org_id) and has_role(user, "DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER")
+
+
+def require_division_profile_edit(user: User, org_id: str) -> None:
+    if not can_manage_division_profile(user, org_id):
+        raise HTTPException(status_code=403, detail="Requires division-profile publishing authority")
+
+
 def scoped_projects(db: Session, user: User):
     query = db.query(Project)
     if not is_enterprise_user(user):
@@ -198,6 +239,93 @@ def scoped_demands(db: Session, user: User):
         query = query.filter(Demand.sensitivity != "Restricted")
     return query
 
+
+
+def scoped_travel_requests(db: Session, user: User):
+    query = db.query(TravelRequest)
+    if not is_enterprise_user(user):
+        query = query.filter(TravelRequest.org_id == user.division_id)
+    if not user.sensitive_access and not has_role(user, "ADMIN", "SECURITY_REVIEWER"):
+        query = query.filter(TravelRequest.sensitivity != "Restricted")
+    return query
+
+
+def scoped_trip_reports(db: Session, user: User):
+    query = db.query(TripReport)
+    if not is_enterprise_user(user):
+        query = query.filter(TripReport.org_id == user.division_id)
+    if not user.sensitive_access and not has_role(user, "ADMIN", "SECURITY_REVIEWER"):
+        query = query.filter(TripReport.sensitivity != "Restricted")
+    return query
+
+
+def resolve_travel_entity_links(db: Session, user: User, links: list[TravelEntityLink]) -> list[dict[str, Any]]:
+    """Resolve travel trace links into authorized, human-readable drill-through rows."""
+    project_ids = {row.id for row in scoped_projects(db, user).all()}
+    demand_ids = {row.id for row in scoped_demands(db, user).all()}
+    resolved: list[dict[str, Any]] = []
+    for link in links:
+        record: Any | None = None
+        url = ""
+        subtitle = ""
+        target_type = link.target_entity_type
+        if target_type == "Action":
+            record = db.get(Action, link.target_entity_id)
+            if record and ((record.project_id and record.project_id not in project_ids) or (record.demand_id and record.demand_id not in demand_ids)):
+                record = None
+            url = f"/records/action/{link.target_entity_id}"
+        elif target_type == "RaidItem":
+            record = db.get(RaidItem, link.target_entity_id)
+            if record and record.project_id not in project_ids:
+                record = None
+            url = f"/records/raid/{link.target_entity_id}"
+        elif target_type == "Decision":
+            record = db.get(Decision, link.target_entity_id)
+            if record and ((record.project_id and record.project_id not in project_ids) or (record.demand_id and record.demand_id not in demand_ids)):
+                record = None
+            url = f"/records/decision/{link.target_entity_id}"
+        elif target_type == "Dependency":
+            record = db.get(Dependency, link.target_entity_id)
+            if record and record.source_project_id not in project_ids:
+                record = None
+            url = f"/records/dependency/{link.target_entity_id}"
+        elif target_type == "Project":
+            record = scoped_projects(db, user).filter(Project.id == link.target_entity_id).first()
+            url = f"/projects/{link.target_entity_id}"
+        elif target_type == "Demand":
+            record = scoped_demands(db, user).filter(Demand.id == link.target_entity_id).first()
+            url = f"/demands/{link.target_entity_id}"
+        if not record:
+            continue
+        title = getattr(record, "title", None) or getattr(record, "decision", None) or target_type
+        human_id = getattr(record, "human_id", "")
+        if getattr(record, "status", None):
+            subtitle = str(record.status)
+        elif target_type == "Decision":
+            subtitle = "Decision record"
+        resolved.append({
+            "link": link,
+            "target_type": target_type,
+            "human_id": human_id,
+            "title": title,
+            "subtitle": subtitle,
+            "url": url,
+        })
+    return resolved
+
+
+def get_accessible_travel_request(db: Session, user: User, request_id: str) -> TravelRequest:
+    record = scoped_travel_requests(db, user).filter(TravelRequest.id == request_id).first()
+    if not record:
+        raise HTTPException(404, "Travel request not found")
+    return record
+
+
+def get_accessible_trip_report(db: Session, user: User, report_id: str) -> TripReport:
+    record = scoped_trip_reports(db, user).filter(TripReport.id == report_id).first()
+    if not record:
+        raise HTTPException(404, "Trip report not found")
+    return record
 
 def get_accessible_demand(db: Session, user: User, demand_id: str) -> Demand:
     demand = db.get(Demand, demand_id)
@@ -348,10 +476,287 @@ def file_size_label(size_bytes: int) -> str:
 templates.env.filters["filesize"] = file_size_label
 
 
+
+def role_focus_for(user: User) -> dict[str, Any]:
+    """Return a concise, role-oriented starting point for the application shell."""
+    roles = set(user.roles or [])
+    profiles = [
+        ({"ADMIN"}, "Administrator", "Keep access, configuration, integrations, and operational controls healthy.", [
+            ("Manage access", "/administration", "Users, roles, scope, and delegations"),
+            ("Resolve data issues", "/data-quality", "Scan, assign, and close quality findings"),
+            ("Check integrations", "/integrations", "Ownership, health, and synchronization evidence"),
+        ], ["administration", "data-quality", "integrations"]),
+        ({"SENIOR_LEADER", "APPROVAL_AUTHORITY"}, "Decision Authority", "Focus on decisions, exceptions, tradeoffs, and outcomes that require leadership action.", [
+            ("Review decisions", "/decisions", "Open dispositions and conditions"),
+            ("Open briefings", "/portfolio-reviews", "Division summaries, questions, decisions, and actions"),
+            ("Review scenarios", "/scenarios", "Compare approved baseline tradeoffs"),
+        ], ["dashboard", "decisions", "portfolio-reviews", "scenarios"]),
+        ({"ENTERPRISE_PORTFOLIO_OWNER", "PMO"}, "Portfolio Owner / PMO", "Balance demand, delivery health, capacity, investment, and governance across the portfolio.", [
+            ("Open my work", "/my-work", "Assigned reviews, actions, and project work"),
+            ("Manage demand", "/demands", "Triage, assess, recommend, and route"),
+            ("Run briefing / review", "/portfolio-reviews", "Prepare the next source-backed leadership forum"),
+        ], ["dashboard", "my-work", "demands", "portfolio-reviews"]),
+        ({"DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER"}, "Division Portfolio Lead", "Keep the division pipeline, project exceptions, decisions, and commitments current.", [
+            ("Open my work", "/my-work", "Assigned responsibilities and due work"),
+            ("Review demand", "/demands", "Division intake and next actions"),
+            ("Prepare division briefing", "/portfolio-reviews", "Summarize work and conduct leadership review"),
+        ], ["my-work", "demands", "projects", "portfolio-reviews"]),
+        ({"PROJECT_MANAGER"}, "Project Manager", "Plan executable work, remove blockers, maintain evidence, and report a trustworthy status.", [
+            ("Open my work", "/my-work", "Tasks, actions, and managed projects"),
+            ("Manage projects", "/projects", "Boards, WBS, schedule, RAID, and reports"),
+            ("Review risks", "/risks", "Open risks and cross-project dependencies"),
+        ], ["my-work", "projects", "risks"]),
+        ({"TEAM_MEMBER"}, "Team Member", "Complete assigned tasks, update progress, and attach the evidence needed for acceptance.", [
+            ("Open my work", "/my-work", "Your tasks and actions"),
+            ("Open projects", "/projects", "Find the project execution workspace"),
+            ("Check notifications", "/notifications", "Mentions, assignments, and changes"),
+        ], ["my-work", "projects", "notifications"]),
+        ({"REQUESTER"}, "Demand Requester", "Create complete demand records, answer clarification requests, and track decisions.", [
+            ("Start a demand", "/demands/new", "Describe the need, outcome, urgency, and alignment"),
+            ("Open my work", "/my-work", "Track sponsored and assigned demands"),
+            ("View demand pipeline", "/demands", "See status and next action"),
+        ], ["my-work", "demands"]),
+        ({"ASSESSOR"}, "Assessor", "Score assigned demand consistently and document evidence, rationale, and confidence.", [
+            ("Open assessments", "/assessments", "Review and score assigned demand"),
+            ("Open my work", "/my-work", "See responsibilities and due work"),
+            ("View demand pipeline", "/demands", "Understand lifecycle context"),
+        ], ["my-work", "demands", "assessments"]),
+        ({"RESOURCE_MANAGER"}, "Resource Manager", "Protect critical capacity, decide resource requests, and resolve over-allocation.", [
+            ("Review resources", "/resources", "Capacity, allocation, and requests"),
+            ("Open my work", "/my-work", "Assigned actions and project context"),
+            ("Review projects", "/projects", "Validate delivery demand"),
+        ], ["my-work", "resources", "projects"]),
+        ({"FINANCIAL_MANAGER"}, "Financial Manager", "Maintain investment evidence, forecast variance, and funding decisions.", [
+            ("Review investments", "/financials", "Budget, actual, forecast, and transactions"),
+            ("Open reports", "/reports", "Validate leadership reporting"),
+            ("Review scenarios", "/scenarios", "Assess financial tradeoffs"),
+        ], ["financials", "reports", "scenarios"]),
+        ({"BENEFITS_OWNER"}, "Benefits Owner", "Keep benefit targets, realization evidence, and outcome status current.", [
+            ("Review benefits", "/benefits", "Targets, actuals, and status"),
+            ("Open my work", "/my-work", "Assigned actions and projects"),
+            ("Open reports", "/reports", "Confirm outcome reporting"),
+        ], ["my-work", "benefits", "reports"]),
+        ({"DATA_STEWARD"}, "Data Steward", "Improve data quality, govern imports, and resolve ownership or integration conflicts.", [
+            ("Resolve data issues", "/data-quality", "Scan, assign, disposition, and verify"),
+            ("Manage imports", "/imports", "Preview, validate, commit, and correct"),
+            ("Check integrations", "/integrations", "Field ownership and sync evidence"),
+        ], ["data-quality", "imports", "integrations"]),
+        ({"SECURITY_REVIEWER", "AUDITOR"}, "Assurance Reviewer", "Verify access, traceability, evidence, and material changes without altering business records.", [
+            ("Review audit", "/audit", "Material actions and before/after evidence"),
+            ("Open requirements", "/requirements", "Implementation and verification traceability"),
+            ("Review access", "/administration", "Users, roles, scope, and delegations"),
+        ], ["audit", "requirements", "administration"]),
+    ]
+    for matching_roles, label, summary, actions, nav_keys in profiles:
+        if roles.intersection(matching_roles):
+            return {
+                "label": label,
+                "summary": summary,
+                "actions": [{"label": a, "href": h, "hint": t} for a, h, t in actions],
+                "nav_keys": nav_keys,
+            }
+    return {
+        "label": "Portfolio Contributor",
+        "summary": "Start with assigned work, then use the portfolio workspaces that match your responsibilities.",
+        "actions": [
+            {"label": "Open my work", "href": "/my-work", "hint": "Assigned tasks, actions, demands, and projects"},
+            {"label": "Open portfolio overview", "href": "/dashboard", "hint": "Current portfolio picture and exceptions"},
+        ],
+        "nav_keys": ["my-work", "dashboard"],
+    }
+
+
+def page_guide_for(request: Request, template_name: str, context: dict[str, Any]) -> dict[str, Any] | None:
+    """Provide contextual process guidance without changing authoritative workflow rules."""
+    def guide(title: str, purpose: str, steps: list[tuple[str, str, str]], current: int = 0, tip: str = "") -> dict[str, Any]:
+        return {
+            "title": title,
+            "purpose": purpose,
+            "steps": [{"label": label, "detail": detail, "href": href} for label, detail, href in steps],
+            "current": max(0, min(current, len(steps) - 1)),
+            "tip": tip,
+        }
+
+    path = request.url.path
+    if template_name == "dashboard.html":
+        return guide("Use the portfolio overview", "Orient to the current picture, identify what needs attention, then move into an authoritative workspace.", [
+            ("Review", "Scan health, investment, decisions, risks, and benefits.", "/dashboard"),
+            ("Prioritize", "Open My Work to see responsibilities assigned to you.", "/my-work"),
+            ("Act", "Update the demand, project, review, or control record.", "/my-work"),
+            ("Verify", "Confirm the change appears in reports and audit evidence.", "/reports"),
+        ], 0, "Start with items marked Focus in the left navigation.")
+    if template_name == "my_work.html":
+        return guide("Work your personal queue", "Use this page as the safest starting point for daily work; each item links to its authoritative record.", [
+            ("Review", "Scan assignments, next actions, due dates, and health.", "/my-work"),
+            ("Prioritize", "Open overdue, high-priority, or decision-blocking work first.", "/my-work"),
+            ("Update", "Record progress, evidence, comments, or disposition at the source.", "/my-work"),
+            ("Close", "Complete the task or action and verify downstream status.", "/my-work"),
+        ], 1, "Do not update summary dashboards when an authoritative task, demand, or project record is available.")
+    if template_name in {"demands.html", "demand_form.html", "demand_detail.html", "assessments.html"}:
+        current = 0
+        if template_name == "assessments.html": current = 2
+        if template_name == "demand_detail.html":
+            status = getattr(context.get("demand"), "status", "Draft")
+            current = {"Draft": 0, "Submitted": 1, "Triage": 1, "Clarification Required": 1, "Assessment": 2,
+                       "Awaiting Portfolio Recommendation": 3, "Awaiting Decision": 4, "Approved": 5,
+                       "Converted to Execution": 5, "Deferred": 4, "Declined": 4}.get(status, 1)
+        return guide("Demand lifecycle", "Move a need from a complete intake record to an evidence-based decision and, when approved, into execution.", [
+            ("Draft", "Describe the need, outcome, urgency, alignment, and expected value.", "/demands/new"),
+            ("Validate", "Submit, review completeness, and resolve clarification requests.", "/demands"),
+            ("Assess", "Score consistently and document rationale and confidence.", "/assessments"),
+            ("Recommend", "Compare tradeoffs and prepare a portfolio recommendation.", "/demands"),
+            ("Decide", "Record disposition, rationale, conditions, and implications.", "/decisions"),
+            ("Execute", "Convert approved demand without rekeying and manage delivery.", "/projects"),
+        ], current, "Required fields are marked with an asterisk; save evidence at the step where it is created.")
+    if template_name in {"projects.html", "project_detail.html", "task_detail.html", "project_templates.html", "roadmaps.html", "status_report_detail.html"}:
+        tab = context.get("tab", "overview")
+        current = {"overview": 0, "wbs": 1, "board-settings": 1, "board": 2, "schedule": 2, "milestones": 2,
+                   "raid": 3, "financial": 3, "status": 4, "activity": 4}.get(tab, 0)
+        if template_name == "task_detail.html": current = 2
+        if template_name == "status_report_detail.html": current = 4
+        return guide("Project delivery cycle", "Plan the work, execute through governed flow, monitor exceptions, and publish a source-grounded status.", [
+            ("Orient", "Confirm purpose, accountability, scope, and baseline.", "/projects"),
+            ("Plan", "Build WBS, board states, dates, dependencies, and acceptance criteria.", path if path.startswith("/projects/") else "/projects"),
+            ("Execute", "Assign tasks, update progress, collaborate, and attach evidence.", path if path.startswith("/projects/") else "/projects"),
+            ("Control", "Resolve RAID, schedule, capacity, financial, and dependency exceptions.", "/risks"),
+            ("Report", "Prepare, submit, approve, and retain the reporting baseline.", "/reports"),
+        ], current, "Open task details from Kanban or WBS; the full task page remains available as a reliable fallback.")
+    if template_name in {"travel.html", "travel_request_detail.html", "trip_report_detail.html", "travel_engagement_detail.html"}:
+        current = 0 if template_name == "travel.html" else 1 if template_name in {"travel_request_detail.html", "travel_engagement_detail.html"} else 2
+        return guide("Travel and engagement outcome cycle", "Connect approval estimates to engagements, trip reports, reviewed outcomes, and canonical portfolio follow-through.", [
+            ("Review", "Filter approvals, estimated cost, divisions, destinations, and report gaps.", "/travel"),
+            ("Trace", "Open the traveler request and engagement rollup with source provenance.", "/travel"),
+            ("Reconcile", "Confirm the trip report-to-request match and review the report narrative.", "/travel#reconciliation"),
+            ("Promote", "Turn reviewed recommendations into governed actions, risks, or decisions.", "/travel"),
+            ("Verify", "Follow the canonical record and retain the historical trip report link.", "/audit"),
+        ], current, "Travel values are approval estimates, not authoritative actual expenditures.")
+    if template_name == "division_briefing.html":
+        status = getattr(context.get("review"), "status", "In Preparation")
+        current = {"Draft": 0, "In Preparation": 0, "Ready for Division Review": 1, "Ready to Brief": 2, "In Review": 3, "Completed": 4}.get(status, 0)
+        return guide("Division briefing and review cycle", "Replace disconnected slide preparation with one source-backed operating process for preparation, live review, decisions, and follow-through.", [
+            ("Prepare", "Complete the standard division sections and validate source data.", path),
+            ("Approve", "Submit for division validation and capture the approved briefing snapshot.", path),
+            ("Brief", "Present directly from current portfolio evidence in presentation mode.", path),
+            ("Review", "Ask questions, document notes, request changes, decide, and assign actions.", path),
+            ("Follow through", "Resolve assigned questions and changes from My Work, then close the forum.", "/my-work"),
+        ], current, "The approved snapshot preserves what leadership saw; follow-up changes remain governed at the authoritative source.")
+    if template_name in {"portfolio_reviews.html", "portfolio_review_detail.html", "divisions.html", "division_detail.html"}:
+        return guide("Portfolio governance cycle", "Prepare evidence, make explicit tradeoffs, record decisions, and follow actions to closure.", [
+            ("Prepare", "Select scope, period, participants, agenda, and evidence.", "/portfolio-reviews"),
+            ("Review", "Examine health, value, capacity, risks, and recommendations.", "/portfolio-reviews"),
+            ("Decide", "Record the authoritative outcome and rationale.", "/decisions"),
+            ("Assign", "Create owners, due dates, conditions, and actions.", "/my-work"),
+            ("Complete", "Close the forum and verify downstream records.", "/portfolio-reviews"),
+        ], 1, "A review is complete only when decisions and actions are linked to authoritative records.")
+    if template_name == "resources.html":
+        return guide("Resource management flow", "Translate delivery needs into governed requests and capacity decisions.", [
+            ("Review capacity", "Identify coverage gaps and over-allocation.", "/resources"),
+            ("Request", "State role, skill, period, hours, priority, and rationale.", "/resources"),
+            ("Decide", "Approve or decline with a resolution.", "/resources"),
+            ("Allocate", "Reflect the approved plan in delivery records.", "/projects"),
+            ("Track", "Compare allocation, actual effort, and protected minimums.", "/resources"),
+        ], 0, "Resource requests are planning evidence; authoritative workforce assignment remains integration-dependent.")
+    if template_name in {"financials.html", "benefits.html"}:
+        return guide("Investment and value cycle", "Maintain a trustworthy financial baseline, explain variance, and connect spend to expected outcomes.", [
+            ("Baseline", "Confirm approved budget, funding need, and benefit target.", "/financials"),
+            ("Record", "Append commitments, obligations, expenditures, or adjustments.", "/financials"),
+            ("Forecast", "Update forecast and estimate variance or underfunding.", "/financials"),
+            ("Review", "Assess affordability, tradeoffs, and benefit realization.", "/benefits"),
+            ("Decide", "Record funding or scope decisions and conditions.", "/decisions"),
+        ], 1 if template_name == "financials.html" else 3, "These records support portfolio decisions; they are not the authoritative accounting system.")
+    if template_name in {"reports.html", "operations.html"}:
+        return guide("Reporting cycle", "Build leadership products from authoritative records and retain approval evidence.", [
+            ("Prepare", "Select organization, period, and reporting scope.", "/reports"),
+            ("Generate", "Create source-grounded metrics and narrative.", "/operations"),
+            ("Validate", "Resolve missing, stale, or inconsistent source data.", "/data-quality"),
+            ("Approve", "Lock the reporting baseline with accountable approval.", "/operations"),
+            ("Use", "Distribute or print the approved product and track decisions.", "/reports"),
+        ], 0 if template_name == "reports.html" else 2, "Narrative should never introduce a claim that is not supported by an accessible source record.")
+    if template_name in {"scenarios.html", "scenario_detail.html"}:
+        status = getattr(context.get("scenario"), "status", "Draft")
+        current = {"Draft": 0, "Calculated": 2, "Compared": 2, "Approved": 3, "Applied": 4}.get(status, 0)
+        return guide("Scenario governance flow", "Explore a change without modifying the live baseline, then separate approval from application.", [
+            ("Define", "State the decision question, assumptions, scope, and baseline date.", "/scenarios#new-scenario"),
+            ("Model", "Add supported changes without applying them.", "/scenarios"),
+            ("Compare", "Calculate impacts and explain baseline differences.", "/scenarios"),
+            ("Approve", "Authorize the scenario while leaving live records unchanged.", "/scenarios"),
+            ("Apply", "Apply only an approved scenario with before/after audit evidence.", "/scenarios"),
+        ], current, "Approval is intentionally separate from Apply; draft and compared scenarios do not change live data.")
+    if template_name in {"imports.html", "import_preview.html"}:
+        return guide("Controlled import flow", "Stage spreadsheet data safely before it changes authoritative records.", [
+            ("Download", "Use the versioned template and preserve stable identifiers.", "/imports"),
+            ("Upload", "Select the template type and upload the workbook.", "/imports"),
+            ("Validate", "Review row-level create, update, warning, error, and permission results.", "/imports"),
+            ("Commit", "Commit only valid rows after review.", "/imports"),
+            ("Correct", "Download corrections, fix source data, and repeat validation.", "/imports"),
+        ], 2 if template_name == "import_preview.html" else 1, "Preview is non-destructive; commit is the explicit write step.")
+    if template_name == "data_quality.html":
+        return guide("Data-quality resolution flow", "Turn deterministic findings into owned, traceable corrections.", [
+            ("Scan", "Run rules against current authoritative records.", "/data-quality"),
+            ("Triage", "Confirm severity, source, and disposition.", "/data-quality"),
+            ("Assign", "Set an owner and due date.", "/data-quality"),
+            ("Resolve", "Correct the source record and document the result.", "/data-quality"),
+            ("Verify", "Re-scan or review evidence before closure.", "/data-quality"),
+        ], 1, "Fix the source record rather than editing only the quality finding.")
+    if template_name == "integrations.html":
+        return guide("Integration control flow", "Define ownership before synchronization and keep operator evidence for every run.", [
+            ("Register", "Record endpoint, mode, authentication type, and owner.", "/integrations"),
+            ("Own fields", "Declare authoritative system, allowed writers, and conflict policy.", "/integrations"),
+            ("Test", "Run health checks or a canonical dry run.", "/integrations"),
+            ("Reconcile", "Inspect payload, result, conflict, and lineage evidence.", "/integrations"),
+            ("Operate", "Monitor jobs, retries, and exceptions.", "/operations"),
+        ], 1, "The packaged ProjectOS operation is a dry run; no remote write occurs.")
+    if template_name == "administration.html":
+        return guide("Access administration flow", "Apply least privilege, explicit scope, and traceable temporary authority.", [
+            ("Create / update", "Maintain account identity and active status.", "/administration"),
+            ("Assign roles", "Grant only roles needed for accountable work.", "/administration"),
+            ("Set scope", "Limit division and restricted-record access.", "/administration"),
+            ("Delegate", "Time-bound acting authority with rationale.", "/administration"),
+            ("Verify", "Review effective access and audit evidence.", "/audit"),
+        ], 1, "Local accounts are for demonstration; enterprise identity and access certification remain deployment dependencies.")
+    if template_name in {"requirements.html", "requirement_detail.html"}:
+        return guide("Requirements evidence cycle", "Keep implementation claims conservative and link every status to usable evidence.", [
+            ("Filter", "Find the requirement by ID, domain, phase, fit, or status.", "/requirements"),
+            ("Inspect", "Review statement, owner, design, module, test, and release references.", "/requirements"),
+            ("Evidence", "Add test, UAT, acceptance, and decision evidence.", "/requirements"),
+            ("Classify", "Update status only when the evidence supports it.", "/requirements"),
+            ("Export", "Publish the governed baseline for release review.", "/requirements"),
+        ], 1, "A screen or table alone is not sufficient evidence that an enterprise requirement is implemented.")
+    if template_name == "audit.html":
+        return guide("Assurance review", "Trace material actions back to the actor, source record, and before/after evidence.", [
+            ("Scope", "Filter to the entity, actor, time, or action under review.", "/audit"),
+            ("Inspect", "Review before/after evidence and related identifiers.", "/audit"),
+            ("Corroborate", "Open the authoritative record and linked requirement.", "/requirements"),
+            ("Document", "Retain the assurance conclusion outside read-only business data.", "/audit"),
+        ], 1, "Auditor access is intentionally read-only for business records.")
+    if template_name in {"notifications.html", "decisions.html", "risks.html", "strategy.html", "search.html", "api_docs.html"}:
+        labels = {
+            "notifications.html": ("Notification handling", "Review the change, open its source record, take the required action, then confirm the notification is no longer outstanding."),
+            "decisions.html": ("Decision follow-through", "Review rationale and conditions, open the affected source record, and track resulting actions to closure."),
+            "risks.html": ("Exception control", "Identify exposure, confirm an owner and response, update the source project, and verify portfolio impact."),
+            "strategy.html": ("Strategy alignment", "Trace mission intent to demand and delivery, then address work that lacks approved alignment."),
+            "search.html": ("Find authoritative records", "Search by stable ID or term, filter to the record type, and update only at the authoritative source."),
+            "api_docs.html": ("API reference", "Review authenticated contracts and use governed integration ownership before connecting an external system."),
+        }
+        title, purpose = labels[template_name]
+        return guide(title, purpose, [
+            ("Find", "Locate the authoritative record or exception.", path),
+            ("Understand", "Review status, ownership, evidence, and next action.", path),
+            ("Act", "Use the permitted source workflow.", "/my-work"),
+            ("Verify", "Confirm downstream status and audit evidence.", "/audit"),
+        ], 1)
+    return None
+
+
 def render(request: Request, template_name: str, user: User, db: Session, **context):
+    status_code = int(context.pop("status_code", 200))
     orgs = db.query(Organization).filter(Organization.active.is_(True)).order_by(Organization.code).all()
     unread = db.query(Notification).filter(Notification.user_id == user.id, Notification.read_at.is_(None)).count()
     saved_views = db.query(SavedView).filter(SavedView.user_id == user.id).order_by(SavedView.name).all()
+    my_work_open_count = (
+        db.query(Task).filter(Task.owner_id == user.id, Task.status != "Completed").count()
+        + db.query(Action).filter(Action.owner_id == user.id, Action.status != "Closed").count()
+    )
     base = {
         "request": request,
         "user": user,
@@ -362,11 +767,46 @@ def render(request: Request, template_name: str, user: User, db: Session, **cont
         "message": request.query_params.get("message"),
         "level": request.query_params.get("level", "success"),
         "now": datetime.now(timezone.utc),
-        "app_version": "0.6.0",
+        "app_version": APP_VERSION,
+        "today": date.today(),
         "search_query": request.query_params.get("q", ""),
+        "my_work_open_count": my_work_open_count,
     }
     base.update(context)
-    return templates.TemplateResponse(template_name, base)
+    division_shortcuts = [org for org in orgs if org.org_type == "Division" and can_access_org(user, org.id)]
+    base["division_shortcuts"] = division_shortcuts
+    breadcrumb_labels = {
+        "dashboard": "Portfolio Overview", "my-work": "My Work", "divisions": "Divisions", "projects": "Projects",
+        "demands": "Demand Intake", "resources": "Resources", "financials": "Investments", "reports": "Reports & Analytics",
+        "travel": "Travel & Engagements", "portfolio-reviews": "Briefings", "templates": "Blueprints", "roadmaps": "Roadmaps",
+        "scenarios": "Scenarios", "requirements": "Requirements RTM", "imports": "Imports", "administration": "Administration",
+        "new": "Create", "promotion": "Portfolio Promotion", "requests": "Requests", "import": "Import / Export",
+    }
+    parts = [part for part in request.url.path.split("/") if part]
+    crumbs = [{"label": "Home", "href": "/dashboard"}]
+    running = ""
+    for index, part in enumerate(parts):
+        if part == "dashboard":
+            continue
+        running += "/" + part
+        label = breadcrumb_labels.get(part, part.replace("-", " ").title())
+        if index == 1 and parts[0] == "divisions" and context.get("org"):
+            label = context["org"].code
+        elif index == 1 and parts[0] == "projects" and context.get("project"):
+            label = context["project"].human_id
+        elif parts[:2] == ["resources", "requests"] and index == 2 and context.get("record"):
+            label = context["record"].human_id
+        crumbs.append({"label": label, "href": running if index < len(parts) - 1 else ""})
+    base["global_breadcrumbs"] = crumbs
+    base["has_local_breadcrumbs"] = template_name in {
+        "travel_engagement_detail.html", "trip_report_detail.html", "travel_request_detail.html", "portfolio_review_detail.html",
+        "requirement_detail.html", "scenario_detail.html", "record_detail.html", "division_briefing.html", "project_form.html",
+        "project_promotion.html", "projects.html", "project_templates.html", "project_detail.html", "resources.html",
+        "resource_request_form.html", "resource_request_detail.html", "resource_import.html", "resource_import_preview.html",
+    }
+    base["role_focus"] = role_focus_for(user)
+    base["page_guide"] = page_guide_for(request, template_name, base)
+    return templates.TemplateResponse(template_name, base, status_code=status_code)
 
 
 def next_human_id(db: Session, model, prefix: str, attr: str = "human_id") -> str:
@@ -531,6 +971,90 @@ def root():
     return RedirectResponse("/dashboard", status_code=303)
 
 
+def _portfolio_investment_flow(financials: list[FinancialRecord], projects: list[Project], organizations: list[Organization]) -> dict[str, Any]:
+    project_map = {item.id: item for item in projects}
+    org_map = {item.id: item for item in organizations}
+    links: dict[tuple[str, str], float] = defaultdict(float)
+    nodes: dict[str, dict[str, Any]] = {}
+    project_budget: dict[str, float] = defaultdict(float)
+    project_actual: dict[str, float] = defaultdict(float)
+
+    def add_node(node_id: str, label: str, stage: int, kind: str, url: str, amount: float = 0.0) -> None:
+        node = nodes.setdefault(node_id, {"id": node_id, "label": label, "stage": stage, "kind": kind, "url": url, "amount": 0.0})
+        node["amount"] = max(node["amount"], round(amount, 2))
+
+    add_node("approved", "Approved investment", 0, "source", "/financials")
+    for record in financials:
+        project = project_map.get(record.project_id or "")
+        if not project:
+            continue
+        amount = max(float(record.approved_budget or 0), 0.0)
+        if amount <= 0:
+            continue
+        category = record.category or "Other"
+        org = org_map.get(project.lead_org_id)
+        org_label = org.code if org else "Unassigned"
+        category_id = f"category:{category}"
+        division_id = f"division:{project.lead_org_id}"
+        project_id = f"project:{project.id}"
+        add_node(category_id, category, 1, "category", f"/financials?category={quote_plus(category)}")
+        add_node(division_id, org_label, 2, "division", f"/financials?division={quote_plus(org_label)}")
+        add_node(project_id, project.title, 3, "project", f"/projects/{project.id}?tab=financial")
+        links[("approved", category_id)] += amount
+        links[(category_id, division_id)] += amount
+        links[(division_id, project_id)] += amount
+        project_budget[project.id] += amount
+        project_actual[project.id] += max(float(record.actual_cost or 0), 0.0)
+
+    spent_total = 0.0
+    remaining_total = 0.0
+    add_node("spent", "Actual to date", 4, "outcome", "/financials?view=actual")
+    add_node("remaining", "Unspent approved", 4, "outcome", "/financials?view=remaining")
+    for project_id, approved in project_budget.items():
+        actual = min(project_actual.get(project_id, 0.0), approved)
+        remaining = max(approved - actual, 0.0)
+        if actual:
+            links[(f"project:{project_id}", "spent")] += actual
+            spent_total += actual
+        if remaining:
+            links[(f"project:{project_id}", "remaining")] += remaining
+            remaining_total += remaining
+    approved_total = sum(project_budget.values())
+    nodes["approved"]["amount"] = round(approved_total, 2)
+    nodes["spent"]["amount"] = round(spent_total, 2)
+    nodes["remaining"]["amount"] = round(remaining_total, 2)
+    for (source, target), value in links.items():
+        nodes[source]["amount"] = max(nodes[source]["amount"], round(sum(v for (s, _), v in links.items() if s == source), 2))
+        nodes[target]["amount"] = max(nodes[target]["amount"], round(sum(v for (_, t), v in links.items() if t == target), 2))
+    return {
+        "nodes": sorted(nodes.values(), key=lambda item: (item["stage"], -item["amount"], item["label"])),
+        "links": [{"source": source, "target": target, "value": round(value, 2)} for (source, target), value in links.items() if value > 0],
+        "approved": round(approved_total, 2),
+        "spent": round(spent_total, 2),
+        "remaining": round(remaining_total, 2),
+        "reconciled": abs(approved_total - spent_total - remaining_total) < 0.01,
+    }
+
+
+def dashboard_lens_for(user: User) -> dict[str, Any]:
+    """Return an explainable primary lens and smart default panel order."""
+    roles = set(user.roles or [])
+    lenses = [
+        ({"SENIOR_LEADER", "APPROVAL_AUTHORITY"}, "Leader", "Decisions, exceptions, investments, outcomes, and material changes.", ["decisions", "changes", "kpis", "health", "investment", "divisions", "portfolio", "my-work"]),
+        ({"ENTERPRISE_PORTFOLIO_OWNER", "PMO"}, "Portfolio", "Demand, delivery health, cross-division capacity, funding, and governance.", ["decisions", "changes", "kpis", "health", "divisions", "portfolio", "investment", "my-work"]),
+        ({"DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER"}, "Division", "Division commitments, local projects, promotion candidates, exceptions, and briefings.", ["my-work", "changes", "kpis", "divisions", "health", "portfolio", "decisions", "investment"]),
+        ({"PROJECT_MANAGER"}, "Project Manager", "Managed projects, due work, milestones, RAID, reporting, and capacity needs.", ["my-work", "changes", "kpis", "health", "portfolio", "divisions", "decisions", "investment"]),
+        ({"TEAM_MEMBER"}, "Contributor", "Assigned work, due dates, priorities, and the projects that need your evidence.", ["my-work", "changes", "portfolio", "kpis", "divisions", "health", "decisions", "investment"]),
+        ({"RESOURCE_MANAGER"}, "Resources", "Capacity, skill gaps, over-allocation, requests, and affected delivery.", ["kpis", "my-work", "changes", "divisions", "portfolio", "health", "decisions", "investment"]),
+        ({"FINANCIAL_MANAGER"}, "Financial", "Budget, actuals, forecasts, funding gaps, and decisions.", ["investment", "kpis", "changes", "portfolio", "decisions", "divisions", "health", "my-work"]),
+        ({"DATA_STEWARD", "ADMIN"}, "Operations", "Data quality, imports, integrations, auditability, and portfolio freshness.", ["changes", "kpis", "divisions", "portfolio", "health", "my-work", "decisions", "investment"]),
+    ]
+    for match, label, summary, panels in lenses:
+        if roles.intersection(match):
+            return {"label": label, "summary": summary, "panels": panels}
+    return {"label": "Contributor", "summary": "Assigned work and accessible delivery context.", "panels": ["my-work", "changes", "portfolio", "kpis", "divisions", "health", "decisions", "investment"]}
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, division: str | None = None, db: Session = Depends(get_db), user: User = Depends(current_user)):
     if division:
@@ -560,8 +1084,11 @@ def dashboard(request: Request, division: str | None = None, db: Session = Depen
     if not is_enterprise_user(user):
         benefits_q = benefits_q.filter(Project.lead_org_id == user.division_id)
     benefits = benefits_q.all()
+    monetary_units = {"usd", "$", "dollars", "dollar", "us dollars"}
+    benefit_is_money = bool(benefits) and all((b.unit or "").strip().lower() in monetary_units for b in benefits)
     benefit_target = sum(b.target_value for b in benefits)
     benefit_realized = sum(b.realized_value for b in benefits)
+    benefit_unit = "USD" if benefit_is_money else (benefits[0].unit if benefits and len({(b.unit or "").strip().lower() for b in benefits}) == 1 else "mixed units")
     stale_cutoff = datetime.now(timezone.utc) - timedelta(days=14)
     stale = [p for p in projects if p.last_status_date and p.last_status_date.replace(tzinfo=p.last_status_date.tzinfo or timezone.utc) < stale_cutoff]
     pipeline = Counter(d.status for d in demands)
@@ -654,28 +1181,100 @@ def dashboard(request: Request, division: str | None = None, db: Session = Depen
             "benefits": float(project.benefit_realized),
             "risks": risk_counts.get(project.id, 0),
         })
-    divisions = db.query(Organization).filter(Organization.org_type == "Division").order_by(Organization.code).all()
+    divisions = [
+        org for org in db.query(Organization).filter(Organization.org_type == "Division").order_by(Organization.code).all()
+        if can_access_org(user, org.id)
+    ]
     division_rows = []
     for org in divisions:
-        ps = db.query(Project).filter(Project.lead_org_id == org.id, Project.status == "Active").all()
-        ds = db.query(Demand).filter(Demand.lead_org_id == org.id).all()
+        # Reuse the already role-scoped portfolio collections so division dashboard
+        # panels cannot reveal aggregate counts from outside the user's authority.
+        ps = [project for project in projects if project.lead_org_id == org.id and project.status == "Active"]
+        ds = [demand for demand in demands if demand.lead_org_id == org.id]
         caps = db.query(ResourceCapacity).filter(ResourceCapacity.org_id == org.id).all()
         division_rows.append({"org":org,"projects":len(ps),"at_risk":sum((p.health_override or p.health_owner) in exception_states for p in ps),"demands":len(ds),"capacity":round(sum(c.allocated_hours for c in caps)/sum(c.capacity_hours for c in caps)*100,1) if caps else 0})
     metrics = {m.key:m for m in db.query(MetricDefinition).all()}
+    investment_flow = _portfolio_investment_flow(financials, projects, divisions)
+
+    # ---- v0.7.9: decision-first additions -----------------------------------
+    changes = []
+    for p in at_risk:
+        health = p.health_override or p.health_owner or p.health_calculated
+        changes.append({"kind": "health", "label": f"{p.human_id} · {p.title}", "detail": f"Health is {health}", "href": f"/projects/{p.id}", "severity": "bad" if health in ("Off Track", "Blocked") else "warn"})
+    for risk, project in high_risks[:5]:
+        changes.append({"kind": "risk", "label": f"{risk.human_id} · {risk.title}", "detail": f"{risk.severity} risk open on {project.human_id}", "href": f"/projects/{project.id}", "severity": "bad" if risk.severity == "Critical" else "warn"})
+    if budget and forecast > budget:
+        changes.append({"kind": "cost", "label": "Portfolio cost forecast exceeds approved budget", "detail": f"Forecast {money(forecast)} vs approved {money(budget)}", "href": "/financials", "severity": "warn"})
+    slipped = [(m, p) for m, p in milestones if m.baseline_date and m.current_date and m.current_date > m.baseline_date]
+    for m, p in slipped[:4]:
+        changes.append({"kind": "milestone", "label": f"{m.title}", "detail": f"{p.human_id} milestone moved to {m.current_date.strftime('%d %b %Y')}", "href": f"/projects/{p.id}", "severity": "warn"})
+    for p in stale[:4]:
+        changes.append({"kind": "stale", "label": f"{p.human_id} · {p.title}", "detail": "Status report is more than 14 days old", "href": f"/projects/{p.id}", "severity": "info"})
+    severity_rank = {"bad": 0, "warn": 1, "info": 2}
+    changes.sort(key=lambda c: severity_rank.get(c["severity"], 2))
+
+    fresh_count = len(projects) - len(stale)
+    health_explain = {
+        "formula": "Health score = (On Track ×100 + At Risk ×60 + Off Track/Blocked ×20) ÷ active projects",
+        "counts": {"On Track": on_track_count, "At Risk": at_risk_count, "Off Track / Blocked": off_track_count},
+        "total": len(projects),
+        "fresh": fresh_count,
+        "stale": len(stale),
+        "basis": "Effective health per project = leadership override → owner-reported → calculated, in that order.",
+        "contributors": [
+            {"id": p.human_id, "title": p.title, "health": (p.health_override or p.health_owner or p.health_calculated or "On Track"),
+             "source": ("Override" if p.health_override else "Owner" if p.health_owner else "Calculated"),
+             "href": f"/projects/{p.id}"}
+            for p in projects
+        ],
+    }
     narrative = f"DDC5I is managing {len(projects)} active projects and {len(demands)} demands across mission, assessment, standards, architecture, infrastructure, and integration portfolios. Leadership attention is required for {len(at_risk)} project exceptions, {len(decisions_required)} pending demand decisions, {len(stale)} stale status records, and capacity utilization of {capacity_pct:.0f}%. Current accessible forecast is {money(forecast)} against an approved budget of {money(budget)}."
+    dashboard_lens = dashboard_lens_for(user)
+    dashboard_preference = db.query(DashboardPreference).filter(DashboardPreference.user_id == user.id).first()
+    dashboard_order = list(dashboard_preference.panel_order or []) if dashboard_preference else []
+    dashboard_order = dashboard_order + [panel for panel in dashboard_lens["panels"] if panel not in dashboard_order]
+    dashboard_hidden = list(dashboard_preference.hidden_panels or []) if dashboard_preference else []
+    dashboard_sizes = dict(dashboard_preference.panel_sizes or {}) if dashboard_preference else {}
     return render(
         request, "dashboard.html", user, db,
         projects=projects, demands=demands, at_risk=at_risk, decisions_required=decisions_required,
         capacity_pct=capacity_pct, budget=budget, actual=actual, forecast=forecast,
-        benefit_target=benefit_target, benefit_realized=benefit_realized, stale=stale,
+        benefit_target=benefit_target, benefit_realized=benefit_realized, benefit_is_money=benefit_is_money, benefit_unit=benefit_unit, stale=stale,
         pipeline=pipeline, pipeline_order=pipeline_order, max_pipeline=max_pipeline,
         milestones=milestones, dependencies=dependencies, division_rows=division_rows,
         metrics=metrics, narrative=narrative, recent_decisions=recent_decisions,
         decision_sources=decision_sources, high_risks=high_risks, my_tasks=my_tasks,
         my_actions=my_actions, health_score=health_score, health_segments=health_segments,
         investment_categories=investment_categories, investment_gradient=investment_gradient,
-        portfolio_rows=portfolio_rows,
+        investment_flow=investment_flow, portfolio_rows=portfolio_rows,
+        changes=changes, health_explain=health_explain,
+        dashboard_lens=dashboard_lens, dashboard_order=dashboard_order, dashboard_hidden=dashboard_hidden,
+        dashboard_sizes=dashboard_sizes,
     )
+
+
+@app.post("/dashboard/preferences")
+def dashboard_preferences_save(
+    request: Request, csrf: str = Form(...), panel_order: str = Form(""), hidden_panels: str = Form(""),
+    panel_sizes: str = Form("{}"), reset: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    preference = db.query(DashboardPreference).filter(DashboardPreference.user_id == user.id).first()
+    if not preference:
+        preference = DashboardPreference(user_id=user.id); db.add(preference); db.flush()
+    before = snapshot(preference)
+    allowed = {"decisions", "changes", "kpis", "health", "my-work", "recent-decisions", "investment", "divisions", "portfolio"}
+    if reset:
+        preference.panel_order, preference.hidden_panels, preference.panel_sizes = [], [], {}
+    else:
+        order = [item for item in panel_order.split(",") if item in allowed]
+        hidden = [item for item in hidden_panels.split(",") if item in allowed]
+        try: sizes = {key: value for key, value in json.loads(panel_sizes or "{}").items() if key in allowed and value in {"compact", "standard", "wide"}}
+        except (json.JSONDecodeError, AttributeError): sizes = {}
+        preference.active_lens = dashboard_lens_for(user)["label"]
+        preference.panel_order, preference.hidden_panels, preference.panel_sizes = list(dict.fromkeys(order)), list(dict.fromkeys(hidden)), sizes
+    record_audit(db, user.id, "DashboardPreference", preference.id, "RESET" if reset else "UPDATE", before=before, after=snapshot(preference), ip_address=getattr(request.state, "client_ip", ""))
+    db.commit(); return flash_redirect("/dashboard", "Dashboard layout reset to the role default." if reset else "Dashboard layout saved.")
 
 @app.get("/records/{record_type}/{record_id}", response_class=HTMLResponse)
 def record_detail(record_type: str, record_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
@@ -717,17 +1316,183 @@ def metric_detail(key: str, request: Request, db: Session = Depends(get_db), use
     return render(request, "metric.html", user, db, metric=metric)
 
 
+def _division_workspace(db: Session, user: User, org: Organization) -> dict[str, Any]:
+    projects = [
+        project for project in db.query(Project).filter(Project.lead_org_id == org.id).order_by(Project.status, Project.title).all()
+        if can_access_sensitive(user, project.sensitivity)
+    ]
+    project_ids = [project.id for project in projects]
+    demands = [
+        demand for demand in db.query(Demand).filter(Demand.lead_org_id == org.id).order_by(Demand.updated_at.desc()).all()
+        if can_access_sensitive(user, demand.sensitivity)
+    ]
+    core = db.query(CoreFunction).filter(CoreFunction.org_id == org.id).all()
+    capacities = db.query(ResourceCapacity).filter(ResourceCapacity.org_id == org.id).all()
+    if project_ids:
+        financials = db.query(FinancialRecord).filter(FinancialRecord.project_id.in_(project_ids)).all()
+        milestones = db.query(Milestone, Project).join(Project, Milestone.project_id == Project.id).filter(Milestone.project_id.in_(project_ids)).order_by(Milestone.current_date).limit(12).all()
+        raid = db.query(RaidItem, Project).join(Project, RaidItem.project_id == Project.id).filter(RaidItem.project_id.in_(project_ids), RaidItem.status != "Closed").order_by(RaidItem.exposure.desc()).limit(12).all()
+        dependencies = db.query(Dependency, Project).join(Project, Dependency.source_project_id == Project.id).filter(Dependency.source_project_id.in_(project_ids)).all()
+    else:
+        financials, milestones, raid, dependencies = [], [], [], []
+    missions = db.query(Mission).filter(Mission.owner_org_id == org.id).all()
+    profile = db.query(DivisionProfile).filter(DivisionProfile.org_id == org.id).first()
+    latest_briefing = db.query(PortfolioReview).filter(
+        PortfolioReview.org_id == org.id,
+        PortfolioReview.review_type == "Division Briefing",
+    ).order_by(PortfolioReview.created_at.desc()).first()
+    pipeline = Counter(demand.status for demand in demands)
+    active_count = sum(project.status == "Active" for project in projects)
+    exception_count = sum((project.health_override or project.health_owner) in {"At Risk", "Off Track", "Blocked"} for project in projects)
+    severe_raid_count = sum(item.severity in {"High", "Critical"} for item, _project in raid)
+    travel_requests = scoped_travel_requests(db, user).filter(TravelRequest.org_id == org.id).order_by(TravelRequest.departure_date.desc()).all()
+    trip_reports = scoped_trip_reports(db, user).filter(TripReport.org_id == org.id).order_by(TripReport.return_date.desc()).all()
+    travel_estimated_cost = sum(Decimal(item.estimated_cost or 0) for item in travel_requests)
+    matched_request_ids = {item.request_id for item in trip_reports if item.request_id}
+    travel_report_gap = sum(1 for item in travel_requests if item.return_date < date.today() and item.determination == "Approved" and item.id not in matched_request_ids)
+    travel_reconciliation = sum(1 for item in trip_reports if not item.request_id)
+    narrative = (
+        f"{org.name} is executing {active_count} active projects, sustaining {len(core)} governed core functions, "
+        f"and shaping {len(demands)} demands. Current exception load includes {exception_count} project health "
+        f"exceptions and {severe_raid_count} high-severity assurance records."
+    )
+    return {
+        "org": org,
+        "profile": profile,
+        "projects": projects,
+        "demands": demands,
+        "core": core,
+        "capacities": capacities,
+        "financials": financials,
+        "milestones": milestones,
+        "raid": raid,
+        "dependencies": dependencies,
+        "missions": missions,
+        "pipeline": pipeline,
+        "narrative": narrative,
+        "latest_briefing": latest_briefing,
+        "active_count": active_count,
+        "exception_count": exception_count,
+        "severe_raid_count": severe_raid_count,
+        "travel_requests": travel_requests,
+        "trip_reports": trip_reports,
+        "travel_estimated_cost": travel_estimated_cost,
+        "travel_report_gap": travel_report_gap,
+        "travel_reconciliation": travel_reconciliation,
+    }
+
+
+def _division_export_payload(context: dict[str, Any]) -> dict[str, Any]:
+    org: Organization = context["org"]
+    profile: DivisionProfile | None = context["profile"]
+    return {
+        "schema_version": APP_VERSION,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "division": profile_to_dict(profile, org) if profile else {
+            "schema_version": APP_VERSION, "division_code": org.code, "official_name": org.name, "narrative": org.narrative
+        },
+        "summary": {
+            "active_projects": context["active_count"],
+            "health_exceptions": context["exception_count"],
+            "open_demands": len(context["demands"]),
+            "core_functions": len(context["core"]),
+            "forecast": float(sum((record.forecast or 0) for record in context["financials"])),
+        },
+        "projects": [
+            {
+                "id": project.human_id, "title": project.title, "status": project.status,
+                "health": project.health_override or project.health_owner, "percent_complete": project.percent_complete,
+                "budget": float(project.budget or 0), "actual": float(project.actual or 0), "forecast": float(project.forecast or 0),
+                "start_date": project.start_date.isoformat() if project.start_date else None,
+                "current_end_date": project.current_end_date.isoformat() if project.current_end_date else None,
+            } for project in context["projects"]
+        ],
+        "demands": [
+            {
+                "id": demand.human_id, "title": demand.title, "category": demand.category, "status": demand.status,
+                "urgency": demand.urgency, "required_date": demand.required_date.isoformat() if demand.required_date else None,
+                "rom_cost": float(demand.rom_cost or 0), "next_action": demand.next_action,
+            } for demand in context["demands"]
+        ],
+        "core_functions": [
+            {
+                "code": item.code, "title": item.title, "description": item.description, "health": item.health,
+                "minimum_capacity_hours": item.minimum_capacity_hours, "allocated_capacity_hours": item.allocated_capacity_hours,
+            } for item in context["core"]
+        ],
+        "capacity": [
+            {
+                "role": item.role_name, "skill": item.skill, "period": item.period,
+                "capacity_hours": item.capacity_hours, "allocated_hours": item.allocated_hours, "actual_hours": item.actual_hours,
+            } for item in context["capacities"]
+        ],
+        "financials": [
+            {
+                "project_id": next((project.human_id for project in context["projects"] if project.id == record.project_id), ""),
+                "category": record.category, "approved_budget": float(record.approved_budget or 0),
+                "actual_cost": float(record.actual_cost or 0), "forecast": float(record.forecast or 0),
+                "funding_status": record.funding_status, "fiscal_year": record.fiscal_year,
+            } for record in context["financials"]
+        ],
+        "milestones": [
+            {
+                "id": item.human_id, "title": item.title, "project_id": project.human_id,
+                "current_date": item.current_date.isoformat() if item.current_date else None,
+                "status": item.status, "confidence": item.confidence,
+            } for item, project in context["milestones"]
+        ],
+        "raid": [
+            {
+                "id": item.human_id, "type": item.type, "title": item.title, "project_id": project.human_id,
+                "severity": item.severity, "status": item.status, "owner_response": item.mitigation,
+            } for item, project in context["raid"]
+        ],
+        "travel_requests": [
+            {"id": item.human_id, "external_id": item.external_id, "traveler": item.traveler_name, "location": item.location,
+             "determination": item.determination, "departure_date": item.departure_date.isoformat(), "return_date": item.return_date.isoformat(),
+             "estimated_cost": float(item.estimated_cost or 0), "engagement_id": item.engagement_id, "source_filename": item.source_filename, "source_row": item.source_row}
+            for item in context["travel_requests"]
+        ],
+        "trip_reports": [
+            {"id": item.human_id, "title": item.title, "traveler": item.traveler_name, "location": item.location,
+             "start_date": item.start_date.isoformat(), "return_date": item.return_date.isoformat(), "review_status": item.review_status,
+             "request_id": item.request_id, "match_confidence": item.match_confidence, "source_filename": item.source_filename, "source_row": item.source_row}
+            for item in context["trip_reports"]
+        ],
+    }
+
+
+def _write_csv_file(rows: list[dict[str, Any]]) -> str:
+    output = io.StringIO(newline="")
+    if not rows:
+        output.write("no_records\n")
+        return output.getvalue()
+    writer = csv.DictWriter(output, fieldnames=list(rows[0].keys()), extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({key: json.dumps(value, ensure_ascii=False) if isinstance(value, (list, dict)) else value for key, value in row.items()})
+    return output.getvalue()
+
+
 @app.get("/divisions", response_class=HTMLResponse)
 def divisions_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    orgs = db.query(Organization).filter(Organization.org_type == "Division").order_by(Organization.code).all()
-    rows=[]
+    order = {code: index for index, code in enumerate(["FO", "CCD", "AID", "C3OD2", "CID", "DSD", "JAD", "JFID"])}
+    orgs = db.query(Organization).filter(Organization.org_type == "Division").all()
+    orgs.sort(key=lambda item: (order.get(item.code, 99), item.code))
+    rows = []
     for org in orgs:
         if not can_access_org(user, org.id):
             continue
-        projects=db.query(Project).filter(Project.lead_org_id==org.id,Project.status=="Active").all()
-        demands=db.query(Demand).filter(Demand.lead_org_id==org.id).count()
-        rows.append({"org":org,"projects":projects,"demands":demands,"at_risk":sum(p.health_owner in {"At Risk","Off Track","Blocked"} for p in projects)})
-    return render(request,"divisions.html",user,db,rows=rows)
+        context = _division_workspace(db, user, org)
+        rows.append({
+            "org": org,
+            "profile": context["profile"],
+            "projects": context["projects"],
+            "demands": len(context["demands"]),
+            "at_risk": context["exception_count"],
+            "latest_briefing": context["latest_briefing"],
+        })
+    return render(request, "divisions.html", user, db, rows=rows)
 
 
 @app.get("/divisions/{code}", response_class=HTMLResponse)
@@ -735,18 +1500,176 @@ def division_detail(code: str, request: Request, db: Session = Depends(get_db), 
     org = db.query(Organization).filter(Organization.code == code.upper()).first()
     if not org or not can_access_org(user, org.id):
         raise HTTPException(404, "Division not found")
-    projects=db.query(Project).filter(Project.lead_org_id==org.id).order_by(Project.status,Project.title).all()
-    demands=db.query(Demand).filter(Demand.lead_org_id==org.id).order_by(Demand.updated_at.desc()).all()
-    core=db.query(CoreFunction).filter(CoreFunction.org_id==org.id).all()
-    capacities=db.query(ResourceCapacity).filter(ResourceCapacity.org_id==org.id).all()
-    financials=db.query(FinancialRecord).join(Project,FinancialRecord.project_id==Project.id).filter(Project.lead_org_id==org.id).all()
-    milestones=db.query(Milestone,Project).join(Project,Milestone.project_id==Project.id).filter(Project.lead_org_id==org.id).order_by(Milestone.current_date).limit(12).all()
-    raid=db.query(RaidItem,Project).join(Project,RaidItem.project_id==Project.id).filter(Project.lead_org_id==org.id,RaidItem.status!="Closed").order_by(RaidItem.exposure.desc()).limit(12).all()
-    dependencies=db.query(Dependency,Project).join(Project,Dependency.source_project_id==Project.id).filter(Project.lead_org_id==org.id).all()
-    missions=db.query(Mission).filter(Mission.owner_org_id==org.id).all()
-    pipeline=Counter(d.status for d in demands)
-    narrative=f"{org.name} is executing {len([p for p in projects if p.status=='Active'])} active projects, sustaining {len(core)} governed core functions, and shaping {len(demands)} demands. Current exception load includes {sum(p.health_owner in {'At Risk','Off Track','Blocked'} for p in projects)} project health exceptions and {sum(r.RaidItem.severity in {'High','Critical'} for r in raid)} high-severity assurance records."
-    return render(request,"division_detail.html",user,db,org=org,projects=projects,demands=demands,core=core,capacities=capacities,financials=financials,milestones=milestones,raid=raid,dependencies=dependencies,missions=missions,pipeline=pipeline,narrative=narrative)
+    context = _division_workspace(db, user, org)
+    context["briefing_mode"] = request.query_params.get("mode") == "briefing"
+    context["can_edit_profile"] = can_manage_division_profile(user, org.id)
+    return render(request, "division_detail.html", user, db, **context)
+
+
+@app.get("/divisions/{code}/export/{export_format}")
+def division_export(code: str, export_format: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    org = db.query(Organization).filter(Organization.code == code.upper()).first()
+    if not org or not can_access_org(user, org.id):
+        raise HTTPException(404, "Division not found")
+    context = _division_workspace(db, user, org)
+    payload = _division_export_payload(context)
+    filename_base = f"{org.code}_division_export_{APP_VERSION}"
+    if export_format.lower() == "json":
+        record_audit(db, user.id, "Division", org.id, "EXPORT_JSON", after={"schema_version": APP_VERSION})
+        db.commit()
+        return Response(
+            json.dumps(payload, indent=2, ensure_ascii=False, default=str),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename_base}.json"'},
+        )
+    if export_format.lower() == "csv":
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            profile_row = payload["division"].copy()
+            for key in ["focus_areas", "responsibilities", "branches", "initiatives", "relationships", "forums", "doctrine", "source_documents"]:
+                if key in profile_row:
+                    profile_row[key] = json.dumps(profile_row[key], ensure_ascii=False)
+            bundle.writestr("division_profile.csv", _write_csv_file([profile_row]))
+            bundle.writestr("projects.csv", _write_csv_file(payload["projects"]))
+            bundle.writestr("demands.csv", _write_csv_file(payload["demands"]))
+            bundle.writestr("core_functions.csv", _write_csv_file(payload["core_functions"]))
+            bundle.writestr("capacity.csv", _write_csv_file(payload["capacity"]))
+            bundle.writestr("financials.csv", _write_csv_file(payload["financials"]))
+            bundle.writestr("milestones.csv", _write_csv_file(payload["milestones"]))
+            bundle.writestr("raid.csv", _write_csv_file(payload["raid"]))
+            bundle.writestr("travel_requests.csv", _write_csv_file(payload["travel_requests"]))
+            bundle.writestr("trip_reports.csv", _write_csv_file(payload["trip_reports"]))
+            bundle.writestr("README.txt", f"CSV package generated by JSJ6 Enterprise Portfolio Management v{APP_VERSION}.\nImport support on the division page applies to division_profile.csv or the JSON division object.\n")
+        record_audit(db, user.id, "Division", org.id, "EXPORT_CSV", after={"schema_version": APP_VERSION, "files": 11})
+        db.commit()
+        archive.seek(0)
+        return StreamingResponse(
+            archive,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename_base}_csv.zip"'},
+        )
+    raise HTTPException(400, "Export format must be json or csv")
+
+
+@app.get("/divisions/{code}/profile/edit", response_class=HTMLResponse)
+def division_profile_edit_page(code: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    org = db.query(Organization).filter(Organization.code == code.upper()).first()
+    if not org or not can_access_org(user, org.id):
+        raise HTTPException(404, "Division not found")
+    require_division_profile_edit(user, org.id)
+    profile = db.query(DivisionProfile).filter(DivisionProfile.org_id == org.id).first()
+    if not profile:
+        raise HTTPException(404, "Division profile not found")
+    return render(request, "division_profile_edit.html", user, db, org=org, profile=profile, values=profile_form_values(profile))
+
+
+@app.post("/divisions/{code}/profile/edit")
+async def division_profile_edit(code: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    org = db.query(Organization).filter(Organization.code == code.upper()).first()
+    if not org or not can_access_org(user, org.id):
+        raise HTTPException(404, "Division not found")
+    require_division_profile_edit(user, org.id)
+    form = await request.form()
+    require_csrf(request, user, form_token=str(form.get("csrf", "")))
+    profile = db.query(DivisionProfile).filter(DivisionProfile.org_id == org.id).first()
+    if not profile:
+        raise HTTPException(404, "Division profile not found")
+    before = snapshot(profile)
+    data = {key: form.get(key, "") for key in [
+        "mission", "vision", "focus_areas", "responsibilities", "branches", "initiatives",
+        "relationships", "forums", "doctrine", "banner_asset", "banner_alt", "focal_x", "focal_y",
+        "status", "source_documents", "source_notes",
+    ]}
+    normalized = normalize_profile_data(data, profile)
+    if not normalized["mission"] or not normalized["banner_alt"]:
+        return render(
+            request, "division_profile_edit.html", user, db, org=org, profile=profile,
+            values={**profile_form_values(profile), **{key: str(value) for key, value in data.items()}},
+            error="Mission and banner alternative text are required.", status_code=422,
+        )
+    apply_profile_data(profile, normalized, user.id)
+    org.narrative = profile.mission
+    record_audit(db, user.id, "DivisionProfile", profile.id, "UPDATE", before=before, after=snapshot(profile), ip_address=getattr(request.state, "client_ip", ""))
+    db.commit()
+    return flash_redirect(f"/divisions/{org.code}", "Division profile published.")
+
+
+@app.get("/divisions/{code}/profile/import", response_class=HTMLResponse)
+def division_profile_import_page(code: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    org = db.query(Organization).filter(Organization.code == code.upper()).first()
+    if not org or not can_access_org(user, org.id):
+        raise HTTPException(404, "Division not found")
+    require_division_profile_edit(user, org.id)
+    return render(request, "division_profile_import.html", user, db, org=org)
+
+
+@app.post("/divisions/{code}/profile/import/preview", response_class=HTMLResponse)
+async def division_profile_import_preview(code: str, request: Request, file: UploadFile = File(...), csrf: str = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    org = db.query(Organization).filter(Organization.code == code.upper()).first()
+    if not org or not can_access_org(user, org.id):
+        raise HTTPException(404, "Division not found")
+    require_division_profile_edit(user, org.id)
+    require_csrf(request, user, form_token=csrf)
+    profile = db.query(DivisionProfile).filter(DivisionProfile.org_id == org.id).first()
+    if not profile:
+        raise HTTPException(404, "Division profile not found")
+    raw = await file.read(settings.max_upload_mb * 1024 * 1024 + 1)
+    if len(raw) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(413, f"File exceeds {settings.max_upload_mb} MB")
+    suffix = Path(file.filename or "").suffix.lower()
+    try:
+        if suffix == ".json":
+            incoming = json.loads(raw.decode("utf-8-sig"))
+            if not isinstance(incoming, dict):
+                raise ValueError("JSON must contain an object.")
+            incoming = incoming.get("division", incoming.get("profile", incoming))
+        elif suffix == ".csv":
+            reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
+            incoming = next(reader, None)
+            if not incoming:
+                raise ValueError("CSV must contain a header and one profile row.")
+        else:
+            raise ValueError("Use a .json or .csv profile file.")
+        normalized = normalize_profile_data(incoming, profile)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        return render(request, "division_profile_import.html", user, db, org=org, error=str(exc), status_code=422)
+    warnings = []
+    if not normalized["mission"]:
+        warnings.append("Mission is blank and must be completed before publishing.")
+    if not normalized["banner_alt"]:
+        warnings.append("Banner alternative text is blank and must be completed for accessibility.")
+    if not normalized["focus_areas"]:
+        warnings.append("No focus areas were supplied.")
+    return render(
+        request, "division_profile_import_preview.html", user, db, org=org,
+        normalized=normalized, payload_json=json.dumps(normalized, ensure_ascii=False), warnings=warnings, filename=file.filename,
+    )
+
+
+@app.post("/divisions/{code}/profile/import/commit")
+async def division_profile_import_commit(code: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    org = db.query(Organization).filter(Organization.code == code.upper()).first()
+    if not org or not can_access_org(user, org.id):
+        raise HTTPException(404, "Division not found")
+    require_division_profile_edit(user, org.id)
+    form = await request.form()
+    require_csrf(request, user, form_token=str(form.get("csrf", "")))
+    profile = db.query(DivisionProfile).filter(DivisionProfile.org_id == org.id).first()
+    if not profile:
+        raise HTTPException(404, "Division profile not found")
+    try:
+        incoming = json.loads(str(form.get("payload_json", "{}")))
+        normalized = normalize_profile_data(incoming, profile)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        raise HTTPException(422, "The profile preview payload is invalid. Upload the file again.")
+    if not normalized["mission"] or not normalized["banner_alt"]:
+        raise HTTPException(422, "Mission and banner alternative text are required before import.")
+    before = snapshot(profile)
+    apply_profile_data(profile, normalized, user.id)
+    org.narrative = profile.mission
+    record_audit(db, user.id, "DivisionProfile", profile.id, "IMPORT", before=before, after=snapshot(profile), ip_address=getattr(request.state, "client_ip", ""))
+    db.commit()
+    return flash_redirect(f"/divisions/{org.code}", "Division profile imported and published.")
 
 
 @app.get("/strategy", response_class=HTMLResponse)
@@ -1015,6 +1938,109 @@ def project_templates_page(request: Request, db: Session = Depends(get_db), user
     return render(request, "project_templates.html", user, db, templates_rows=templates_rows, eligible_orgs=orgs, missions=missions, eligible_users=users)
 
 
+def _generate_blueprint_structure(db: Session, user: User, project: Project, template: ProjectTemplate, start: date) -> None:
+    """Generate version-traceable board, task, milestone, and dependency records."""
+    blueprint = dict(template.blueprint or {})
+    column_specs = list(blueprint.get("columns", [])) or [{"name": item[0], "wip_limit": item[2]} for item in DEFAULT_BOARD_COLUMNS]
+    for position, spec in enumerate(column_specs):
+        db.add(BoardColumn(
+            project_id=project.id, name=str(spec.get("name", f"Column {position + 1}"))[:80], position=position,
+            wip_limit=max(0, int(spec.get("wip_limit", 0))), entry_criteria=str(spec.get("entry_criteria", "")),
+            exit_criteria=str(spec.get("exit_criteria", "")),
+        ))
+    db.flush()
+    generated: list[Task] = []
+    first_column = str(column_specs[0].get("name", "Backlog"))
+    for sequence, spec in enumerate(list(blueprint.get("tasks", [])), start=1):
+        task = Task(
+            human_id=next_human_id(db, Task, "TSK"), project_id=project.id,
+            title=str(spec.get("title", f"Blueprint task {sequence}"))[:240], task_type=str(spec.get("type", "Task"))[:40],
+            priority=str(spec.get("priority", "Medium"))[:30],
+            description=f"Generated from {template.code} v{template.version}; tailor execution details while preserving traceability.",
+            owner_id=project.manager_id, start_date=start if sequence == 1 else None,
+            due_date=start + timedelta(days=max(0, int(spec.get("offset", sequence * 14)))),
+            estimated_effort=max(0, float(spec.get("effort", 0))), board_column=first_column, status="Not Started",
+            sequence=sequence, tags=["blueprint", template.code.lower()], notes=f"Blueprint source: {template.code} v{template.version}.",
+            custom_fields={"template_code": template.code, "template_version": template.version},
+        )
+        db.add(task); db.flush(); generated.append(task)
+        db.add(TaskNoteRevision(task_id=task.id, author_id=user.id, revision=1, body=task.notes, change_summary="Blueprint-generated notes"))
+    for index, spec in enumerate(list(blueprint.get("milestones", [])), start=1):
+        milestone_date = start + timedelta(days=max(0, int(spec.get("offset", index * 30))))
+        db.add(Milestone(
+            human_id=next_human_id(db, Milestone, "MS"), project_id=project.id,
+            title=str(spec.get("title", f"Blueprint milestone {index}"))[:240], baseline_date=milestone_date,
+            current_date=milestone_date, status="Not Started", confidence="Medium", owner_id=project.manager_id,
+            critical=bool(spec.get("critical", False)),
+        ))
+    for index in range(1, len(generated)):
+        db.add(TaskRelationship(
+            source_task_id=generated[index].id, target_task_id=generated[index - 1].id,
+            relationship_type="Finish-to-start", created_by_id=user.id,
+        ))
+
+
+@app.get("/projects/new", response_class=HTMLResponse)
+def project_new_page(request: Request, template: str = "", division: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "PROJECT_MANAGER", "PMO", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF", "ADMIN")
+    template_rows = db.query(ProjectTemplate).filter(ProjectTemplate.active.is_(True)).order_by(ProjectTemplate.category, ProjectTemplate.name).all()
+    orgs = [org for org in db.query(Organization).filter(Organization.org_type == "Division", Organization.active.is_(True)).order_by(Organization.code).all() if can_access_org(user, org.id)]
+    missions = db.query(Mission).filter(Mission.status == "Active").order_by(Mission.code).all()
+    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()
+    portfolios = db.query(Portfolio).order_by(Portfolio.code).all()
+    selected_template = next((item for item in template_rows if item.id == template or item.code == template.upper()), None)
+    selected_org = next((item for item in orgs if item.code == division.upper()), None)
+    return render(request, "project_form.html", user, db, templates_rows=template_rows, eligible_orgs=orgs,
+                  missions=missions, eligible_users=users, portfolios=portfolios, selected_template=selected_template,
+                  selected_org=selected_org, return_to=safe_local_path(request.query_params.get("return_to"), "/projects"))
+
+
+@app.post("/projects")
+def project_create(
+    request: Request, csrf: str = Form(...), title: str = Form(...), description: str = Form(""),
+    governance_level: str = Form("Division Local"), lead_org_id: str = Form(...), mission_id: str = Form(...),
+    sponsor_id: str = Form(...), manager_id: str = Form(...), template_id: str = Form(...),
+    start_date: str = Form(""), target_end_date: str = Form(""), scope: str = Form(""),
+    desired_end_state: str = Form(""), deliverables: str = Form(""), funding_posture: str = Form("No Additional Funding"),
+    resource_posture: str = Form("Existing Capacity"), sensitivity: str = Form("Controlled Unclassified"),
+    portfolio_id: str = Form(""), return_to: str = Form("/projects"),
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    require_roles(user, "PROJECT_MANAGER", "PMO", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF", "ADMIN")
+    if not can_access_org(user, lead_org_id):
+        raise HTTPException(403, "You cannot create a project for that division")
+    template = db.get(ProjectTemplate, template_id)
+    mission, sponsor, manager = db.get(Mission, mission_id), db.get(User, sponsor_id), db.get(User, manager_id)
+    if not template or not template.active or not mission or not sponsor or not manager:
+        return flash_redirect("/projects/new", "Blueprint, mission, sponsor, and project manager are required.", "error")
+    if governance_level not in {"Division Local", "Portfolio Managed"}:
+        return flash_redirect("/projects/new", "Choose a valid project governance level.", "error")
+    start = parse_optional_date(start_date) or date.today()
+    blueprint = dict(template.blueprint or {})
+    specs = list(blueprint.get("tasks", [])) + list(blueprint.get("milestones", []))
+    horizon = max([int(item.get("offset", 0)) for item in specs] or [90])
+    end = parse_optional_date(target_end_date) or start + timedelta(days=horizon)
+    selected_portfolio = db.get(Portfolio, portfolio_id) if portfolio_id else db.query(Portfolio).filter(Portfolio.org_id == lead_org_id).first()
+    if governance_level == "Division Local":
+        selected_portfolio = None
+    project = Project(
+        human_id=next_human_id(db, Project, "PRJ"), title=title.strip(), description=description.strip(),
+        work_type="Local Project" if governance_level == "Division Local" else "Portfolio Project",
+        lead_org_id=lead_org_id, portfolio_id=selected_portfolio.id if selected_portfolio else None,
+        sponsor_id=sponsor.id, manager_id=manager.id, mission_id=mission.id, template_code=template.code,
+        template_version=template.version, governance_level=governance_level, funding_posture=funding_posture,
+        resource_posture=resource_posture, promotion_status="Eligible" if governance_level == "Division Local" else "Not Required",
+        created_by_id=user.id, desired_end_state=desired_end_state.strip(), scope=scope.strip(), deliverables=deliverables.strip(),
+        start_date=start, baseline_end_date=end, current_end_date=end, status="Active", sensitivity=sensitivity,
+        health_owner="On Track", health_calculated="On Track",
+    )
+    db.add(project); db.flush(); _generate_blueprint_structure(db, user, project, template, start)
+    record_audit(db, user.id, "Project", project.id, "CREATE", after={**snapshot(project), "template_id": template.id}, ip_address=getattr(request.state, "client_ip", ""))
+    db.commit()
+    return flash_redirect(f"/projects/{project.id}?tab=wbs", f"{project.human_id} created as a {governance_level.lower()} project.")
+
+
 @app.post("/templates/{template_id}/instantiate")
 def project_template_instantiate(
     template_id: str,
@@ -1129,16 +2155,88 @@ def roadmaps_page(request: Request, division: str = "", status: str = "Active", 
 
 
 @app.get("/projects", response_class=HTMLResponse)
-def projects_page(request: Request, q: str = "", health: str = "", status: str = "", division: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
+def projects_page(request: Request, q: str = "", health: str = "", status: str = "", division: str = "", promotion: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
     query=scoped_projects(db,user)
     if q: query=query.filter(or_(Project.title.ilike(f"%{q}%"),Project.human_id.ilike(f"%{q}%")))
     if health: query=query.filter(or_(Project.health_owner==health,Project.health_override==health,Project.health_calculated==health))
     if status: query=query.filter(Project.status==status)
+    if promotion:
+        promoted_project_ids = db.query(ProjectPromotionRequest.project_id).filter(ProjectPromotionRequest.status == promotion)
+        query = query.filter(Project.id.in_(promoted_project_ids))
     if division:
         org=db.query(Organization).filter(Organization.code==division).first()
         if org and can_access_org(user,org.id): query=query.filter(Project.lead_org_id==org.id)
     projects=query.order_by(Project.updated_at.desc()).all(); orgs={o.id:o for o in db.query(Organization).all()}; users={u.id:u for u in db.query(User).all()}
-    return render(request,"projects.html",user,db,projects=projects,orgs_map=orgs,users_map=users,q=q,health=health,status=status,division=division)
+    pending_promotions = db.query(ProjectPromotionRequest).filter(ProjectPromotionRequest.status == "Submitted").count() if has_role(user, "DIVISION_CHIEF", "PMO", "ENTERPRISE_PORTFOLIO_OWNER", "ADMIN") else 0
+    return render(request,"projects.html",user,db,projects=projects,orgs_map=orgs,users_map=users,q=q,health=health,status=status,division=division,promotion=promotion,pending_promotions=pending_promotions)
+
+
+@app.get("/projects/{project_id}/promotion", response_class=HTMLResponse)
+def project_promotion_page(project_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    project = get_accessible_project(db, user, project_id)
+    promotions = db.query(ProjectPromotionRequest).filter(ProjectPromotionRequest.project_id == project.id).order_by(ProjectPromotionRequest.created_at.desc()).all()
+    portfolios = db.query(Portfolio).order_by(Portfolio.code).all()
+    can_request = project.governance_level == "Division Local" and has_role(user, "PROJECT_MANAGER", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF", "PMO", "ADMIN")
+    can_decide = has_role(user, "DIVISION_CHIEF", "PMO", "ENTERPRISE_PORTFOLIO_OWNER", "ADMIN")
+    return render(request, "project_promotion.html", user, db, project=project, promotions=promotions, portfolios=portfolios,
+                  can_request=can_request, can_decide=can_decide, users_map={item.id: item for item in db.query(User).all()})
+
+
+@app.post("/projects/{project_id}/promotion")
+def project_promotion_submit(
+    project_id: str, request: Request, csrf: str = Form(...), reason: str = Form(...), scope_change: str = Form(""),
+    enterprise_impact: str = Form(""), funding_requirement: str = Form(""), resource_requirement: str = Form(""),
+    schedule_risk: str = Form(""), requested_portfolio_id: str = Form(""),
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf); require_roles(user, "PROJECT_MANAGER", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF", "PMO", "ADMIN")
+    project = get_accessible_project(db, user, project_id)
+    if project.governance_level != "Division Local":
+        return flash_redirect(f"/projects/{project.id}/promotion", "Only division-local projects require portfolio promotion.", "error")
+    if db.query(ProjectPromotionRequest).filter(ProjectPromotionRequest.project_id == project.id, ProjectPromotionRequest.status == "Submitted").first():
+        return flash_redirect(f"/projects/{project.id}/promotion", "A promotion request is already awaiting review.", "error")
+    promotion = ProjectPromotionRequest(
+        human_id=next_human_id(db, ProjectPromotionRequest, "PPR"), project_id=project.id, requested_by_id=user.id,
+        reason=reason.strip(), scope_change=scope_change.strip(), enterprise_impact=enterprise_impact.strip(),
+        funding_requirement=funding_requirement.strip(), resource_requirement=resource_requirement.strip(),
+        schedule_risk=schedule_risk.strip(), requested_portfolio_id=requested_portfolio_id or None,
+    )
+    before = snapshot(project); project.promotion_status = "Submitted"
+    db.add(promotion); db.flush()
+    record_audit(db, user.id, "ProjectPromotionRequest", promotion.id, "SUBMIT", after=snapshot(promotion), ip_address=getattr(request.state, "client_ip", ""))
+    record_audit(db, user.id, "Project", project.id, "PROMOTION_REQUESTED", before=before, after=snapshot(project), ip_address=getattr(request.state, "client_ip", ""))
+    db.commit(); return flash_redirect(f"/projects/{project.id}/promotion", f"{promotion.human_id} submitted for portfolio review.")
+
+
+@app.post("/projects/{project_id}/promotion/{promotion_id}/decision")
+def project_promotion_decide(
+    project_id: str, promotion_id: str, request: Request, csrf: str = Form(...), decision: str = Form(...),
+    decision_rationale: str = Form(...), conditions: str = Form(""),
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf); require_roles(user, "DIVISION_CHIEF", "PMO", "ENTERPRISE_PORTFOLIO_OWNER", "ADMIN")
+    project = get_accessible_project(db, user, project_id)
+    promotion = db.get(ProjectPromotionRequest, promotion_id)
+    if not promotion or promotion.project_id != project.id or promotion.status != "Submitted":
+        raise HTTPException(404, "Open promotion request not found")
+    if decision not in {"Approved", "Returned", "Declined"}:
+        return flash_redirect(f"/projects/{project.id}/promotion", "Choose a valid decision.", "error")
+    before_promotion, before_project = snapshot(promotion), snapshot(project)
+    promotion.status, promotion.reviewed_by_id, promotion.reviewed_at = decision, user.id, datetime.now(timezone.utc)
+    promotion.decision_rationale, promotion.conditions = decision_rationale.strip(), conditions.strip()
+    if decision == "Approved":
+        portfolio = db.get(Portfolio, promotion.requested_portfolio_id) if promotion.requested_portfolio_id else db.query(Portfolio).filter(Portfolio.org_id == project.lead_org_id).first()
+        project.portfolio_id = portfolio.id if portfolio else project.portfolio_id
+        project.governance_level, project.work_type, project.promotion_status = "Portfolio Managed", "Portfolio Project", "Approved"
+        if promotion.funding_requirement:
+            project.funding_posture = "Funding Required"
+        if promotion.resource_requirement:
+            project.resource_posture = "Additional Resources Required"
+    else:
+        project.promotion_status = decision
+    record_audit(db, user.id, "ProjectPromotionRequest", promotion.id, "DECISION", before=before_promotion, after=snapshot(promotion), ip_address=getattr(request.state, "client_ip", ""))
+    record_audit(db, user.id, "Project", project.id, "PROMOTION_DECISION", before=before_project, after=snapshot(project), ip_address=getattr(request.state, "client_ip", ""))
+    db.commit(); return flash_redirect(f"/projects/{project.id}/promotion", f"{promotion.human_id} {decision.lower()}.")
 
 
 @app.get("/projects/{project_id}", response_class=HTMLResponse)
@@ -1155,6 +2253,7 @@ def project_detail(project_id: str, request: Request, tab: str = "overview", tas
     actions = db.query(Action).filter(Action.project_id == p.id).order_by(Action.due_date).all()
     financials = db.query(FinancialRecord).filter(FinancialRecord.project_id == p.id).all()
     benefits = db.query(Benefit).filter(Benefit.project_id == p.id).all()
+    promotions = db.query(ProjectPromotionRequest).filter(ProjectPromotionRequest.project_id == p.id).order_by(ProjectPromotionRequest.created_at.desc()).all()
     status_reports = db.query(StatusReport).filter(StatusReport.project_id == p.id).order_by(StatusReport.period_end.desc(), StatusReport.version.desc()).all()
     users = {u.id: u for u in db.query(User).all()}
     orgs = {o.id: o for o in db.query(Organization).all()}
@@ -1187,6 +2286,7 @@ def project_detail(project_id: str, request: Request, tab: str = "overview", tas
         tab=tab, audit=audit, traceability=traceability, open_task_id=task,
         comment_counts=comment_counts, attachment_counts=attachment_counts,
         critical_path=path, gantt=gantt, wbs_map=wbs_map,
+        promotions=promotions,
     )
 
 
@@ -1201,6 +2301,14 @@ def project_status(project_id: str, request: Request, csrf: str = Form(...), hea
     p.health_calculated="Off Track" if overdue_critical>=2 else "At Risk" if overdue_critical or high_raid>=2 else "On Track"
     record_audit(db,user.id,"Project",p.id,"STATUS_UPDATE",before=before,after={**snapshot(p),"status_summary":status_summary}); db.commit()
     return flash_redirect(f"/projects/{p.id}","Project status updated; enterprise and division roll-ups now reflect the change.")
+
+
+@app.get("/projects/{project_id}/status-reports/new", response_class=HTMLResponse)
+def status_report_new(project_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "PROJECT_MANAGER", "PMO", "DIVISION_PORTFOLIO_MANAGER", "ADMIN")
+    project = get_accessible_project(db, user, project_id)
+    return render(request, "project_record_form.html", user, db, project=project, record_type="status-report",
+                  breadcrumbs=[("Projects", "/projects"), (project.human_id, f"/projects/{project.id}"), ("Status Reports", f"/projects/{project.id}?tab=status"), ("New Report", "")])
 
 
 @app.post("/projects/{project_id}/status-reports")
@@ -1458,6 +2566,17 @@ def board_column_archive(project_id: str, column_id: str, request: Request, csrf
     record_audit(db, user.id, "BoardColumn", column.id, "ARCHIVE", before={"name": column.name}, after={"archived": True}, ip_address=getattr(request.state, "client_ip", ""))
     db.commit()
     return flash_redirect(f"/projects/{project.id}?tab=board-settings", f"{column.name} archived.")
+
+
+@app.get("/projects/{project_id}/tasks/new", response_class=HTMLResponse)
+def task_new(project_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "PROJECT_MANAGER", "TEAM_MEMBER", "ADMIN")
+    project = get_accessible_project(db, user, project_id)
+    tasks = db.query(Task).filter(Task.project_id == project.id).order_by(Task.sequence, Task.created_at).all()
+    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()
+    return render(request, "project_record_form.html", user, db, project=project, record_type="task", tasks=tasks,
+                  users=users, board_columns=board_column_names(db, project.id),
+                  breadcrumbs=[("Projects", "/projects"), (project.human_id, f"/projects/{project.id}"), ("Board", f"/projects/{project.id}?tab=board"), ("New Task", "")])
 
 
 @app.post("/projects/{project_id}/tasks")
@@ -1992,9 +3111,27 @@ def task_move(task_id: str, payload: dict, request: Request, x_csrf_token: str |
     return {"ok":True,"task":t.human_id,"column":column}
 
 
+@app.get("/projects/{project_id}/milestones/new", response_class=HTMLResponse)
+def milestone_new(project_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "PROJECT_MANAGER", "PMO", "ADMIN")
+    project = get_accessible_project(db, user, project_id)
+    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()
+    return render(request, "project_record_form.html", user, db, project=project, record_type="milestone", users=users,
+                  breadcrumbs=[("Projects", "/projects"), (project.human_id, f"/projects/{project.id}"), ("Milestones", f"/projects/{project.id}?tab=milestones"), ("New Milestone", "")])
+
+
 @app.post("/projects/{project_id}/milestones")
 def milestone_create(project_id: str, request: Request, csrf: str = Form(...), title: str = Form(...), current_date: str = Form(...), confidence: str = Form("Medium"), critical: str = Form(""), owner_id: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_csrf(request,user,csrf); require_roles(user,"PROJECT_MANAGER","PMO","ADMIN"); p=get_accessible_project(db,user,project_id); due=date.fromisoformat(current_date); m=Milestone(human_id=next_human_id(db,Milestone,"MS"),project_id=p.id,title=title,baseline_date=due,current_date=due,confidence=confidence,critical=bool(critical),owner_id=owner_id or user.id); db.add(m); db.flush(); record_audit(db,user.id,"Milestone",m.id,"CREATE",after=snapshot(m)); db.commit(); return flash_redirect(f"/projects/{p.id}?tab=milestones",f"Milestone {m.human_id} created.")
+
+
+@app.get("/projects/{project_id}/raid/new", response_class=HTMLResponse)
+def raid_new(project_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "PROJECT_MANAGER", "TEAM_MEMBER", "PMO", "ADMIN")
+    project = get_accessible_project(db, user, project_id)
+    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()
+    return render(request, "project_record_form.html", user, db, project=project, record_type="raid", users=users,
+                  breadcrumbs=[("Projects", "/projects"), (project.human_id, f"/projects/{project.id}"), ("RAID", f"/projects/{project.id}?tab=raid"), ("New RAID Record", "")])
 
 
 @app.post("/projects/{project_id}/raid")
@@ -2031,15 +3168,113 @@ def resources_page(request: Request, db: Session = Depends(get_db), user: User =
     return render(request,"resources.html",user,db,rows=rows,orgs_map=orgs,total_cap=total_cap,total_alloc=total_alloc,over=over,gaps=gaps,resource_requests=requests,users_map=users,projects_map=projects,project_options=list(projects.values()))
 
 
+@app.get("/resources/requests/new", response_class=HTMLResponse)
+def resource_request_new(request: Request, project: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "PROJECT_MANAGER", "RESOURCE_MANAGER", "PMO", "DIVISION_PORTFOLIO_MANAGER", "ADMIN")
+    orgs = [item for item in db.query(Organization).filter(Organization.org_type == "Division", Organization.active.is_(True)).order_by(Organization.code).all() if can_access_org(user, item.id)]
+    projects = scoped_projects(db, user).order_by(Project.human_id).all()
+    return render(request, "resource_request_form.html", user, db, eligible_orgs=orgs, project_options=projects,
+                  selected_project=next((item for item in projects if item.id == project), None))
+
+
+@app.get("/resources/requests/{request_id}", response_class=HTMLResponse)
+def resource_request_detail(request_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    item = db.get(ResourceRequest, request_id)
+    if not item or not can_access_org(user, item.org_id):
+        raise HTTPException(404, "Resource request not found")
+    return render(request, "resource_request_detail.html", user, db, record=item, org=db.get(Organization, item.org_id),
+                  project=db.get(Project, item.project_id) if item.project_id else None,
+                  requester=db.get(User, item.requested_by_id), approver=db.get(User, item.approver_id) if item.approver_id else None,
+                  can_decide=item.status == "Submitted" and has_role(user, "RESOURCE_MANAGER", "PMO", "DIVISION_CHIEF", "ADMIN"),
+                  audit=record_audit_events(db, item.id))
+
+
+@app.get("/resources/import", response_class=HTMLResponse)
+def resource_import_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "ADMIN")
+    batches = db.query(ImportBatch).filter(ImportBatch.template_type == "Resource Capacity").order_by(ImportBatch.created_at.desc()).limit(20).all()
+    return render(request, "resource_import.html", user, db, batches=batches, columns=RESOURCE_COLUMNS)
+
+
+@app.post("/resources/import/preview", response_class=HTMLResponse)
+async def resource_import_preview(request: Request, csrf: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_csrf(request, user, csrf); require_roles(user, "ADMIN")
+    if not (file.filename or "").lower().endswith(".csv"):
+        return flash_redirect("/resources/import", "Resource import currently requires the provided CSV template.", "error")
+    raw = await file.read()
+    if len(raw) > settings.max_upload_mb * 1024 * 1024:
+        return flash_redirect("/resources/import", "Upload exceeds the configured size limit.", "error")
+    try:
+        text = raw.decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+        if not reader.fieldnames or any(column not in reader.fieldnames for column in RESOURCE_COLUMNS):
+            missing = [column for column in RESOURCE_COLUMNS if column not in (reader.fieldnames or [])]
+            return flash_redirect("/resources/import", f"Missing required columns: {', '.join(missing)}", "error")
+        source_rows = list(reader)
+    except UnicodeDecodeError:
+        return flash_redirect("/resources/import", "CSV must be UTF-8 encoded.", "error")
+    results, summary = validate_resource_rows(db, source_rows)
+    batch = ImportBatch(filename=(file.filename or "resources.csv")[:240], template_type="Resource Capacity", status="Preview", uploaded_by_id=user.id, rows_json=results, summary_json=summary)
+    db.add(batch); db.flush()
+    for result in results:
+        db.add(ImportRow(batch_id=batch.id, row_number=result["row_number"], record_identifier=result["record_identifier"], action_taken=result["action"], severity=result["severity"], validation_message=result["message"], corrective_guidance="Correct the CSV and preview again." if result["severity"] == "Error" else ""))
+    record_audit(db, user.id, "ImportBatch", batch.id, "PREVIEW_RESOURCE_IMPORT", after={"filename": batch.filename, "summary": summary}, ip_address=getattr(request.state, "client_ip", ""))
+    db.commit(); return render(request, "resource_import_preview.html", user, db, batch=batch, results=results, summary=summary)
+
+
+@app.post("/resources/import/{batch_id}/commit")
+def resource_import_commit(batch_id: str, request: Request, csrf: str = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_csrf(request, user, csrf); require_roles(user, "ADMIN")
+    batch = db.get(ImportBatch, batch_id)
+    if not batch or batch.template_type != "Resource Capacity" or batch.status != "Preview":
+        raise HTTPException(404, "Resource import preview not found")
+    if (batch.summary_json or {}).get("errors"):
+        return flash_redirect("/resources/import", "Correct all rejected rows before commit.", "error")
+    changed = 0
+    for result in batch.rows_json or []:
+        if result.get("action") == "Unchanged":
+            continue
+        data = result["data"]
+        record = db.get(ResourceCapacity, data.get("existing_id")) if data.get("existing_id") else ResourceCapacity()
+        before = snapshot(record) if data.get("existing_id") else None
+        record.org_id, record.role_name, record.skill, record.period = data["org_id"], data["role_name"], data["skill"], data["period"]
+        for field in ("capacity_hours", "allocated_hours", "actual_hours", "minimum_core_coverage"):
+            setattr(record, field, data[field])
+        if not data.get("existing_id"): db.add(record)
+        db.flush(); changed += 1
+        record_audit(db, user.id, "ResourceCapacity", record.id, result["action"].upper(), before=before, after=snapshot(record), ip_address=getattr(request.state, "client_ip", ""))
+    batch.status = "Committed"
+    record_audit(db, user.id, "ImportBatch", batch.id, "COMMIT_RESOURCE_IMPORT", after={"changed": changed, "summary": batch.summary_json}, ip_address=getattr(request.state, "client_ip", ""))
+    db.commit(); return flash_redirect("/resources", f"Resource import committed: {changed} records created or updated.")
+
+
 @app.get("/financials", response_class=HTMLResponse)
 def financials_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    q=db.query(FinancialRecord,Project).join(Project,FinancialRecord.project_id==Project.id)
-    if not is_enterprise_user(user): q=q.filter(Project.lead_org_id==user.division_id)
-    rows=q.all(); allowed_ids=[f.id for f,p in rows]
-    transactions=db.query(FinancialTransaction).filter(FinancialTransaction.financial_record_id.in_(allowed_ids)).order_by(FinancialTransaction.transaction_date.desc(),FinancialTransaction.created_at.desc()).limit(100).all() if allowed_ids else []
-    financial_map={f.id:(f,p) for f,p in rows}; budget=sum(float(f.approved_budget) for f,p in rows); actual=sum(float(f.actual_cost) for f,p in rows); forecast=sum(float(f.forecast) for f,p in rows); unfunded=sum(float(f.full_requirement)-float(f.approved_budget) for f,p in rows if f.funding_status!="Funded")
-    transaction_totals=Counter(t.transaction_type for t in transactions)
-    return render(request,"financials.html",user,db,rows=rows,budget=budget,actual=actual,forecast=forecast,unfunded=unfunded,transactions=transactions,financial_map=financial_map,transaction_totals=transaction_totals)
+    q = db.query(FinancialRecord, Project).join(Project, FinancialRecord.project_id == Project.id)
+    category = request.query_params.get("category", "").strip()
+    division = request.query_params.get("division", "").strip().upper()
+    view = request.query_params.get("view", "").strip().lower()
+    if not is_enterprise_user(user):
+        q = q.filter(Project.lead_org_id == user.division_id)
+    if category:
+        q = q.filter(FinancialRecord.category == category)
+    if division:
+        org = db.query(Organization).filter(Organization.code == division).first()
+        q = q.filter(Project.lead_org_id == org.id) if org else q.filter(False)
+    if view == "actual":
+        q = q.filter(FinancialRecord.actual_cost > 0)
+    elif view == "remaining":
+        q = q.filter(FinancialRecord.approved_budget > FinancialRecord.actual_cost)
+    rows = q.order_by(FinancialRecord.fiscal_year.desc(), Project.title).all()
+    allowed_ids = [f.id for f, _p in rows]
+    transactions = db.query(FinancialTransaction).filter(FinancialTransaction.financial_record_id.in_(allowed_ids)).order_by(FinancialTransaction.transaction_date.desc(), FinancialTransaction.created_at.desc()).limit(100).all() if allowed_ids else []
+    financial_map = {f.id: (f, p) for f, p in rows}
+    budget = sum(float(f.approved_budget) for f, _p in rows)
+    actual = sum(float(f.actual_cost) for f, _p in rows)
+    forecast = sum(float(f.forecast) for f, _p in rows)
+    unfunded = sum(float(f.full_requirement) - float(f.approved_budget) for f, _p in rows if f.funding_status != "Funded")
+    transaction_totals = Counter(t.transaction_type for t in transactions)
+    return render(request, "financials.html", user, db, rows=rows, budget=budget, actual=actual, forecast=forecast, unfunded=unfunded, transactions=transactions, financial_map=financial_map, transaction_totals=transaction_totals, filters={"category": category, "division": division, "view": view})
 
 
 @app.get("/benefits", response_class=HTMLResponse)
@@ -2062,9 +3297,472 @@ def notifications_read_all(request: Request, csrf: str = Form(...), db: Session 
 
 @app.get("/my-work", response_class=HTMLResponse)
 def my_work(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    demands=scoped_demands(db,user).filter(or_(Demand.requester_id==user.id,Demand.current_owner_id==user.id,Demand.sponsor_id==user.id)).all(); projects=scoped_projects(db,user).filter(or_(Project.manager_id==user.id,Project.sponsor_id==user.id)).all(); tasks=db.query(Task,Project).join(Project,Task.project_id==Project.id).filter(Task.owner_id==user.id,Task.status!="Completed").order_by(Task.due_date).all(); actions=db.query(Action).filter(Action.owner_id==user.id,Action.status!="Closed").order_by(Action.due_date).all()
-    return render(request,"my_work.html",user,db,demands=demands,projects=projects,tasks=tasks,actions=actions)
+    demands = scoped_demands(db, user).filter(or_(Demand.requester_id == user.id, Demand.current_owner_id == user.id, Demand.sponsor_id == user.id)).all()
+    projects = scoped_projects(db, user).filter(or_(Project.manager_id == user.id, Project.sponsor_id == user.id)).all()
+    tasks = db.query(Task, Project).join(Project, Task.project_id == Project.id).filter(Task.owner_id == user.id, Task.status != "Completed").order_by(Task.due_date).all()
+    actions = db.query(Action).filter(Action.owner_id == user.id, Action.status != "Closed").order_by(Action.due_date).all()
+    review_questions = db.query(ReviewQuestion).filter(ReviewQuestion.assigned_to_id == user.id, ReviewQuestion.status != "Closed").order_by(ReviewQuestion.due_date, ReviewQuestion.created_at).all()
+    change_requests = db.query(ReviewChangeRequest).filter(ReviewChangeRequest.owner_id == user.id, ReviewChangeRequest.status.in_(["Open", "Clarification Required"])).order_by(ReviewChangeRequest.due_date, ReviewChangeRequest.created_at).all()
+    review_ids = {item.review_id for item in review_questions} | {item.review_id for item in change_requests}
+    review_map = {review.id: review for review in db.query(PortfolioReview).filter(PortfolioReview.id.in_(review_ids)).all()} if review_ids else {}
+    travel_followups = []
+    if has_role(user, "ADMIN", "PMO", "DATA_STEWARD", "DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER"):
+        travel_followups = scoped_trip_reports(db, user).filter(or_(TripReport.request_id.is_(None), TripReport.review_status.notin_(["Reviewed", "Closed"]))).order_by(TripReport.return_date).all()
 
+    # ---- Unified Action Center queue (v0.7.9) -------------------------------
+    today_date = date.today()
+    soon = today_date + timedelta(days=7)
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+
+    def _item(kind, title, why, parent, priority, due, href, primary_label, quick=None, status=None):
+        return {"kind": kind, "title": title, "why": why, "parent": parent, "priority": priority,
+                "due": due, "href": href, "primary_label": primary_label, "quick": quick or {}, "status": status}
+
+    groups = {"critical": [], "awaiting": [], "due_soon": [], "needs_update": [], "watching": [], "done_recent": []}
+
+    for t, p in tasks:
+        overdue = bool(t.due_date and t.due_date < today_date)
+        base_item = _item(
+            "task", f"{t.human_id} · {t.title}",
+            (f"Overdue since {t.due_date.strftime('%d %b')}" if overdue else f"{t.priority} priority · {t.percent_complete}% complete"),
+            p.human_id, t.priority, t.due_date, f"/projects/{p.id}/tasks/{t.id}", "Update task",
+            quick={"task_id": t.id, "percent": t.percent_complete}, status=t.status,
+        )
+        if overdue and t.priority in ("Critical", "High"):
+            groups["critical"].append(base_item)
+        elif t.due_date and t.due_date <= soon:
+            groups["due_soon"].append(base_item)
+        elif overdue:
+            groups["needs_update"].append(base_item)
+        else:
+            groups["watching"].append(base_item)
+
+    for a in actions:
+        overdue = bool(a.due_date and a.due_date < today_date)
+        item = _item(
+            "action", f"{a.human_id} · {a.title}",
+            (f"Overdue commitment from {a.source_type}" if overdue else f"Follow-through on {a.source_type}"),
+            a.source_type, "High" if overdue else "Medium", a.due_date, f"/records/action/{a.id}", "Close out",
+            quick={"action_id": a.id}, status=a.status,
+        )
+        (groups["critical"] if overdue else groups["awaiting"]).append(item)
+
+    for q in review_questions:
+        review = review_map.get(q.review_id)
+        groups["awaiting"].append(_item(
+            "question", f"{q.human_id} · {q.question}",
+            "Leadership briefing question awaiting your answer",
+            review.title if review else "Division briefing", q.priority, q.due_date,
+            f"/portfolio-reviews/{q.review_id}/brief?section={q.section_id or ''}", "Respond", status=q.status,
+        ))
+    for c in change_requests:
+        review = review_map.get(c.review_id)
+        groups["awaiting"].append(_item(
+            "change", f"{c.human_id} · {c.field_name or 'Source-record change'}",
+            "Governed change request awaiting disposition",
+            review.title if review else "Division briefing", "High", c.due_date,
+            f"/portfolio-reviews/{c.review_id}/brief?section={c.section_id or ''}", "Resolve", status=c.status,
+        ))
+    for r in travel_followups:
+        groups["awaiting"].append(_item(
+            "trip", f"{r.human_id} · {r.title}",
+            ("Report is not matched to a travel request" if not r.request_id else "Outcome review pending"),
+            r.traveler_name or "Travel", "Medium", r.return_date, f"/travel/reports/{r.id}",
+            ("Reconcile" if not r.request_id else "Review outcome"), status=r.review_status,
+        ))
+
+    for p in projects:
+        last = p.last_status_date.replace(tzinfo=p.last_status_date.tzinfo or timezone.utc) if p.last_status_date else None
+        if last is None or last < stale_cutoff:
+            groups["needs_update"].append(_item(
+                "project", f"{p.human_id} · {p.title}",
+                ("No status has been submitted yet" if last is None else f"Status is stale · last updated {last.strftime('%d %b')}"),
+                p.human_id, "Medium", None, f"/projects/{p.id}", "Submit status", status=p.status,
+            ))
+        health = p.health_override or p.health_owner or p.health_calculated
+        if health in ("At Risk", "Off Track", "Blocked"):
+            groups["watching"].append(_item(
+                "project", f"{p.human_id} · {p.title}",
+                f"Project health is {health}", p.human_id, "High", None, f"/projects/{p.id}", "Open project", status=health,
+            ))
+
+    done_recent = (
+        db.query(Task, Project).join(Project, Task.project_id == Project.id)
+        .filter(Task.owner_id == user.id, Task.status == "Completed")
+        .order_by(Task.updated_at.desc() if hasattr(Task, "updated_at") else Task.due_date.desc()).limit(5).all()
+    )
+    for t, p in done_recent:
+        groups["done_recent"].append(_item(
+            "task", f"{t.human_id} · {t.title}", f"Completed — feeds {p.human_id} progress and health",
+            p.human_id, t.priority, t.due_date, f"/projects/{p.id}/tasks/{t.id}", "View", status="Completed",
+        ))
+
+    priority_rank = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
+    for key in ("critical", "awaiting", "due_soon", "needs_update", "watching"):
+        groups[key].sort(key=lambda i: (i["due"] or date.max, priority_rank.get(i["priority"], 2)))
+    open_total = sum(len(groups[k]) for k in ("critical", "awaiting", "due_soon", "needs_update"))
+    group_meta = [
+        ("critical", "Critical now", "Overdue critical work and expired commitments"),
+        ("awaiting", "Awaiting me", "Reviews, answers, dispositions, and reconciliation"),
+        ("due_soon", "Due soon", "Work due within the next seven days"),
+        ("needs_update", "Needs update", "Stale status and records missing current information"),
+        ("watching", "Watching", "Health deterioration and longer-horizon work"),
+        ("done_recent", "Recently completed", "Confirmation that finished work rolled up"),
+    ]
+    return render(request, "my_work.html", user, db, demands=demands, projects=projects, tasks=tasks, actions=actions,
+                  review_questions=review_questions, change_requests=change_requests, review_map=review_map,
+                  travel_followups=travel_followups, groups=groups, group_meta=group_meta, open_total=open_total)
+
+
+TASK_QUICK_STATUSES = {"Not Started", "In Progress", "Blocked", "Completed"}
+
+
+@app.post("/quick/tasks/{task_id}")
+def quick_task_update(task_id: str, request: Request, csrf: str = Form(...), status: str = Form(None), percent_complete: int = Form(None), blocker_note: str = Form(None), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Fast inline task update from the My Work Action Center (v0.7.9).
+
+    Governance: limited to the task owner or the managing PM; writes an audit
+    record with before/after values; status values restricted to the standard set.
+    """
+    require_csrf(request, user, csrf)
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    project = get_accessible_project(db, user, task.project_id)
+    if task.owner_id != user.id and project.manager_id != user.id and not has_role(user, "ADMIN", "PMO"):
+        raise HTTPException(403, "Only the task owner or project manager can quick-update this task")
+    before = {"status": task.status, "percent_complete": task.percent_complete}
+    changed = []
+    if status:
+        if status not in TASK_QUICK_STATUSES:
+            return flash_redirect("/my-work", "That status is not a valid quick update.", "error")
+        task.status = status
+        if status == "Completed":
+            task.percent_complete = 100
+        changed.append(f"status → {status}")
+    if percent_complete is not None:
+        task.percent_complete = max(0, min(100, int(percent_complete)))
+        if task.percent_complete == 100 and task.status != "Completed":
+            task.status = "Completed"
+        changed.append(f"{task.percent_complete}% complete")
+    if blocker_note:
+        task.status = "Blocked"
+        comment = TaskComment(task_id=task.id, author_id=user.id, body=f"Blocker: {blocker_note.strip()[:2000]}")
+        db.add(comment)
+        changed.append("blocker recorded")
+    if not changed:
+        return flash_redirect("/my-work", "No quick-update values were provided.", "error")
+    record_audit(db, user.id, "Task", task.id, "QUICK_UPDATE", before=before, after={"status": task.status, "percent_complete": task.percent_complete})
+    db.commit()
+    return flash_redirect("/my-work", f"{task.human_id} updated: {', '.join(changed)}.")
+
+
+@app.post("/quick/actions/{action_id}/close")
+def quick_action_close(action_id: str, request: Request, csrf: str = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Close an assigned action from the Action Center with an audit trail (v0.7.9)."""
+    require_csrf(request, user, csrf)
+    action = db.get(Action, action_id)
+    if not action:
+        raise HTTPException(404, "Action not found")
+    if action.owner_id != user.id and not has_role(user, "ADMIN", "PMO"):
+        raise HTTPException(403, "Only the action owner can quick-close this action")
+    before = {"status": action.status}
+    action.status = "Closed"
+    record_audit(db, user.id, "Action", action.id, "QUICK_CLOSE", before=before, after={"status": action.status})
+    db.commit()
+    return flash_redirect("/my-work", f"{action.human_id} closed.")
+
+
+
+@app.get("/travel", response_class=HTMLResponse)
+def travel_dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    query = scoped_travel_requests(db, user)
+    division = request.query_params.get("division", "").strip().upper()
+    determination = request.query_params.get("determination", "").strip()
+    location = request.query_params.get("location", "").strip()
+    q = request.query_params.get("q", "").strip()
+    start_text = request.query_params.get("start", "").strip()
+    end_text = request.query_params.get("end", "").strip()
+    if division:
+        org = db.query(Organization).filter(Organization.code == division).first()
+        query = query.filter(TravelRequest.org_id == org.id) if org else query.filter(False)
+    if determination:
+        query = query.filter(TravelRequest.determination == determination)
+    if q:
+        pattern = f"%{q}%"
+        engagement_ids = [e.id for e in db.query(TravelEngagement).filter(TravelEngagement.title.ilike(pattern)).all()]
+        query = query.filter(or_(TravelRequest.traveler_name.ilike(pattern), TravelRequest.location.ilike(pattern), TravelRequest.external_id.ilike(pattern), TravelRequest.engagement_id.in_(engagement_ids or ["-"])))
+    try:
+        if start_text:
+            query = query.filter(TravelRequest.departure_date >= date.fromisoformat(start_text))
+        if end_text:
+            query = query.filter(TravelRequest.departure_date <= date.fromisoformat(end_text))
+    except ValueError:
+        return flash_redirect("/travel", "Date filters must use YYYY-MM-DD.", "error")
+    requests = query.order_by(TravelRequest.departure_date.desc(), TravelRequest.external_id).all()
+    if location:
+        requests = [item for item in requests if resolve_location(item.location)["canonical"] == location]
+    request_ids = {item.id for item in requests}
+    reports = scoped_trip_reports(db, user).filter(or_(TripReport.request_id.in_(request_ids or ["-"]), TripReport.request_id.is_(None))).order_by(TripReport.return_date.desc()).all()
+    if location:
+        reports = [item for item in reports if item.request_id in request_ids or (not item.request_id and resolve_location(item.location)["canonical"] == location)]
+    engagement_ids = {item.engagement_id for item in requests if item.engagement_id}
+    engagements = db.query(TravelEngagement).filter(TravelEngagement.id.in_(engagement_ids or ["-"])).all()
+    report_ids = [item.id for item in reports]
+    report_items = db.query(TripReportItem).filter(TripReportItem.report_id.in_(report_ids)).all() if report_ids else []
+    payload = travel_dashboard_payload(requests, reports, engagements, report_items)
+    orgs = {org.id: org for org in db.query(Organization).filter(Organization.org_type == "Division").order_by(Organization.code).all()}
+    engagement_map = {item.id: item for item in engagements}
+    report_by_request = {item.request_id: item for item in reports if item.request_id}
+    max_division_cost = max(payload["division_costs"].values(), default=1)
+    max_month_cost = max(payload["month_costs"].values(), default=1)
+    max_month_count = max(payload["month_counts"].values(), default=1)
+    reconciliation = [r for r in reports if r.match_status in {"Unmatched", "Suggested Match", "Needs Reconciliation"}]
+    filters = {"division": division, "determination": determination, "location": location, "q": q, "start": start_text, "end": end_text}
+    for row in payload["location_rows"]:
+        params = {key: value for key, value in filters.items() if value and key != "location"}
+        params["location"] = row["location"]
+        row["url"] = f"/travel?{urlencode(params)}"
+        row["key"] = re.sub(r"[^a-z0-9]+", "-", row["location"].lower()).strip("-")
+        row["division_codes"] = [orgs[org_id].code for org_id in {item.org_id for item in requests if resolve_location(item.location)["canonical"] == row["location"]} if org_id in orgs]
+    compliance_rows = []
+    for org_id, values in payload["compliance"].items():
+        org = orgs.get(org_id)
+        if org:
+            compliance_rows.append({"org": org, **values})
+    compliance_rows.sort(key=lambda item: (item["overdue"], item["approved_completed"]), reverse=True)
+    division_status_rows = [{"org": orgs[org_id], **counts} for org_id, counts in payload["division_status"].items() if org_id in orgs]
+    division_status_rows.sort(key=lambda row: sum(row.get(status, 0) for status in ["Approved", "Pending", "Canceled", "Disapproved"]), reverse=True)
+    report_items_by_report = defaultdict(list)
+    for item in report_items:
+        report_items_by_report[item.report_id].append(item)
+    engagement_rows = []
+    for engagement in engagements:
+        engagement_requests = [item for item in requests if item.engagement_id == engagement.id]
+        engagement_reports = [item for item in reports if item.engagement_id == engagement.id or item.request_id in {request_item.id for request_item in engagement_requests}]
+        engagement_rows.append({
+            "engagement": engagement,
+            "cost": sum(float(item.estimated_cost or 0) for item in engagement_requests),
+            "travelers": len(engagement_requests),
+            "divisions": len({item.org_id for item in engagement_requests}),
+            "reports": len(engagement_reports),
+            "reviewed": sum(item.review_status in {"Reviewed", "Closed"} for item in engagement_reports),
+            "promoted": sum(bool(outcome.promoted_entity_type) for report in engagement_reports for outcome in report_items_by_report.get(report.id, [])),
+        })
+    engagement_rows.sort(key=lambda row: (row["cost"], row["reports"], row["travelers"]), reverse=True)
+    # ---- v0.7.9: focused workspaces + server-side pagination ---------------
+    view = request.query_params.get("view", "overview")
+    if view not in {"overview", "requests", "reports", "reconciliation", "outcomes"}:
+        view = "overview"
+    page_size = 25
+    try:
+        page = max(1, int(request.query_params.get("page", "1")))
+    except ValueError:
+        page = 1
+    requests_total = len(requests)
+    reports_total = len(reports)
+    reconciliation_total = len(reconciliation)
+
+    def _paginate(items):
+        pages = max(1, (len(items) + page_size - 1) // page_size)
+        current = min(page, pages)
+        return items[(current - 1) * page_size: current * page_size], pages, current
+
+    requests_page, requests_pages, requests_current = _paginate(requests)
+    reports_page, reports_pages, reports_current = _paginate(reports)
+    reconciliation_page, reconciliation_pages, reconciliation_current = _paginate(reconciliation)
+    view_query = urlencode({k: v for k, v in filters.items() if v})
+    return render(
+        request, "travel.html", user, db,
+        requests=requests, reports=reports, engagements=engagements, payload=payload,
+        orgs=orgs, engagement_map=engagement_map, report_by_request=report_by_request,
+        max_division_cost=max_division_cost, max_month_cost=max_month_cost, max_month_count=max_month_count,
+        reconciliation=reconciliation, compliance_rows=compliance_rows, division_status_rows=division_status_rows, engagement_rows=engagement_rows,
+        filters=filters, active_filter_count=sum(bool(value) for value in filters.values()),
+        can_manage=has_role(user, "ADMIN", "PMO", "DATA_STEWARD", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF"),
+        view=view, view_query=view_query, page_size=page_size,
+        requests_total=requests_total, requests_page=requests_page, requests_pages=requests_pages, requests_current=requests_current,
+        reports_total=reports_total, reports_page=reports_page, reports_pages=reports_pages, reports_current=reports_current,
+        reconciliation_total=reconciliation_total, reconciliation_page=reconciliation_page, reconciliation_pages=reconciliation_pages, reconciliation_current=reconciliation_current,
+    )
+
+
+@app.get("/travel/requests/{request_id}", response_class=HTMLResponse)
+def travel_request_detail(request_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    record = get_accessible_travel_request(db, user, request_id)
+    engagement = db.get(TravelEngagement, record.engagement_id) if record.engagement_id else None
+    reports = scoped_trip_reports(db, user).filter(TripReport.request_id == record.id).order_by(TripReport.version.desc()).all()
+    approvals = db.query(TravelApprovalStep).filter(TravelApprovalStep.request_id == record.id).order_by(TravelApprovalStep.step_order).all()
+    org = db.get(Organization, record.org_id)
+    links = db.query(TravelEntityLink).filter(or_(and_(TravelEntityLink.source_entity_type == "TravelRequest", TravelEntityLink.source_entity_id == record.id), and_(TravelEntityLink.source_entity_type == "TravelEngagement", TravelEntityLink.source_entity_id == record.engagement_id))).all()
+    link_rows = resolve_travel_entity_links(db, user, links)
+    audit = db.query(AuditEvent).filter(AuditEvent.entity_id.in_([record.id] + ([record.engagement_id] if record.engagement_id else []))).order_by(AuditEvent.created_at.desc()).limit(30).all()
+    return render(request, "travel_request_detail.html", user, db, record=record, engagement=engagement, reports=reports, approvals=approvals, org=org, links=links, link_rows=link_rows, audit=audit)
+
+
+@app.get("/travel/reports/{report_id}", response_class=HTMLResponse)
+def trip_report_detail(report_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    report = get_accessible_trip_report(db, user, report_id)
+    request_record = db.get(TravelRequest, report.request_id) if report.request_id else None
+    engagement = db.get(TravelEngagement, report.engagement_id) if report.engagement_id else None
+    items = db.query(TripReportItem).filter(TripReportItem.report_id == report.id).order_by(TripReportItem.sequence).all()
+    candidates = match_candidates(db, report, 5) if report.match_status in {"Unmatched", "Suggested Match", "Needs Reconciliation"} else []
+    org = db.get(Organization, report.org_id)
+    links = db.query(TravelEntityLink).filter(TravelEntityLink.source_entity_type.in_(["TripReport", "TripReportItem"]), or_(TravelEntityLink.source_entity_id == report.id, TravelEntityLink.source_entity_id.in_([i.id for i in items] or ["-"]))).all()
+    link_rows = resolve_travel_entity_links(db, user, links)
+    links_by_source = defaultdict(list)
+    for row in link_rows:
+        links_by_source[row["link"].source_entity_id].append(row)
+    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()
+    projects = scoped_projects(db, user).order_by(Project.human_id).all()
+    demands = scoped_demands(db, user).order_by(Demand.human_id).all()
+    audit = db.query(AuditEvent).filter(or_(AuditEvent.entity_id == report.id, AuditEvent.entity_id.in_([i.id for i in items] or ["-"]))).order_by(AuditEvent.created_at.desc()).limit(40).all()
+    can_manage = has_role(user, "ADMIN", "PMO", "DATA_STEWARD", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF") and can_edit_business_data(user)
+    return render(request, "trip_report_detail.html", user, db, report=report, request_record=request_record, engagement=engagement, items=items, candidates=candidates, org=org, links=links, link_rows=link_rows, links_by_source=links_by_source, users=users, projects=projects, demands=demands, audit=audit, can_manage=can_manage)
+
+
+@app.post("/travel/reports/{report_id}/match")
+def match_trip_report(report_id: str, request: Request, csrf: str = Form(...), travel_request_id: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_csrf(request, user, csrf); require_roles(user, "ADMIN", "PMO", "DATA_STEWARD", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF")
+    report = get_accessible_trip_report(db, user, report_id)
+    before = snapshot(report)
+    if not travel_request_id:
+        report.request_id = None
+        report.engagement_id = None
+        report.match_status = "Needs Reconciliation"
+        report.match_confidence = 0
+        report.match_rationale = "Prior link cleared by an authorized reviewer; reconciliation is required."
+        report.matched_by_id = user.id
+        report.matched_at = datetime.now(timezone.utc)
+        record_audit(db, user.id, "TripReport", report.id, "MATCH_CLEAR", before=before, after=snapshot(report), ip_address=request.state.client_ip)
+        db.commit()
+        return flash_redirect(f"/travel/reports/{report.id}", f"Link cleared for {report.human_id}; select a new candidate match.", "warning")
+    travel_request = get_accessible_travel_request(db, user, travel_request_id)
+    if report.org_id != travel_request.org_id and not is_enterprise_user(user):
+        raise HTTPException(403, "Cannot reconcile across division scope")
+    report.request_id = travel_request.id
+    report.engagement_id = travel_request.engagement_id
+    report.match_status = "Confirmed"
+    report.match_confidence = 1.0
+    report.match_rationale = "Human-confirmed reconciliation from the candidate queue."
+    report.matched_by_id = user.id
+    report.matched_at = datetime.now(timezone.utc)
+    record_audit(db, user.id, "TripReport", report.id, "MATCH_CONFIRM", before=before, after=snapshot(report), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/travel/reports/{report.id}", f"{report.human_id} linked to travel request {travel_request.human_id}.")
+
+
+@app.post("/travel/reports/{report_id}/review")
+def review_trip_report(report_id: str, request: Request, csrf: str = Form(...), review_status: str = Form(...), review_comments: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_csrf(request, user, csrf); require_roles(user, "ADMIN", "PMO", "DATA_STEWARD", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF")
+    report = get_accessible_trip_report(db, user, report_id)
+    allowed = {"Awaiting Review", "In Review", "Reviewed", "Changes Required", "Closed"}
+    if review_status not in allowed:
+        raise HTTPException(400, "Unsupported report review status")
+    before = snapshot(report); report.review_status = review_status
+    report.review_comments = review_comments.strip()[:8000]
+    report.reviewed_by_id = user.id
+    report.reviewed_at = datetime.now(timezone.utc)
+    record_audit(db, user.id, "TripReport", report.id, "REVIEW_STATUS", before=before, after=snapshot(report), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/travel/reports/{report.id}", "Trip report review status updated.")
+
+
+@app.post("/travel/report-items/{item_id}/promote")
+def promote_trip_report_item(
+    item_id: str, request: Request, csrf: str = Form(...), promotion_type: str = Form(...),
+    owner_id: str = Form(""), due_date: str = Form(""), project_id: str = Form(""), demand_id: str = Form(""),
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf); require_roles(user, "ADMIN", "PMO", "DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF")
+    item = db.get(TripReportItem, item_id)
+    if not item:
+        raise HTTPException(404, "Trip report item not found")
+    report = get_accessible_trip_report(db, user, item.report_id)
+    if item.promoted_entity_id:
+        return flash_redirect(f"/travel/reports/{report.id}", "This outcome has already been promoted.", "warning")
+    try:
+        parsed_due = date.fromisoformat(due_date) if due_date else None
+    except ValueError:
+        return flash_redirect(f"/travel/reports/{report.id}", "Due date must use YYYY-MM-DD.", "error")
+    if owner_id and not db.get(User, owner_id):
+        raise HTTPException(400, "Unknown owner")
+    linked_project = scoped_projects(db, user).filter(Project.id == project_id).first() if project_id else None
+    linked_demand = scoped_demands(db, user).filter(Demand.id == demand_id).first() if demand_id else None
+    if project_id and not linked_project:
+        raise HTTPException(403, "Project is outside the accessible scope")
+    if demand_id and not linked_demand:
+        raise HTTPException(403, "Demand is outside the accessible scope")
+    entity_type = ""; entity_id = ""
+    if promotion_type == "Action":
+        if not owner_id:
+            return flash_redirect(f"/travel/reports/{report.id}", "Select an action owner.", "error")
+        action = Action(human_id=next_human_id(db, Action, "ACT"), title=item.title or item.body[:240], owner_id=owner_id, due_date=parsed_due, project_id=project_id or None, demand_id=demand_id or None, source_type="Trip report outcome")
+        db.add(action); db.flush(); entity_type, entity_id = "Action", action.id
+    elif promotion_type == "Risk":
+        if not project_id:
+            return flash_redirect(f"/travel/reports/{report.id}", "Select a project before promoting a risk.", "error")
+        risk = RaidItem(human_id=next_human_id(db, RaidItem, "RAID"), project_id=project_id, type="Risk", title=item.title or item.body[:240], description=item.body, owner_id=owner_id or user.id, status="Open", severity="Medium", likelihood="Possible", consequence="Outcome identified in a trip report; impact requires project review.", mitigation="Assign owner and disposition through the project RAID process.", due_date=parsed_due, evidence=f"Source: {report.human_id} / {item.human_id}")
+        db.add(risk); db.flush(); entity_type, entity_id = "RaidItem", risk.id
+    elif promotion_type == "Decision":
+        decision = Decision(human_id=next_human_id(db, Decision, "DEC"), project_id=project_id or None, demand_id=demand_id or None, decision="Decision Requested", authority_id=owner_id or user.id, participants=f"Source trip report {report.human_id}", rationale=item.body, evidence=f"Trip report outcome {item.human_id}")
+        db.add(decision); db.flush(); entity_type, entity_id = "Decision", decision.id
+    elif promotion_type == "Dependency":
+        if not project_id:
+            return flash_redirect(f"/travel/reports/{report.id}", "Select a source project before promoting a dependency.", "error")
+        dependency = Dependency(human_id=next_human_id(db, Dependency, "DEP"), source_project_id=project_id, title=item.title or item.body[:240], status="Open", owner_id=owner_id or user.id, due_date=parsed_due, impact=item.body, external_party=report.location)
+        db.add(dependency); db.flush(); entity_type, entity_id = "Dependency", dependency.id
+    elif promotion_type == "Retain as Finding":
+        item.status = "Reviewed Finding"; item.reviewed_by_id = user.id; item.reviewed_at = datetime.now(timezone.utc)
+        record_audit(db, user.id, "TripReportItem", item.id, "RETAIN_FINDING", after=snapshot(item), ip_address=request.state.client_ip); db.commit()
+        return flash_redirect(f"/travel/reports/{report.id}", "Outcome retained as a reviewed finding without creating portfolio work.")
+    elif promotion_type == "Dismiss":
+        item.status = "Dismissed"; item.reviewed_by_id = user.id; item.reviewed_at = datetime.now(timezone.utc)
+        record_audit(db, user.id, "TripReportItem", item.id, "DISMISS", after=snapshot(item), ip_address=request.state.client_ip); db.commit()
+        return flash_redirect(f"/travel/reports/{report.id}", "Outcome retained as historical narrative and dismissed from promotion.")
+    else:
+        raise HTTPException(400, "Unsupported promotion type")
+    item.status = "Promoted"; item.promoted_entity_type = entity_type; item.promoted_entity_id = entity_id; item.owner_id = owner_id or item.owner_id; item.due_date = parsed_due; item.reviewed_by_id = user.id; item.reviewed_at = datetime.now(timezone.utc)
+    link = TravelEntityLink(source_entity_type="TripReportItem", source_entity_id=item.id, target_entity_type=entity_type, target_entity_id=entity_id, link_type="Promoted to", rationale=f"Promoted from {report.human_id}", created_by_id=user.id)
+    db.add(link)
+    record_audit(db, user.id, "TripReportItem", item.id, "PROMOTE", after={"promotion_type": entity_type, "target_id": entity_id, "report": report.human_id}, ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/travel/reports/{report.id}", f"{item.human_id} promoted to {entity_type}.")
+
+
+@app.get("/travel/engagements/{engagement_id}", response_class=HTMLResponse)
+def travel_engagement_detail(engagement_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    engagement = db.get(TravelEngagement, engagement_id)
+    if not engagement:
+        raise HTTPException(404, "Engagement not found")
+    requests = scoped_travel_requests(db, user).filter(TravelRequest.engagement_id == engagement.id).order_by(TravelRequest.traveler_name).all()
+    if not requests:
+        raise HTTPException(404, "Engagement not found")
+    request_ids = [r.id for r in requests]
+    reports = scoped_trip_reports(db, user).filter(or_(TripReport.engagement_id == engagement.id, TripReport.request_id.in_(request_ids))).order_by(TripReport.return_date.desc()).all()
+    orgs = {org.id: org for org in db.query(Organization).all()}
+    items = db.query(TripReportItem).filter(TripReportItem.report_id.in_([r.id for r in reports] or ["-"])).order_by(TripReportItem.item_type, TripReportItem.sequence).all()
+    total_cost = sum(float(r.estimated_cost or 0) for r in requests)
+    return render(request, "travel_engagement_detail.html", user, db, engagement=engagement, requests=requests, reports=reports, items=items, orgs=orgs, total_cost=total_cost)
+
+
+@app.get("/exports/travel-requests.csv")
+def export_travel_requests(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    orgs = {org.id: org for org in db.query(Organization).all()}
+    rows = []
+    for item in scoped_travel_requests(db, user).order_by(TravelRequest.departure_date, TravelRequest.human_id).all():
+        engagement = db.get(TravelEngagement, item.engagement_id) if item.engagement_id else None
+        rows.append([item.human_id, item.external_id, item.traveler_name, orgs.get(item.org_id).code if orgs.get(item.org_id) else item.org_id, engagement.title if engagement else "", item.location, item.determination, item.departure_date, item.return_date, float(item.estimated_cost or 0), item.source_filename, item.source_row])
+    return csv_response("ddc5i-travel-requests.csv", ["Stable ID", "Source ID", "Traveler", "Division", "Engagement", "Location", "Determination", "Departure", "Return", "Estimated Cost", "Source File", "Source Row"], rows)
+
+
+@app.get("/exports/trip-reports.csv")
+def export_trip_reports(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    orgs = {org.id: org for org in db.query(Organization).all()}
+    rows = []
+    for item in scoped_trip_reports(db, user).order_by(TripReport.return_date, TripReport.human_id).all():
+        rows.append([item.human_id, item.title, item.traveler_name, orgs.get(item.org_id).code if orgs.get(item.org_id) else item.org_id, item.start_date, item.return_date, item.location, item.match_status, item.match_confidence, item.review_status, item.request_id or "", item.source_filename, item.source_row])
+    return csv_response("ddc5i-trip-reports.csv", ["Stable ID", "Title", "Traveler", "Division", "Start", "Return", "Location", "Match Status", "Match Confidence", "Review Status", "Travel Request UUID", "Source File", "Source Row"], rows)
 
 @app.get("/reports", response_class=HTMLResponse)
 def reports_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
@@ -2085,6 +3783,34 @@ def csv_response(filename: str, headers: list[str], rows: list[list[Any]]) -> St
     writer.writerows([[csv_safe(value) for value in row] for row in rows])
     content = output.getvalue().encode("utf-8-sig")
     return StreamingResponse(iter([content]),media_type="text/csv",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+
+
+@app.get("/exports/resources.csv")
+def export_resources(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "ADMIN")
+    orgs = {item.id: item for item in db.query(Organization).all()}
+    rows = [[
+        item.id, orgs.get(item.org_id).code if orgs.get(item.org_id) else item.org_id, item.role_name, item.skill,
+        item.period, item.capacity_hours, item.allocated_hours, item.actual_hours, item.minimum_core_coverage,
+    ] for item in db.query(ResourceCapacity).order_by(ResourceCapacity.org_id, ResourceCapacity.role_name, ResourceCapacity.skill, ResourceCapacity.period).all()]
+    return csv_response("jsj6-resource-capacity-v0.8.0.csv", RESOURCE_COLUMNS, rows)
+
+
+@app.get("/exports/resource-template.csv")
+def export_resource_template(user: User = Depends(current_user)):
+    require_roles(user, "ADMIN")
+    return csv_response("jsj6-resource-capacity-import-template-v0.8.0.csv", RESOURCE_COLUMNS, [])
+
+
+@app.get("/exports/resource-requests.csv")
+def export_resource_requests(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "ADMIN")
+    orgs = {item.id: item for item in db.query(Organization).all()}; projects = {item.id: item for item in db.query(Project).all()}
+    rows = [[item.human_id, orgs.get(item.org_id).code if orgs.get(item.org_id) else item.org_id,
+             projects.get(item.project_id).human_id if item.project_id and projects.get(item.project_id) else "",
+             item.role_name, item.skill, item.requested_hours, item.period_start, item.period_end, item.priority,
+             item.status, item.rationale, item.resolution] for item in db.query(ResourceRequest).order_by(ResourceRequest.created_at).all()]
+    return csv_response("jsj6-resource-requests-v0.8.0.csv", ["request_id", "division_code", "project_id", "role_name", "skill", "requested_hours", "period_start", "period_end", "priority", "status", "rationale", "resolution"], rows)
 
 
 @app.get("/exports/demands.csv")
@@ -2114,8 +3840,17 @@ async def import_upload(request: Request, csrf: str = Form(...), template_type: 
     if len(content)>settings.max_upload_mb*1024*1024: return flash_redirect("/imports",f"File exceeds {settings.max_upload_mb} MB limit.","error")
     try: rows=read_first_sheet_xlsx(content)
     except Exception as e: return flash_redirect("/imports",f"Unable to read workbook: {e}","error")
-    if template_type!="Demands": return flash_redirect("/imports","MVP row-level commit currently supports the Demands template. Other versioned templates are provided for controlled staging.","error")
-    results,summary=validate_demand_rows(db,rows,user); batch=ImportBatch(filename=os.path.basename(file.filename),template_type=template_type,status="Preview",uploaded_by_id=user.id,rows_json=results,summary_json=summary); db.add(batch); db.flush()
+    validators = {
+        "Demands": validate_demand_rows,
+        "Travel Requests": validate_travel_request_rows,
+        "Trip Reports": validate_trip_report_rows,
+    }
+    validator = validators.get(template_type)
+    if not validator:
+        return flash_redirect("/imports", "Unsupported import template type.", "error")
+    results,summary=validator(db,rows,user)
+    batch=ImportBatch(filename=os.path.basename(file.filename),template_type=template_type,status="Preview",uploaded_by_id=user.id,rows_json=results,summary_json=summary)
+    db.add(batch); db.flush()
     for r in results: db.add(ImportRow(batch_id=batch.id,row_number=r["row_number"],record_identifier=r["record_identifier"],action_taken=r["action"],severity=r["severity"],validation_message=r["message"],corrective_guidance=r["guidance"]))
     record_audit(db,user.id,"ImportBatch",batch.id,"PREVIEW",after={"filename":batch.filename,"summary":summary}); db.commit(); return RedirectResponse(f"/imports/{batch.id}",status_code=303)
 
@@ -2136,13 +3871,24 @@ def import_commit(batch_id: str, request: Request, csrf: str = Form(...), db: Se
         raise HTTPException(403, "Cannot commit another user's batch")
     committed=0
     for result in batch.rows_json:
-        if result["severity"]=="Error": continue
-        data=result["data"]; rid=data.get("Human ID") or next_human_id(db,Demand,"DMD"); d=db.query(Demand).filter(Demand.human_id==rid).first(); before=snapshot(d) if d else None
-        if not d:
-            d=Demand(human_id=rid,title=data["Title"],category=data.get("Category") or "Idea",status=data.get("Status") or "Draft",lead_org_id=data["_org_id"],requesting_org_id=data["_org_id"],mission_id=data["_mission_id"],sponsor_id=user.id,requester_id=user.id,current_owner_id=user.id); db.add(d); db.flush(); action="IMPORT_CREATE"
-        else: action="IMPORT_UPDATE"
-        d.title=data["Title"]; d.category=data.get("Category") or d.category; d.status=data.get("Status") or d.status; d.lead_org_id=data["_org_id"]; d.requesting_org_id=data["_org_id"]; d.mission_id=data["_mission_id"]; d.purpose=data.get("Purpose") or "Imported demand"; d.problem=data.get("Problem or Opportunity") or "Imported problem statement pending refinement"; d.desired_end_state=data.get("Desired End State") or "Imported desired end state pending refinement"; d.urgency=data.get("Urgency") or "Normal"; d.rom_cost=data["_rom"]; d.expected_benefits=data.get("Expected Benefits") or ""; d.sensitivity=data.get("Sensitivity") or "Controlled Unclassified"; d.next_action=demand_next_action(d.status); d.source_system="Excel Import"; d.source_record=f"{batch.id}:{result['row_number']}"; record_audit(db,user.id,"Demand",d.id,action,before=before,after=snapshot(d)); committed+=1
-    batch.status="Committed"; record_audit(db,user.id,"ImportBatch",batch.id,"COMMIT",after={"committed":committed,"summary":batch.summary_json}); db.commit(); return flash_redirect(f"/imports/{batch.id}",f"Committed {committed} valid rows. Errors remained excluded.")
+        if result["severity"]=="Error":
+            continue
+        if batch.template_type == "Travel Requests":
+            item, action = commit_travel_request_result(db, result, source_filename=batch.filename, import_batch_id=batch.id)
+            record_audit(db, user.id, "TravelRequest", item.id, action, after=snapshot(item))
+        elif batch.template_type == "Trip Reports":
+            item, action, candidates = commit_trip_report_result(db, result, source_filename=batch.filename, import_batch_id=batch.id, actor_id=user.id)
+            record_audit(db, user.id, "TripReport", item.id, action, after={**snapshot(item), "match_candidates": candidates[:3]})
+        else:
+            data=result["data"]; rid=data.get("Human ID") or next_human_id(db,Demand,"DMD"); d=db.query(Demand).filter(Demand.human_id==rid).first(); before=snapshot(d) if d else None
+            if not d:
+                d=Demand(human_id=rid,title=data["Title"],category=data.get("Category") or "Idea",status=data.get("Status") or "Draft",lead_org_id=data["_org_id"],requesting_org_id=data["_org_id"],mission_id=data["_mission_id"],sponsor_id=user.id,requester_id=user.id,current_owner_id=user.id); db.add(d); db.flush(); action="IMPORT_CREATE"
+            else: action="IMPORT_UPDATE"
+            d.title=data["Title"]; d.category=data.get("Category") or d.category; d.status=data.get("Status") or d.status; d.lead_org_id=data["_org_id"]; d.requesting_org_id=data["_org_id"]; d.mission_id=data["_mission_id"]; d.purpose=data.get("Purpose") or "Imported demand"; d.problem=data.get("Problem or Opportunity") or "Imported problem statement pending refinement"; d.desired_end_state=data.get("Desired End State") or "Imported desired end state pending refinement"; d.urgency=data.get("Urgency") or "Normal"; d.rom_cost=data["_rom"]; d.expected_benefits=data.get("Expected Benefits") or ""; d.sensitivity=data.get("Sensitivity") or "Controlled Unclassified"; d.next_action=demand_next_action(d.status); d.source_system="Excel Import"; d.source_record=f"{batch.id}:{result['row_number']}"; record_audit(db,user.id,"Demand",d.id,action,before=before,after=snapshot(d))
+        committed+=1
+    if batch.template_type in {"Travel Requests", "Trip Reports"}:
+        refresh_engagement_rollups(db)
+    batch.status="Committed"; record_audit(db,user.id,"ImportBatch",batch.id,"COMMIT",after={"committed":committed,"summary":batch.summary_json,"template_type":batch.template_type}); db.commit(); return flash_redirect(f"/imports/{batch.id}",f"Committed {committed} valid rows. Errors remained excluded.")
 
 
 @app.get("/imports/{batch_id}/corrections.xlsx")
@@ -2253,6 +3999,21 @@ def build_search_results(db: Session, user: User, q: str, limit: int = 80) -> li
     )).limit(30)
     for project in project_query.all():
         add("Project", project.human_id, project.title, f"/projects/{project.id}", f"{project.status} · {project.health_override or project.health_owner}", _snippet(project.description, project.scope), project.health_override or project.health_owner)
+
+    travel_query = scoped_travel_requests(db, user).filter(or_(
+        TravelRequest.human_id.ilike(pattern), TravelRequest.external_id.ilike(pattern), TravelRequest.traveler_name.ilike(pattern),
+        TravelRequest.location.ilike(pattern), TravelRequest.purpose_roi.ilike(pattern), TravelRequest.impact_if_not.ilike(pattern),
+    ))
+    for item in travel_query.limit(30).all():
+        engagement = db.get(TravelEngagement, item.engagement_id) if item.engagement_id else None
+        add("Travel Request", item.human_id, engagement.title if engagement else item.location, f"/travel/requests/{item.id}", f"{item.traveler_name} · {item.determination}", _snippet(item.location, item.purpose_roi, item.impact_if_not), item.determination)
+
+    report_query = scoped_trip_reports(db, user).filter(or_(
+        TripReport.human_id.ilike(pattern), TripReport.title.ilike(pattern), TripReport.traveler_name.ilike(pattern), TripReport.location.ilike(pattern),
+        TripReport.purpose_objectives.ilike(pattern), TripReport.discussion.ilike(pattern), TripReport.key_findings.ilike(pattern), TripReport.recommendations.ilike(pattern), TripReport.action_items.ilike(pattern),
+    ))
+    for item in report_query.limit(30).all():
+        add("Trip Report", item.human_id, item.title, f"/travel/reports/{item.id}", f"{item.traveler_name} · {item.review_status}", _snippet(item.key_findings, item.recommendations, item.action_items), item.review_status)
 
     task_query = db.query(Task, Project).join(Project, Task.project_id == Project.id).filter(or_(
         Task.human_id.ilike(pattern), Task.title.ilike(pattern), Task.description.ilike(pattern),
@@ -2420,6 +4181,69 @@ def _review_access(user: User, review: PortfolioReview) -> bool:
     return is_enterprise_user(user) or review.org_id in {None, user.division_id}
 
 
+BRIEFING_EDIT_ROLES = {"DIVISION_PORTFOLIO_MANAGER", "DIVISION_CHIEF", "PMO", "ENTERPRISE_PORTFOLIO_OWNER", "ADMIN"}
+BRIEFING_APPROVE_ROLES = {"DIVISION_CHIEF", "SENIOR_LEADER", "APPROVAL_AUTHORITY", "ENTERPRISE_PORTFOLIO_OWNER", "PMO", "ADMIN"}
+BRIEFING_FACILITATE_ROLES = BRIEFING_APPROVE_ROLES | {"DIVISION_PORTFOLIO_MANAGER"}
+
+
+def _is_briefing_review(review: PortfolioReview) -> bool:
+    return review.review_type in {"Division Briefing", "Division Briefing & Review"}
+
+
+def _briefing_can_edit(user: User, review: PortfolioReview) -> bool:
+    return bool(set(user.roles or []).intersection(BRIEFING_EDIT_ROLES)) and _review_access(user, review) and review.status in {"Draft", "In Preparation"}
+
+
+def _briefing_can_approve(user: User, review: PortfolioReview) -> bool:
+    return bool(set(user.roles or []).intersection(BRIEFING_APPROVE_ROLES)) and _review_access(user, review)
+
+
+def _briefing_can_facilitate(user: User, review: PortfolioReview) -> bool:
+    return bool(set(user.roles or []).intersection(BRIEFING_FACILITATE_ROLES)) and _review_access(user, review)
+
+
+def _briefing_can_participate(user: User, review: PortfolioReview) -> bool:
+    return _review_access(user, review) and set(user.roles or []) != {"AUDITOR"}
+
+
+def _briefing_readiness(sections: list[BriefingSection]) -> int:
+    if not sections:
+        return 0
+    ready_states = {"Ready for Division Review", "Division Approved", "Ready to Brief"}
+    return round(sum(1 for section in sections if section.status in ready_states) / len(sections) * 100)
+
+
+def _notify_review_assignment(db: Session, user_id: str | None, review: PortfolioReview, title: str, message: str) -> None:
+    if user_id:
+        db.add(Notification(user_id=user_id, title=title, message=message, link=f"/portfolio-reviews/{review.id}/brief", notification_type="Review Follow-up"))
+
+
+def _briefing_snapshot(db: Session, review: PortfolioReview, user: User) -> BriefingSnapshot:
+    sections, payload = ensure_briefing_sections(db, review, user.id)
+    payload["sections"] = [
+        {
+            "id": section.id,
+            "section_key": section.section_key,
+            "title": section.title,
+            "narrative": section.narrative,
+            "owner_id": section.owner_id,
+            "status": section.status,
+            "source_summary": section.source_summary,
+        }
+        for section in sections
+    ]
+    snapshot_record = db.query(BriefingSnapshot).filter_by(review_id=review.id).first()
+    if snapshot_record:
+        snapshot_record.payload = payload
+        snapshot_record.captured_by_id = user.id
+        snapshot_record.captured_at = datetime.now(timezone.utc)
+    else:
+        snapshot_record = BriefingSnapshot(review_id=review.id, payload=payload, captured_by_id=user.id)
+        db.add(snapshot_record)
+    db.flush()
+    return snapshot_record
+
+
 def _scenario_access(user: User, scenario: Scenario) -> bool:
     return is_enterprise_user(user) or scenario.org_id in {None, user.division_id}
 
@@ -2558,9 +4382,15 @@ def create_portfolio_review(
     require_csrf(request, user, csrf); require_roles(user, "SENIOR_LEADER", "ENTERPRISE_PORTFOLIO_OWNER", "PMO", "DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER", "ADMIN")
     scoped_org = org_id or None
     if scoped_org and not can_access_org(user, scoped_org): raise HTTPException(status_code=403, detail="Organization outside permitted scope")
-    review = PortfolioReview(human_id=next_human_id(db, PortfolioReview, "REV"), title=title.strip(), review_type=review_type, portfolio_id=portfolio_id or None, org_id=scoped_org, period_start=date.fromisoformat(period_start), period_end=date.fromisoformat(period_end), chair_id=chair_id, participant_ids=participant_ids, summary=summary, decisions_required=decisions_required)
-    db.add(review); db.flush(); record_audit(db, user.id, "PortfolioReview", review.id, "CREATE", after=snapshot(review), ip_address=request.state.client_ip); db.commit()
-    return RedirectResponse(f"/portfolio-reviews/{review.id}", status_code=303)
+    if review_type in {"Division Briefing", "Division Briefing & Review"} and not scoped_org:
+        return flash_redirect("/portfolio-reviews", "A division briefing requires an organization scope.", "error")
+    status = "In Preparation" if review_type in {"Division Briefing", "Division Briefing & Review"} else "Draft"
+    review = PortfolioReview(human_id=next_human_id(db, PortfolioReview, "REV"), title=title.strip(), review_type=review_type, portfolio_id=portfolio_id or None, org_id=scoped_org, period_start=date.fromisoformat(period_start), period_end=date.fromisoformat(period_end), status=status, chair_id=chair_id, participant_ids=participant_ids, summary=summary, decisions_required=decisions_required)
+    db.add(review); db.flush()
+    if _is_briefing_review(review):
+        ensure_briefing_sections(db, review, user.id)
+    record_audit(db, user.id, "PortfolioReview", review.id, "CREATE", after=snapshot(review), ip_address=request.state.client_ip); db.commit()
+    return RedirectResponse(f"/portfolio-reviews/{review.id}/brief" if _is_briefing_review(review) else f"/portfolio-reviews/{review.id}", status_code=303)
 
 
 @app.get("/portfolio-reviews/{review_id}", response_class=HTMLResponse)
@@ -2571,6 +4401,366 @@ def portfolio_review_detail(review_id: str, request: Request, db: Session = Depe
     projects = scoped_projects(db, user).order_by(Project.human_id).all(); demands = scoped_demands(db, user).order_by(Demand.human_id).all()
     users = {u.id: u for u in db.query(User).all()}; decisions = {d.id: d for d in db.query(Decision).all()}; actions = {a.id: a for a in db.query(Action).all()}
     return render(request, "portfolio_review_detail.html", user, db, review=review, items=items, projects=projects, demands=demands, users_map=users, decisions_map=decisions, actions_map=actions, audit=record_audit_events(db, review.id))
+
+
+@app.get("/portfolio-reviews/{review_id}/brief", response_class=HTMLResponse)
+def division_briefing_workspace(review_id: str, request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    review = db.get(PortfolioReview, review_id)
+    if not review or not _review_access(user, review) or not _is_briefing_review(review):
+        raise HTTPException(status_code=404, detail="Division briefing not found")
+    sections, live_payload = ensure_briefing_sections(db, review, user.id)
+    db.commit()
+    snapshot_record = db.query(BriefingSnapshot).filter_by(review_id=review.id).first()
+    display_payload = snapshot_record.payload if snapshot_record and review.status in {"Ready to Brief", "In Review", "Completed"} else live_payload
+    questions = db.query(ReviewQuestion).filter_by(review_id=review.id).order_by(ReviewQuestion.status, ReviewQuestion.created_at.desc()).all()
+    changes = db.query(ReviewChangeRequest).filter_by(review_id=review.id).order_by(ReviewChangeRequest.status, ReviewChangeRequest.created_at.desc()).all()
+    notes = db.query(ReviewNote).filter_by(review_id=review.id).order_by(ReviewNote.created_at.desc()).limit(100).all()
+    items = db.query(PortfolioReviewItem).filter_by(review_id=review.id).order_by(PortfolioReviewItem.sort_order, PortfolioReviewItem.created_at).all()
+    users = {u.id: u for u in db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()}
+    org = db.get(Organization, review.org_id) if review.org_id else None
+    section_ref = request.query_params.get("section")
+    current_section = next((section for section in sections if section.id == section_ref or section.section_key == section_ref), sections[0] if sections else None)
+    frozen_sections = {item.get("id"): item for item in (snapshot_record.payload.get("sections", []) if snapshot_record and review.status in {"Ready to Brief", "In Review", "Completed"} else [])}
+    current_content = frozen_sections.get(current_section.id) if current_section else None
+    if current_section and not current_content:
+        current_content = {
+            "id": current_section.id,
+            "section_key": current_section.section_key,
+            "title": current_section.title,
+            "narrative": current_section.narrative,
+            "owner_id": current_section.owner_id,
+            "status": current_section.status,
+            "source_summary": current_section.source_summary,
+        }
+    audit_ids = [review.id] + [section.id for section in sections] + [question.id for question in questions] + [change.id for change in changes]
+    audit = db.query(AuditEvent).filter(AuditEvent.entity_id.in_(audit_ids)).order_by(AuditEvent.created_at.desc()).limit(100).all() if audit_ids else []
+    return render(
+        request,
+        "division_briefing.html",
+        user,
+        db,
+        review=review,
+        org=org,
+        sections=sections,
+        current_section=current_section,
+        current_content=current_content,
+        payload=display_payload,
+        live_payload=live_payload,
+        snapshot_record=snapshot_record,
+        questions=questions,
+        changes=changes,
+        notes=notes,
+        items=items,
+        users_map=users,
+        readiness=_briefing_readiness(sections),
+        can_edit=_briefing_can_edit(user, review),
+        can_approve=_briefing_can_approve(user, review),
+        can_facilitate=_briefing_can_facilitate(user, review),
+        can_participate=_briefing_can_participate(user, review),
+        presentation_mode=request.query_params.get("mode") == "present",
+        audit=audit,
+    )
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/refresh")
+def refresh_division_briefing(review_id: str, request: Request, csrf: str = Form(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    if not review or not _is_briefing_review(review) or not _briefing_can_edit(user, review):
+        raise HTTPException(status_code=404, detail="Division briefing not found")
+    sections, _ = ensure_briefing_sections(db, review, user.id)
+    record_audit(db, user.id, "PortfolioReview", review.id, "BRIEFING_SOURCE_REFRESH", after={"sections": len(sections)}, ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief", "Source-backed briefing data refreshed.")
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/sections/{section_id}")
+def update_briefing_section(
+    review_id: str,
+    section_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    narrative: str = Form(""),
+    owner_id: str = Form(""),
+    status: str = Form("In Preparation"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    section = db.get(BriefingSection, section_id)
+    if not review or not section or section.review_id != review.id or not _is_briefing_review(review) or not _briefing_can_edit(user, review):
+        raise HTTPException(status_code=404, detail="Briefing section not found")
+    allowed_statuses = {"Not Started", "In Preparation", "Ready for Division Review", "Changes Required", "Division Approved", "Ready to Brief"}
+    before = snapshot(section)
+    section.narrative = narrative.strip()
+    section.owner_id = owner_id or None
+    section.status = status if status in allowed_statuses else "In Preparation"
+    if review.status == "Draft":
+        review.status = "In Preparation"
+    record_audit(db, user.id, "BriefingSection", section.id, "UPDATE", before=before, after=snapshot(section), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief?section={section.id}", f"{section.title} updated.")
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/lifecycle")
+def update_briefing_lifecycle(
+    review_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    action: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    if not review or not _is_briefing_review(review) or not _review_access(user, review):
+        raise HTTPException(status_code=404, detail="Division briefing not found")
+    sections, _ = ensure_briefing_sections(db, review, user.id)
+    before = snapshot(review)
+    if action == "submit":
+        if not _briefing_can_edit(user, review):
+            raise HTTPException(status_code=403, detail="Insufficient briefing permissions")
+        if _briefing_readiness(sections) < 100:
+            return flash_redirect(f"/portfolio-reviews/{review.id}/brief", "All sections must be marked Ready for Division Review before submission.", "error")
+        review.status = "Ready for Division Review"
+        message = "Division briefing submitted for approval."
+    elif action == "approve":
+        if not _briefing_can_approve(user, review):
+            raise HTTPException(status_code=403, detail="Insufficient briefing approval permissions")
+        if review.status != "Ready for Division Review" or _briefing_readiness(sections) < 100:
+            return flash_redirect(f"/portfolio-reviews/{review.id}/brief", "Submit all ready sections for division review before approval.", "error")
+        for section in sections:
+            section.status = "Division Approved"
+        review.status = "Ready to Brief"
+        _briefing_snapshot(db, review, user)
+        message = "Division briefing approved and presentation snapshot captured."
+    elif action == "start":
+        if not _briefing_can_facilitate(user, review):
+            raise HTTPException(status_code=403, detail="Insufficient facilitation permissions")
+        if review.status not in {"Ready to Brief", "In Review"}:
+            return flash_redirect(f"/portfolio-reviews/{review.id}/brief", "Approve the division briefing before starting the live review.", "error")
+        if not db.query(BriefingSnapshot).filter_by(review_id=review.id).first():
+            _briefing_snapshot(db, review, user)
+        review.status = "In Review"
+        message = "Live leadership review started."
+    elif action == "return":
+        if not _briefing_can_approve(user, review):
+            raise HTTPException(status_code=403, detail="Insufficient briefing approval permissions")
+        review.status = "In Preparation"
+        for section in sections:
+            if section.status in {"Division Approved", "Ready to Brief"}:
+                section.status = "Changes Required"
+        message = "Briefing returned for changes."
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported briefing lifecycle action")
+    record_audit(db, user.id, "PortfolioReview", review.id, f"BRIEFING_{action.upper()}", before=before, after=snapshot(review), ip_address=request.state.client_ip)
+    db.commit()
+    suffix = "?mode=present" if action == "start" else ""
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief{suffix}", message)
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/questions")
+def create_review_question(
+    review_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    section_id: str = Form(""),
+    entity_type: str = Form(""),
+    entity_id: str = Form(""),
+    question: str = Form(...),
+    assigned_to_id: str = Form(""),
+    priority: str = Form("Normal"),
+    due_date: str = Form(""),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    if not review or not _is_briefing_review(review) or not _review_access(user, review) or review.status == "Completed":
+        raise HTTPException(status_code=404, detail="Division briefing not found")
+    if not _briefing_can_participate(user, review):
+        raise HTTPException(status_code=403, detail="This role has read-only briefing access")
+    text = question.strip()
+    if not text:
+        return flash_redirect(f"/portfolio-reviews/{review.id}/brief", "Question text is required.", "error")
+    assignee = assigned_to_id or review.chair_id
+    record = ReviewQuestion(
+        human_id=next_human_id(db, ReviewQuestion, "QUE"),
+        review_id=review.id,
+        section_id=section_id or None,
+        entity_type=entity_type.strip(),
+        entity_id=entity_id.strip(),
+        question=text,
+        asked_by_id=user.id,
+        assigned_to_id=assignee or None,
+        priority=priority if priority in {"Low", "Normal", "High", "Critical"} else "Normal",
+        due_date=parse_optional_date(due_date),
+    )
+    db.add(record); db.flush()
+    _notify_review_assignment(db, record.assigned_to_id, review, f"Briefing question {record.human_id}", f"{user.full_name} assigned a question during {review.title}.")
+    record_audit(db, user.id, "ReviewQuestion", record.id, "CREATE", after=snapshot(record), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief?section={section_id}", f"Question {record.human_id} recorded.")
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/questions/{question_id}/respond")
+def respond_review_question(
+    review_id: str,
+    question_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    response: str = Form(...),
+    status: str = Form("Answered"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    question_record = db.get(ReviewQuestion, question_id)
+    if not review or not question_record or question_record.review_id != review.id or not _review_access(user, review):
+        raise HTTPException(status_code=404, detail="Review question not found")
+    if not _briefing_can_participate(user, review):
+        raise HTTPException(status_code=403, detail="This role has read-only briefing access")
+    if user.id != question_record.assigned_to_id and not _briefing_can_facilitate(user, review) and not _briefing_can_edit(user, review):
+        raise HTTPException(status_code=403, detail="Question is assigned to another user")
+    before = snapshot(question_record)
+    question_record.response = response.strip()
+    question_record.status = status if status in {"Open", "Answered", "Closed"} else "Answered"
+    question_record.answered_at = datetime.now(timezone.utc) if question_record.status in {"Answered", "Closed"} else None
+    record_audit(db, user.id, "ReviewQuestion", question_record.id, "RESPOND", before=before, after=snapshot(question_record), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief?section={question_record.section_id or ''}", f"Question {question_record.human_id} updated.")
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/change-requests")
+def create_review_change_request(
+    review_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    section_id: str = Form(""),
+    entity_type: str = Form(""),
+    entity_id: str = Form(""),
+    field_name: str = Form(""),
+    current_value: str = Form(""),
+    proposed_value: str = Form(""),
+    rationale: str = Form(...),
+    owner_id: str = Form(""),
+    due_date: str = Form(""),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    if not review or not _is_briefing_review(review) or not _review_access(user, review) or review.status == "Completed":
+        raise HTTPException(status_code=404, detail="Division briefing not found")
+    if not _briefing_can_participate(user, review):
+        raise HTTPException(status_code=403, detail="This role has read-only briefing access")
+    if not rationale.strip():
+        return flash_redirect(f"/portfolio-reviews/{review.id}/brief", "A change-request rationale is required.", "error")
+    assigned_owner = owner_id or review.chair_id
+    change = ReviewChangeRequest(
+        human_id=next_human_id(db, ReviewChangeRequest, "CHG"),
+        review_id=review.id,
+        section_id=section_id or None,
+        entity_type=entity_type.strip(),
+        entity_id=entity_id.strip(),
+        field_name=field_name.strip(),
+        current_value=current_value.strip(),
+        proposed_value=proposed_value.strip(),
+        rationale=rationale.strip(),
+        requested_by_id=user.id,
+        owner_id=assigned_owner or None,
+        due_date=parse_optional_date(due_date),
+    )
+    db.add(change); db.flush()
+    _notify_review_assignment(db, change.owner_id, review, f"Briefing change request {change.human_id}", f"{user.full_name} requested a governed source-record change during {review.title}.")
+    record_audit(db, user.id, "ReviewChangeRequest", change.id, "CREATE", after=snapshot(change), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief?section={section_id}", f"Change request {change.human_id} recorded.")
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/change-requests/{change_id}/resolve")
+def resolve_review_change_request(
+    review_id: str,
+    change_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    status: str = Form(...),
+    resolution: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    change = db.get(ReviewChangeRequest, change_id)
+    if not review or not change or change.review_id != review.id or not _review_access(user, review):
+        raise HTTPException(status_code=404, detail="Review change request not found")
+    if not _briefing_can_participate(user, review):
+        raise HTTPException(status_code=403, detail="This role has read-only briefing access")
+    if user.id != change.owner_id and not _briefing_can_edit(user, review) and not _briefing_can_facilitate(user, review):
+        raise HTTPException(status_code=403, detail="Change request is assigned to another user")
+    allowed = {"Open", "Accepted", "Partially Accepted", "Rejected", "Clarification Required", "Applied", "Closed"}
+    before = snapshot(change)
+    change.status = status if status in allowed else "Open"
+    change.resolution = resolution.strip()
+    change.resolved_at = datetime.now(timezone.utc) if change.status not in {"Open", "Clarification Required"} else None
+    record_audit(db, user.id, "ReviewChangeRequest", change.id, "RESOLVE", before=before, after=snapshot(change), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief?section={change.section_id or ''}", f"Change request {change.human_id} updated.")
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/notes")
+def create_review_note(
+    review_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    section_id: str = Form(""),
+    note_type: str = Form("Discussion"),
+    body: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    if not review or not _is_briefing_review(review) or not _review_access(user, review) or review.status == "Completed":
+        raise HTTPException(status_code=404, detail="Division briefing not found")
+    if not _briefing_can_participate(user, review):
+        raise HTTPException(status_code=403, detail="This role has read-only briefing access")
+    if not body.strip():
+        return flash_redirect(f"/portfolio-reviews/{review.id}/brief", "A review note cannot be empty.", "error")
+    note = ReviewNote(review_id=review.id, section_id=section_id or None, note_type=note_type if note_type in {"Discussion", "Parking Lot", "Clarification", "Observation"} else "Discussion", body=body.strip(), author_id=user.id)
+    db.add(note); db.flush()
+    record_audit(db, user.id, "ReviewNote", note.id, "CREATE", after=snapshot(note), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief?section={section_id}", "Review note recorded.")
+
+
+@app.post("/portfolio-reviews/{review_id}/briefing/actions")
+def create_briefing_action(
+    review_id: str,
+    request: Request,
+    csrf: str = Form(...),
+    title: str = Form(...),
+    owner_id: str = Form(...),
+    due_date: str = Form(""),
+    entity_type: str = Form(""),
+    entity_id: str = Form(""),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    require_csrf(request, user, csrf)
+    review = db.get(PortfolioReview, review_id)
+    if not review or not _is_briefing_review(review) or not _briefing_can_facilitate(user, review):
+        raise HTTPException(status_code=404, detail="Division briefing not found")
+    project_id = entity_id if entity_type == "Project" else None
+    demand_id = entity_id if entity_type == "Demand" else None
+    action_record = Action(human_id=next_human_id(db, Action, "ACT"), project_id=project_id, demand_id=demand_id, title=title.strip(), owner_id=owner_id, due_date=parse_optional_date(due_date), source_type=f"Division briefing {review.human_id}")
+    db.add(action_record); db.flush()
+    _notify_review_assignment(db, owner_id, review, f"Briefing action {action_record.human_id}", f"{user.full_name} assigned an action during {review.title}.")
+    record_audit(db, user.id, "Action", action_record.id, "CREATE_FROM_BRIEFING", after=snapshot(action_record), ip_address=request.state.client_ip)
+    db.commit()
+    return flash_redirect(f"/portfolio-reviews/{review.id}/brief", f"Action {action_record.human_id} assigned.")
 
 
 @app.post("/portfolio-reviews/{review_id}/items")
@@ -2608,13 +4798,19 @@ def decide_review_item(
 
 
 @app.post("/portfolio-reviews/{review_id}/complete")
-def complete_review(review_id: str, request: Request, csrf: str = Form(...), summary: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def complete_review(review_id: str, request: Request, csrf: str = Form(...), summary: str = Form(""), acknowledge_open_items: str | None = Form(None), db: Session = Depends(get_db), user: User = Depends(current_user)):
     require_csrf(request, user, csrf); require_roles(user, "SENIOR_LEADER", "APPROVAL_AUTHORITY", "ENTERPRISE_PORTFOLIO_OWNER", "PMO", "ADMIN")
     review = db.get(PortfolioReview, review_id)
     if not review or not _review_access(user, review): raise HTTPException(status_code=404, detail="Review not found")
+    if _is_briefing_review(review):
+        open_questions = db.query(ReviewQuestion).filter(ReviewQuestion.review_id == review.id, ReviewQuestion.status == "Open").count()
+        open_changes = db.query(ReviewChangeRequest).filter(ReviewChangeRequest.review_id == review.id, ReviewChangeRequest.status.in_(["Open", "Clarification Required"])).count()
+        if (open_questions or open_changes) and not acknowledge_open_items:
+            return flash_redirect(f"/portfolio-reviews/{review.id}/brief", f"Acknowledge {open_questions} open questions and {open_changes} open change requests before completing the review.", "error")
     before = snapshot(review); review.status = "Completed"; review.completed_at = datetime.now(timezone.utc); review.summary = summary or review.summary
     record_audit(db, user.id, "PortfolioReview", review.id, "COMPLETE", before=before, after=snapshot(review), ip_address=request.state.client_ip); db.commit()
-    return flash_redirect(f"/portfolio-reviews/{review.id}", "Portfolio review completed.")
+    target = f"/portfolio-reviews/{review.id}/brief" if _is_briefing_review(review) else f"/portfolio-reviews/{review.id}"
+    return flash_redirect(target, "Portfolio review completed.")
 
 
 @app.post("/resources/requests")
@@ -2627,7 +4823,7 @@ def create_resource_request(
     if not can_access_org(user, org_id): raise HTTPException(status_code=403, detail="Organization outside permitted scope")
     resource_request = ResourceRequest(human_id=next_human_id(db, ResourceRequest, "RRQ"), org_id=org_id, project_id=project_id or None, role_name=role_name.strip(), skill=skill.strip(), requested_hours=requested_hours, period_start=date.fromisoformat(period_start), period_end=date.fromisoformat(period_end), priority=priority, requested_by_id=user.id, rationale=rationale)
     db.add(resource_request); db.flush(); record_audit(db, user.id, "ResourceRequest", resource_request.id, "SUBMIT", after=snapshot(resource_request), ip_address=request.state.client_ip); db.commit()
-    return flash_redirect("/resources", f"Resource request {resource_request.human_id} submitted.")
+    return flash_redirect(f"/resources/requests/{resource_request.id}", f"Resource request {resource_request.human_id} submitted.")
 
 
 @app.post("/resources/requests/{request_id}/decision")
@@ -2637,7 +4833,7 @@ def decide_resource_request(request_id: str, request: Request, csrf: str = Form(
     if not resource_request or not can_access_org(user, resource_request.org_id): raise HTTPException(status_code=404, detail="Resource request not found")
     before = snapshot(resource_request); resource_request.status = decision; resource_request.approver_id = user.id; resource_request.resolution = resolution
     record_audit(db, user.id, "ResourceRequest", resource_request.id, "DECISION", before=before, after=snapshot(resource_request), ip_address=request.state.client_ip); db.commit()
-    return flash_redirect("/resources", f"Resource request {decision.lower()}.")
+    return flash_redirect(f"/resources/requests/{resource_request.id}", f"Resource request {decision.lower()}.")
 
 
 @app.post("/financials/transactions")

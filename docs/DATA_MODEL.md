@@ -97,3 +97,85 @@ Stores source task, target task, relationship type, creator, and timestamps. v0.
 | Operations/reporting | `ReportPack`, `JobRun` | source-grounded report snapshot and persistent operation evidence |
 
 All new entities use UUID primary keys. Business-facing records use stable human IDs where appropriate (`REV`, `RRQ`, `FTX`, `SCN`, `DQI`, `RPT`). Existing audit events retain actor, entity, action, timestamp, client address, and before/after evidence.
+
+## v0.7.0 division briefing entities
+
+| Entity | Purpose |
+|---|---|
+| `BriefingSection` | standard division briefing section, narrative, owner, readiness, order, and source-summary evidence |
+| `BriefingSnapshot` | one approved/frozen source and narrative payload per Portfolio Review |
+| `ReviewQuestion` | assigned in-review question, priority, due date, response, and status |
+| `ReviewChangeRequest` | governed request describing current/proposed values, rationale, owner, due date, disposition, and resolution |
+| `ReviewNote` | time-stamped discussion, parking-lot, clarification, or observation note |
+
+The `PortfolioReview` remains the lifecycle and scope anchor. Existing `Decision` and `Action` records remain authoritative for meeting outcomes. Briefing change requests intentionally do not provide a generic arbitrary-field mutation mechanism; accountable owners use the existing source-record workflow and document the result.
+
+## v0.7.5 division profile entity
+
+### `division_profiles`
+
+One governed profile exists for each division organization.
+
+| Field | Purpose |
+|---|---|
+| `org_id` | Stable one-to-one link to the existing organization record |
+| `mission`, `vision` | Leadership-facing mission context |
+| `focus_areas` | Ordered list of concise focus tags |
+| `responsibilities` | Ordered list of core responsibilities |
+| `branches` | Named organizational elements with focus descriptions |
+| `initiatives` | Major initiatives, programs, or recurring work |
+| `relationships` | External organization, role, and category records |
+| `forums` | Forum name, division role, and purpose records |
+| `doctrine` | Publication/standard, division role, and notes records |
+| `banner_asset`, `banner_alt` | Managed asset reference and accessible alternative text |
+| `focal_x`, `focal_y` | Responsive image focal point from 0–100 |
+| `status` | Draft, Published, or Needs Review |
+| `source_documents`, `source_notes` | Content lineage and stewardship notes |
+| `last_reviewed_at`, `updated_by_id`, `updated_at` | Governance and audit-support metadata |
+
+Migration `0007_division_experience_v075` creates the table and updates only organization display names. Organization codes and IDs remain unchanged.
+
+## v0.7.6 travel and engagement entities
+
+### TravelEngagement
+
+Represents the reusable forum, exercise, conference, working group, site survey, or other external engagement. It carries a stable human ID, canonical title and location, normalized matching key, date range, lead division, cross-division indicator, source provenance, and raw source payload. Many traveler-level requests and trip reports may link to one engagement.
+
+### TravelRequest
+
+Represents one traveler-level approval-source record. Key fields include stable ID, external source ID, traveler, division, engagement, destination, determination, departure/return dates, estimated approval cost, funding, exemption category, purpose/ROI, impact if not accomplished, report-due date, sensitivity, source filename/row/record, import batch, raw payload, and timestamps.
+
+### TravelApprovalStep
+
+Stores a variable-length approval chain. Each step retains order, approver, role, determination, comments, determination date, and source provenance. This avoids hardcoding only Division Chief and DDS approval fields.
+
+### TripReport
+
+Stores the complete post-trip narrative: purpose/objectives, discussion, findings, recommendations, and DDC5I action items. It also retains division, traveler, event/destination/dates, sensitivity, version, review status, linked request/engagement, match status/confidence/rationale, human confirmation, source evidence, and timestamps.
+
+### TripReportItem
+
+Stores structured, reviewable outcome candidates extracted from the original narrative. Item types include Finding, Recommendation, Action, Risk, Decision, and Dependency. Promotion state and target entity identifiers provide an exact backlink without changing the authoritative narrative.
+
+### TravelEntityLink
+
+Provides a polymorphic, audited link from a travel request, engagement, report, or report item to a canonical project, demand, action, decision, RAID item, dependency, milestone, review, core function, or division record.
+
+### Integrity and traceability
+
+- Traveler-level estimated costs remain on `TravelRequest`; engagement totals are calculated, not duplicated.
+- A report may be unmatched, suggested, needs reconciliation, or confirmed.
+- Match confidence and rationale are retained even after confirmation.
+- Source values are preserved in `raw_payload`; validation warnings do not silently rewrite source evidence.
+- Independent sensitivity fields apply to requests and reports.
+- Stable human IDs support user navigation; UUIDs support canonical internal links.
+
+
+## v0.7.7 analytical projections
+
+v0.7.7 introduces no new persistence tables or database migration. The new dashboard elements are governed, read-only projections over existing canonical records:
+
+- **Geographic Footprint** resolves preserved travel destination text through a locally packaged alias-and-coordinate registry. The original request and report values remain authoritative; the resolved canonical place, coordinate, confidence, and mapped/unmapped state are presentation metadata only.
+- **Investment Flow** derives a conserved flow from approved budget through financial category, owning division, project, actual cost to date, and unspent approved amount. It does not create ledger entries and must not be interpreted as an authoritative accounting or cash-disbursement statement.
+- Travel trend, determination mix, outcome funnel, compliance, and engagement-impact views are calculated from `TravelRequest`, `TripReport`, `TripReportItem`, and `TravelEngagement` records at request time.
+- Every visual projection retains drill-through to the contributing canonical records and applies the same server-side role, organization, and sensitivity scope as the underlying workspace.

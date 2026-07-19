@@ -58,10 +58,10 @@
 
 ## Traceability and tests
 
-- [x] all 307 RTM rows are represented.
+- [x] all 307 source RTM rows, six v0.7.5 requirements, twelve v0.7.6 requirements, and ten v0.7.7 requirements are represented (335 total).
 - [x] implementation status is transparent and conservative.
 - [x] tests reference the primary workflow and security scenarios.
-- [x] 37 tests passed with 85% application-code coverage in the release workspace.
+- [x] 77 automated tests passed in the v0.7.6 release workspace.
 - [ ] target-host Docker test passes.
 - [ ] authorized DDC5I UAT is executed and signed.
 - [ ] accessibility and security assessments are completed.
@@ -143,3 +143,61 @@
 - [ ] Live ProjectOS connector authenticated and reconciled in an approved test environment.
 - [ ] OIDC/CAC/PIV identity and delegated-role enforcement approved and validated.
 - [ ] Durable worker/scheduler, signed report packages, and enterprise document/notification adapters validated.
+
+
+## v0.7.0 Division Briefing & Review acceptance
+
+- [ ] Authorized users can create a division-scoped briefing and the system generates all 16 standard sections.
+- [ ] Each section identifies its source-backed evidence and permits governed narrative preparation, ownership, and readiness.
+- [ ] Submission is blocked until every section is ready for division review.
+- [ ] Division approval creates an immutable briefing snapshot, locks section editing, and remains stable after source-record changes.
+- [ ] Presentation mode works at the target conference-room resolutions and supports keyboard and large-text operation.
+- [ ] Participants can record questions, responses, notes, parking-lot items, change requests, actions, and decisions without creating a parallel outcome register.
+- [ ] Assigned review questions and change requests appear in My Work.
+- [ ] Review completion preserves unresolved follow-up and requires explicit acknowledgement when open items remain.
+- [ ] Division, role, project, and sensitive-record access restrictions remain enforced in briefing and source drill-down views.
+- [ ] Target-host Docker, representative-volume performance, current-browser, screen-reader, 200% zoom/reflow, security review, and signed role UAT are completed before operational acceptance.
+
+
+## v0.7.5 Division Experience acceptance
+
+- [x] All six division portfolio views render the assigned optimized banner with reserved layout space and accessible alternative text.
+- [x] Reduced-motion and responsive banner behavior is implemented, with graceful fallback when an asset is unavailable.
+- [x] CID displays as **Coalition Interoperability Division** while its stable code, ID, links, and records remain unchanged.
+- [x] The canonical division page supports Current view, Briefing view, presentation mode, portfolio evidence, and linked briefing/review workspaces.
+- [x] Authorized roles can maintain a governed Division Profile through approachable forms; auditors remain read-only.
+- [x] JSON export and multi-file CSV export include accessible profile and portfolio data.
+- [x] JSON/CSV profile import requires validation, preview, and explicit commit and records audit evidence.
+- [x] Migration `0007_division_experience_v075`, idempotent profile seed, and six release RTM rows are packaged.
+- [x] 72 automated tests, Python compilation, and JavaScript syntax validation pass in the artifact environment.
+- [ ] Target-host Docker startup, visual regression, representative-volume performance, current-browser, screen-reader, 200% zoom/reflow, conference-room display, security review, and signed role UAT are completed before operational acceptance.
+
+## v0.7.6 Travel & Engagement Outcomes acceptance
+
+- [x] Controlled Travel Request import reads all 385 supplied approval records and reconciles to $1,082,395.25.
+- [x] Controlled Trip Report import retains all nine supplied reports with complete narrative sections.
+- [x] Source provenance includes stable ID, source system, file, row, record identifier, batch, and raw payload.
+- [x] Ambiguous reports remain in reconciliation and expose candidate scores/rationale for human confirmation.
+- [x] Authorized reviewers can confirm, clear, and rematch a report with audit evidence.
+- [x] Trip-report status, comments, reviewer, and timestamp are retained.
+- [x] Structured outcomes can be promoted to canonical Action, Risk, Decision, or Dependency records with clickable source backlinks.
+- [x] Travel data appears in Division Portfolios, sixteen-section Division Briefings, My Work, search, reports, data quality, and exports.
+- [x] Travel costs are consistently labeled as approval estimates rather than authoritative actual expenditures.
+- [x] The source ID 303 invalid date sequence is retained and surfaced as a warning rather than silently changed.
+- [x] Migration `0008_travel_engagements_v076`, idempotent seed, twelve RTM rows, and source artifacts are packaged.
+- [x] 77 automated tests, Python compilation, JavaScript syntax validation, Jinja compilation, clean migration, seed reconciliation, and isolated workflow validation pass.
+- [ ] Target-host PostgreSQL upgrade, Docker startup, representative-scale performance, browser/accessibility, security/records review, and signed role UAT are completed before operational acceptance.
+
+
+
+## v0.7.7 Visual Portfolio Intelligence acceptance
+
+- [x] Travel map uses locally packaged geometry and same-origin JavaScript.
+- [x] Known location aliases normalize while original source values remain unchanged.
+- [x] Mapping coverage and unmapped locations are visible.
+- [x] Map and Top Locations link to filtered source records.
+- [x] Travel trend, determination mix, outcome funnel, compliance, and engagement impact render.
+- [x] Investment Flow reconciles approved budget and links to financial/project records.
+- [x] Accessible list/table alternatives and keyboard labels are present.
+- [x] Briefings label is simplified without route or record migration.
+- [x] Full automated suite passes.

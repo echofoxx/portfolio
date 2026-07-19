@@ -1,1 +1,96 @@
-{% extends "base.html" %}{% block title %}My Work · DDC5I Portfolio{% endblock %}{% block content %}<div class="page-head"><div><h2>My Work</h2><p>Accessible assignments, sponsored demands, managed projects, tasks, actions, and upcoming responsibilities.</p></div></div><div class="grid grid-2"><div class="card"><h3>Demands</h3>{% for d in demands %}<p><a href="/demands/{{ d.id }}"><strong>{{ d.human_id }} · {{ d.title }}</strong></a><br><span class="badge badge-{{ d.status|badge }}">{{ d.status }}</span> · {{ d.next_action }}</p>{% else %}<div class="empty">No assigned demands.</div>{% endfor %}</div><div class="card"><h3>Projects</h3>{% for p in projects %}<p><a href="/projects/{{ p.id }}"><strong>{{ p.human_id }} · {{ p.title }}</strong></a><br><span class="badge badge-{{ (p.health_override or p.health_owner)|badge }}">{{ p.health_override or p.health_owner }}</span> · {{ p.percent_complete }}%</p>{% else %}<div class="empty">No managed projects.</div>{% endfor %}</div></div><div class="grid grid-2" style="margin-top:16px"><div class="card"><h3>Open tasks</h3>{% for t,p in tasks %}<p><a href="/projects/{{ p.id }}?tab=board"><strong>{{ t.human_id }} · {{ t.title }}</strong></a><br><small class="muted">{{ p.human_id }} · Due {{ t.due_date|datefmt }} · {{ t.percent_complete }}%</small></p>{% else %}<div class="empty">No open tasks.</div>{% endfor %}</div><div class="card"><h3>Actions and conditions</h3>{% for a in actions %}<p><strong>{{ a.human_id }} · {{ a.title }}</strong><br><small class="muted">Due {{ a.due_date|datefmt }} · {{ a.source_type }}</small></p>{% else %}<div class="empty">No open actions.</div>{% endfor %}</div></div>{% endblock %}
+{% extends "base.html" %}
+{% block title %}My Work · JSJ6 Enterprise Portfolio Management{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="eyebrow">Action Center</div><h2>My Work</h2><p>One prioritized queue of everything that needs you — updates here roll up automatically to project, division, and leadership views.</p></div>
+  <div class="actions"><a class="btn btn-primary" href="/demands/new">New Demand</a><a class="btn" href="/projects">Project Inventory</a><a class="btn" href="/notifications">Notifications{% if unread_notifications %} ({{ unread_notifications }}){% endif %}</a></div>
+</div>
+
+{% if open_total == 0 %}
+<section class="card action-center-clear" aria-label="All clear">
+  <div class="clear-mark" aria-hidden="true">✓</div>
+  <h3>You're all caught up</h3>
+  <p>Nothing is overdue, awaiting you, or due in the next seven days. Completed work has already rolled up to your projects and portfolio views.</p>
+  <div class="actions"><a class="btn" href="/projects">Browse projects</a><a class="btn" href="/dashboard">Portfolio overview</a></div>
+</section>
+{% else %}
+<section class="action-center-summary" aria-label="Attention summary">
+  {% for key, label, hint in group_meta if key != 'done_recent' and groups[key] %}
+  <a class="summary-chip chip-{{ key }}" href="#group-{{ key }}"><strong>{{ groups[key]|length }}</strong><span>{{ label }}</span></a>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% for key, label, hint in group_meta %}
+{% if groups[key] %}
+<section class="action-group action-group-{{ key }}" id="group-{{ key }}" aria-labelledby="group-{{ key }}-title">
+  <div class="section-title"><div><div class="eyebrow">{{ hint }}</div><h3 id="group-{{ key }}-title">{{ label }} <span class="badge">{{ groups[key]|length }}</span></h3></div></div>
+  <div class="action-list">
+    {% for item in groups[key] %}
+    <article class="action-card kind-{{ item.kind }} group-{{ key }}">
+      <span class="action-marker" aria-hidden="true"></span>
+      <div class="action-copy">
+        <a class="action-title" href="{{ item.href }}">{{ item.title }}</a>
+        <small class="action-why">{{ item.why }}</small>
+        <small class="action-meta">{{ item.parent }}{% if item.priority %} · {{ item.priority }} priority{% endif %}{% if item.status %} · {{ item.status }}{% endif %}</small>
+      </div>
+      <div class="action-due">{% if item.due %}<time datetime="{{ item.due }}">{{ item.due|datefmt }}</time>{% else %}<span class="muted">No date</span>{% endif %}</div>
+      <div class="action-buttons">
+        {% if item.quick.task_id and key != 'done_recent' %}
+        <form method="post" action="/quick/tasks/{{ item.quick.task_id }}" class="quick-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <label class="sr-only" for="pc-{{ item.quick.task_id }}">Percent complete</label>
+          <select id="pc-{{ item.quick.task_id }}" class="select select-mini" name="percent_complete" aria-label="Set percent complete">
+            {% for v in [0,10,25,50,75,90,100] %}<option value="{{ v }}" {% if item.quick.percent == v %}selected{% endif %}>{{ v }}%</option>{% endfor %}
+          </select>
+          <button class="btn btn-small" type="submit">Save</button>
+        </form>
+        <form method="post" action="/quick/tasks/{{ item.quick.task_id }}" class="quick-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="status" value="Completed">
+          <button class="btn btn-small btn-primary" type="submit">Complete</button>
+        </form>
+        {% elif item.quick.action_id %}
+        <form method="post" action="/quick/actions/{{ item.quick.action_id }}/close" class="quick-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn btn-small btn-primary" type="submit">Close</button>
+        </form>
+        {% endif %}
+        <a class="btn btn-small btn-ghost" href="{{ item.href }}">{{ item.primary_label }}</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endfor %}
+
+<div class="section-title"><div><div class="eyebrow">Own and Sponsor</div><h3>Demands and projects requiring your stewardship</h3></div></div>
+<div class="grid grid-2">
+  <section class="card" id="my-demands">
+    <div class="panel-head"><div><h3>Demands</h3><p class="card-subtitle">The next action shows where each demand should move.</p></div><a href="/demands">Full pipeline →</a></div>
+    <div class="work-list">
+      {% for d in demands %}
+      <a class="work-item" href="/demands/{{ d.id }}">
+        <span class="work-status demand"></span>
+        <span class="work-item-copy"><strong>{{ d.human_id }} · {{ d.title }}</strong><small><span class="badge badge-{{ d.status|badge }}">{{ d.status }}</span></small></span>
+        <span class="work-next">{{ d.next_action }}<small>Open demand →</small></span>
+      </a>
+      {% else %}<div class="empty">No demands are assigned, requested, or sponsored by you.</div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="card" id="my-projects">
+    <div class="panel-head"><div><h3>Projects</h3><p class="card-subtitle">Open a project to manage WBS, Kanban, schedule, RAID, resources, value, and status.</p></div><a href="/projects">Full inventory →</a></div>
+    <div class="work-list">
+      {% for p in projects %}
+      <a class="work-item" href="/projects/{{ p.id }}">
+        <span class="work-status health-{{ (p.health_override or p.health_owner)|badge|lower }}"></span>
+        <span class="work-item-copy"><strong>{{ p.human_id }} · {{ p.title }}</strong><small><span class="badge badge-{{ (p.health_override or p.health_owner)|badge }}">{{ p.health_override or p.health_owner }}</span> · {{ p.status }}</small></span>
+        <span class="work-due">{{ p.percent_complete }}% complete<small>Open project →</small></span>
+      </a>
+      {% else %}<div class="empty">No projects are managed or sponsored by you.</div>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

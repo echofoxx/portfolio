@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Review {{ org.code }} Profile Import · DDC5I Portfolio{% endblock %}
+{% block content %}
+<div class="page-head"><div><span class="eyebrow">Step 2 of 3 · Review</span><h2>Review {{ org.code }} profile import</h2><p>{{ filename }} has been parsed. Confirm the business meaning before publishing.</p></div><div class="actions"><a class="btn" href="/divisions/{{ org.code }}/profile/import">Choose another file</a></div></div>
+{% if warnings %}<div class="callout warning"><strong>Review notes</strong><ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul></div>{% endif %}
+<div class="grid grid-2 profile-preview-grid">
+  <section class="card"><span class="eyebrow">Mission</span><h3>{{ normalized.mission or 'Mission not supplied' }}</h3><p>{{ normalized.vision }}</p><div class="division-focus-tags">{% for item in normalized.focus_areas %}<span>{{ item }}</span>{% endfor %}</div></section>
+  <section class="card"><span class="eyebrow">Banner</span><h3>{{ normalized.banner_asset or 'No banner path' }}</h3><p>{{ normalized.banner_alt or 'Alternative text not supplied.' }}</p><small>Focal point: {{ normalized.focal_x }}% / {{ normalized.focal_y }}%</small></section>
+  <section class="card"><h3>Responsibilities</h3><ul>{% for item in normalized.responsibilities %}<li>{{ item }}</li>{% else %}<li class="muted">None supplied</li>{% endfor %}</ul></section>
+  <section class="card"><h3>Initiatives</h3><div class="profile-chip-list">{% for item in normalized.initiatives %}<span>{{ item }}</span>{% else %}<span>None supplied</span>{% endfor %}</div></section>
+  <section class="card"><h3>Relationships</h3><div class="profile-record-list">{% for item in normalized.relationships %}<div><strong>{{ item.name }}</strong><p>{{ item.role }}</p><small>{{ item.category }}</small></div>{% else %}<p class="muted">None supplied</p>{% endfor %}</div></section>
+  <section class="card"><h3>Forums and doctrine</h3><p><strong>{{ normalized.forums|length }}</strong> forums · <strong>{{ normalized.doctrine|length }}</strong> doctrine or standards records</p><p><strong>{{ normalized.branches|length }}</strong> organizational elements · <strong>{{ normalized.source_documents|length }}</strong> source documents</p></section>
+</div>
+<form method="post" action="/divisions/{{ org.code }}/profile/import/commit" class="sticky-form-actions">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="payload_json" value="{{ payload_json|e }}">
+  <div><strong>Publish this profile?</strong><span>The current profile will be preserved in audit history.</span></div>
+  <div class="actions"><a class="btn" href="/divisions/{{ org.code }}/profile/import">Cancel</a><button class="btn btn-primary" type="submit" {% if not normalized.mission or not normalized.banner_alt %}disabled title="Mission and banner alternative text are required"{% endif %}>Import and publish</button></div>
+</form>
+{% endblock %}

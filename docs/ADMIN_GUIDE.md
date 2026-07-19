@@ -1,5 +1,13 @@
 # Administrator Guide
 
+## v0.8.0 administration
+
+The current migration head is `0009_self_service_v080`. See `docs/UPGRADE_0.8.0.md` before upgrading an existing installation.
+
+Administrators can open **Resources → Import / Export** to download the governed CSV template, export current capacity and request data, preview a correction/seed file, inspect every row, and explicitly commit valid changes. The importer matches an existing row by stable `record_id` or by the natural key `(division_code, role_name, skill, period)`. Invalid divisions, missing keys, duplicate natural keys, and invalid hour values remain errors and are not committed. Every batch and changed row retains import and audit evidence.
+
+Administrators can also review local-project promotion requests, create either project governance type, and reset their own dashboard layout. Resource import remains Admin-only in v0.8.0.
+
 ## Responsibilities
 
 The platform administrator owns local deployment configuration, migrations, backups, health monitoring, demonstration-user lifecycle, release installation, and coordination of security and integration decisions. The administrator does not become the business owner of portfolio data merely by holding technical privileges.
@@ -31,7 +39,7 @@ Required production changes include:
 
 ## Migrations
 
-Migrations live in `migrations/versions`. Startup applies them automatically. The v0.5.0 migration head is `0005_portfolio_governance_v050`. It adds delegations, integration/ownership/sync records, portfolio reviews, resource requests, financial transactions, scenarios, data-quality issues, report packs, and job runs. The v0.4.0 migration remains the execution/schedule/blueprint/status-report foundation. Before a production migration:
+Migrations live in `migrations/versions`. Startup applies them automatically. The current v0.8.0 migration head is `0009_self_service_v080`. It adds project governance/promotion and dashboard-preference persistence and reconciles the legacy Front Office code without changing its stable organization ID. Earlier migration foundations remain intact. Before a production migration:
 
 1. back up the database;
 2. test upgrade against a restored copy;
@@ -185,3 +193,95 @@ See `REVERSE_PROXY.md` and `UPGRADE_0.4.0.md` for deployment-specific procedures
 - Review every proposed field and impact explanation before approval. Apply writes authoritative records and creates audit evidence; it should not be used as a substitute for required financial, workforce, or leadership approvals.
 
 See `UPGRADE_0.5.0.md`, `KNOWN_LIMITATIONS.md`, and `ROADMAP.md` for operational boundaries and next-release controls.
+## v0.7.0 division briefing administration
+
+### Briefing governance
+
+- Use **Division Briefing** only with a division organization scope. The application requires that scope before creating the standard briefing structure.
+- The existing Portfolio Review record remains the governance anchor. Decisions and actions created during the forum continue to use the authoritative Decision and Action tables.
+- Section narrative is supplemental leadership context. Metrics and drill-downs continue to come from source project, demand, milestone, RAID, dependency, workforce, financial, benefit, status-report, and action records.
+- Approval captures a snapshot of the evidence and section narratives. Do not delete or replace that snapshot to make later source data appear as though it was presented during the meeting.
+- A review change request is a governed request, not an automatic arbitrary-field update. The accountable source-record owner must use the appropriate authoritative workflow and document the disposition.
+- Open questions and change requests remain assigned after review completion. Closing authorities must acknowledge unresolved follow-up rather than representing it as complete.
+
+### Migration and rollback
+
+Before applying `0006_division_briefing_v070`, back up PostgreSQL and the file-storage volume using the packaged procedures. The migration creates new tables and does not rewrite existing portfolio review, decision, action, project, demand, resource, financial, benefit, or status-report rows.
+
+Application rollback to v0.6.1 is possible only after confirming that the older application will not interact with newly created briefing records. Database downgrade removes v0.7.0 briefing tables and therefore destroys briefing preparation, snapshots, questions, change requests, and notes. Prefer forward-fix or application rollback while retaining the upgraded database unless an approved destructive downgrade is explicitly required.
+
+### Operational checks
+
+- Confirm a division briefing can be created and generates 15 sections.
+- Confirm division and enterprise scope restrictions on briefing access.
+- Confirm source refresh does not overwrite section narrative.
+- Confirm approval captures a stable snapshot.
+- Confirm questions and change requests appear in the assigned user's My Work view.
+- Confirm review completion requires unresolved follow-up acknowledgement.
+- Confirm audit events exist for preparation, approval, questions, responses, changes, actions, and closure.
+
+
+
+### v0.7.0 protected-source boundary
+
+Standard division briefings exclude records marked Restricted, Sensitive, or Limited Distribution; those records must be reviewed in a separately approved restricted forum. Do not use free-text narrative to reproduce restricted source content into a standard briefing.
+
+## v0.7.5 Division profile administration
+
+Migration `0007_division_experience_v075` creates `division_profiles` and corrects the display names for CID, JFID, and C3OD2. The idempotent seed reconciles missing profiles and missing banner metadata without overwriting user-maintained profile content.
+
+Authorized maintainers are:
+
+- Administrator
+- PMO
+- Enterprise Portfolio Owner
+- Data Steward
+- Division Chief within scope
+- Division Portfolio Manager within scope
+
+Profile edits and imports are audit recorded. JSON/CSV exports are also logged. Stable organization codes and IDs are not editable through the profile workflow.
+
+Optimized runtime banner assets are stored in `app/static/division-banners`. Content source documents are packaged under `docs/source/division-profiles` for traceability and should be handled according to the deployment's records and information-protection rules.
+
+## v0.7.6 Travel administration
+
+### Reference data
+
+Travel imports recognize the configured division codes and the source aliases `DDC5I <code>`. The demonstration build adds `CCD` and `FRONT` source-only division records so supplied approval data is not discarded. Administrators should reconcile these with authoritative organization reference data before production use.
+
+### Import governance
+
+Use the controlled import page; do not load travel tables directly. Preview results distinguish Valid, Warning, and Error rows. Warning rows retain source values and may be committed; Error rows are excluded. The Power BI travel export contains one warning where source ID `303` returns before departure.
+
+### Matching thresholds
+
+`app/services/travel.py` applies a conservative high-confidence auto-match threshold and requires a clear margin over the next candidate. Adjusting this threshold changes governance behavior and must be treated as a configuration-controlled release change with regression tests.
+
+### Data quality
+
+Run the data-quality scan after each import. v0.7.6 rules include:
+
+- `TRAVEL-DATE-SEQUENCE`
+- `TRIP-REPORT-MISSING`
+- `TRIP-REPORT-UNMATCHED`
+
+Resolve the authoritative source or document a disposition; do not silently edit historical source evidence.
+
+### Production controls
+
+Before production deployment, connect approved identity/SSO, authoritative organization and traveler directories, classification/handling workflows, actual financial sources, and approved mapping/geocoding services. Review all outbound integrations for destination and narrative sensitivity.
+
+
+## v0.7.9 administration notes
+
+### Quick-action governance
+`POST /quick/tasks/{id}` and `POST /quick/actions/{id}/close` enforce, server-side: CSRF; owner or managing-PM (or ADMIN/PMO) authorization; the standard task status set; and audit events `QUICK_UPDATE` / `QUICK_CLOSE` with before/after values visible in Audit & Activity. Explicit-submission workflows (approvals, financial changes, published status, governance decisions) are unchanged — quick actions cover only low-risk immediate-save updates.
+
+### Adoption telemetry
+Telemetry is local-only and privacy-conscious by construction: a 200-event localStorage ring buffer per browser recording event name, path, and timestamp — never record content, usernames, or identifiers — with zero network calls (air-gap posture unchanged). Inspect with `JSON.parse(localStorage.getItem('jsj6-telemetry'))`; export and clear with `window.jsj6Telemetry.drain()`. To connect approved analytics tooling later, ship a collector that drains this queue.
+
+### Version management
+`VERSION` at the repository root is the single source of truth. `app.config.APP_VERSION` reads it and feeds FastAPI metadata, the sidebar footer, static asset cache-busting strings, division-export schema/filename versions, and the CSV package README. To cut a release: update `VERSION`, update release documentation, and repackage — no code edits required for the version bump itself.
+
+### User-state storage
+Guidance, onboarding, role-focus compaction, and navigation-group state persist per browser in localStorage under `jsj6-*` keys. `Help → Restart getting started` clears the onboarding flags for a user having trouble; clearing site data resets all adaptive state.

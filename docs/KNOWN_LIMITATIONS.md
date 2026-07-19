@@ -1,5 +1,15 @@
 # Known Limitations — v0.5.0
 
+## v0.8.0 boundaries
+
+- Dashboard personalization uses ordered smart-grid placement and compact/standard/wide sizing; it is not an unconstrained pixel canvas and does not support shared team layouts in this release.
+- Project promotion is a portfolio-governance decision. It does not itself obligate funds, authorize hiring, certify resources, or synchronize an external project system.
+- Resource import/export is Admin-only CSV seeding/correction with explicit preview and commit. It is not an authoritative workforce, billet, timekeeping, HR, or contractor feed.
+- Blueprint structures are versioned in code/seed data; a no-code blueprint designer and separate template approval lifecycle are not included.
+- Breadcrumbs describe the current hierarchy and provide linked return paths. They do not preserve unsaved form state or act as a browser-session replay history.
+- Focused pages replace primary create workflows, but small contextual decisions and board configuration actions remain in their governing record page where losing context would be counterproductive.
+- Supplied division banners are optimized derivatives; source-master asset governance, image rights, and formal content-owner approval remain external responsibilities.
+
 ## Deployment and authorization
 
 - Docker Compose could not be launched in the artifact environment because a Docker daemon is unavailable. Target-host startup, reverse-proxy, browser, restart-persistence, and backup/restore validation remain required.
@@ -50,3 +60,52 @@
 - Formal WCAG 2.2 AA/Section 508 certification, approved-browser certification, load testing, 99.9% availability evidence, recovery exercise, penetration testing, SAST/DAST, container scanning, and RMF control evidence are not included.
 - New v0.5.0 screenshots should be captured on the target Docker host; the artifact environment cannot reliably capture authenticated local browser views.
 - AI remains intentionally deferred until source authority, access, lineage, quality, evaluation, audit, and human-review controls are established.
+
+## v0.7.0 Division Briefing & Review boundaries
+
+- Presentation mode is browser-based; it does not integrate with conference-room systems or provide offline briefing packages.
+- The approved briefing snapshot is an application governance record, not a cryptographic signature or immutable external records archive.
+- Review change requests track the requested correction and disposition but do not automatically write arbitrary fields to authoritative records.
+- Calendar invitations, transcripts, recording, email digests, and external document publication require future Microsoft 365/SharePoint or other approved adapters.
+- Standard briefing sections are code-governed in v0.7.0; a configurable template authoring and approval lifecycle remains planned.
+- Formal WCAG 2.2 AA certification, target-host browser testing, performance testing, and signed user acceptance remain required.
+
+- Standard division briefings exclude records marked Restricted, Sensitive, or Limited Distribution; those records must be reviewed in a separately approved restricted forum. A dedicated restricted-briefing workflow is not included in v0.7.0.
+
+## v0.7.5 Division Experience boundaries
+
+- Division portfolio JSON and CSV exports are implemented, but bulk import in v0.7.5 is intentionally limited to governed division-profile content.
+- Profile publishing is permission-controlled and audited; a separate author-review-approve content workflow is not included.
+- CID, C3OD2, and AID branch structures remain blank where the supplied material did not provide an authoritative branch outline.
+- Banner assets are optimized WebP derivatives. Asset-library versioning, image-rights workflow, and source-master management are outside the application.
+- Full-screen presentation uses the browser Fullscreen API and must be accepted on target conference-room browsers and display systems.
+- Smooth loading and reduced-motion behavior are implemented, but formal WCAG 2.2 AA certification remains required.
+- Export packages are not cryptographically signed and do not replace an approved records-management repository.
+
+## v0.7.6 Travel & Engagement Outcomes boundaries
+
+- Travel cost fields are estimates captured during approval; they are not official commitments, obligations, expenditures, disbursements, vouchers, or reconciled actuals.
+- The supplied Travel Request workbook represents approved records. Pending, canceled, and disapproved dashboard totals shown in the reference PDF cannot be reconstructed from that workbook alone and are not fabricated.
+- The local dashboard uses destination summaries and stored text. Live geocoding, external maps, network calls, and authoritative country/location reference data require an approved integration.
+- Report/request matching uses deterministic similarity evidence and conservative thresholds. Ambiguous reports remain in reconciliation until an authorized reviewer confirms a source request.
+- Text-based sensitivity detection is a safeguard. Authorized classification, CUI marking, dissemination, foreign-disclosure, retention, and records-management decisions remain external governance responsibilities.
+- Report outcome extraction creates review candidates; it does not autonomously assign work or alter authoritative project/demand records.
+- Approval steps are extensible, but the supplied spreadsheet does not include full approval-chain fields. Detailed approval data is shown only where available from the supplied dashboard evidence.
+- Notifications are in-app. Scheduled reminders, escalations, email/Teams delivery, and durable background execution require the planned worker and approved collaboration connectors.
+- CSV/JSON exports are point-in-time data products and are not cryptographically signed records packages.
+
+## v0.7.7 visual-intelligence boundaries
+
+- The travel map uses a locally maintained reference registry rather than a live authoritative geospatial source. Unmapped and ambiguous values require data-steward review.
+- Markers represent aggregate city-level destination activity; the application does not model traveler routes, origin points, precise traveler positions, or live travel status.
+- The Investment Flow Sankey conserves approved planning budget into actual-to-date capped to approved and unspent approved. It is not an authoritative accounting, obligation, expenditure, or cash-flow statement.
+- Advanced visuals provide accessible alternatives and keyboard behavior, but formal WCAG 2.2 AA certification and target-browser assistive-technology testing remain required.
+- Very large future portfolios may require server-side aggregation thresholds or progressive rendering beyond the current reference dataset.
+
+
+## v0.7.9
+
+- Guidance, onboarding, role-focus compaction, navigation-group state, and the telemetry queue persist per browser (localStorage), not per server-side user profile. Clearing browser storage resets them.
+- Telemetry is collection-only: events accumulate in a local 200-event ring buffer with no reporting UI; connect approved analytics tooling via `window.jsj6Telemetry.drain()`.
+- Snooze/delegate on Action Center items, notification digests and preferences, resource heatmaps, role-specific table column presets, and the expanded Migration Center are deferred to the roadmap.
+- Packaged release screenshots were not regenerated in the build environment (no headless browser available). To capture: run the stack, sign in as each demonstration role, and capture `/dashboard`, `/my-work`, `/travel?view=requests`, and the Help drawer at 1440px and 390px widths into `docs/screenshots/`.

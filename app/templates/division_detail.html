@@ -1,8 +1,98 @@
-{% extends "base.html" %}{% block title %}{{ org.code }} Dashboard · DDC5I Portfolio{% endblock %}{% block content %}
-<div class="page-head"><div><h2>{{ org.code }} · {{ org.name }}</h2><p>{{ org.narrative }}</p></div><div class="actions"><a class="btn" href="/projects?division={{ org.code }}">Project inventory</a><a class="btn" href="/demands?division={{ org.code }}">Demand pipeline</a></div></div>
-<div class="grid grid-5"><div class="card kpi"><div class="kpi-label">Active projects</div><div class="kpi-value">{{ projects|selectattr('status','equalto','Active')|list|length }}</div></div><div class="card kpi kpi-warn"><div class="kpi-label">Health exceptions</div><div class="kpi-value">{{ projects|selectattr('health_owner','in',['At Risk','Off Track','Blocked'])|list|length }}</div></div><div class="card kpi"><div class="kpi-label">Open demands</div><div class="kpi-value">{{ demands|length }}</div></div><div class="card kpi"><div class="kpi-label">Core functions</div><div class="kpi-value">{{ core|length }}</div></div><div class="card kpi"><div class="kpi-label">Forecast</div><div class="kpi-value" style="font-size:24px">{{ financials|sum(attribute='forecast')|money }}</div></div></div>
-<div class="grid grid-2" style="margin-top:16px"><div class="card narrative"><h3>Division narrative</h3><p>{{ narrative }}</p></div><div class="card"><h3>Mission and core-function health</h3>{% for c in core %}<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between"><strong>{{ c.code }} · {{ c.title }}</strong><span class="badge badge-{{ c.health|badge }}">{{ c.health }}</span></div><div class="progress"><span style="width:{{ [100,c.allocated_capacity_hours/c.minimum_capacity_hours*100]|min }}%"></span></div><small class="muted">{{ c.allocated_capacity_hours|int }} / {{ c.minimum_capacity_hours|int }} hours allocated</small></div>{% endfor %}</div></div>
-<div class="grid grid-2" style="margin-top:16px"><div class="card"><h3>Demand stages</h3><div class="bar-list">{% for s,n in pipeline.items() %}<a class="bar-row" href="/demands?division={{ org.code }}&status={{ s|urlencode }}"><span>{{ s }}</span><span class="bar-track"><span class="bar-fill" style="width:{{ n/demands|length*100 if demands else 0 }}%"></span></span><strong>{{ n }}</strong></a>{% endfor %}</div></div><div class="card"><h3>Capacity and skills</h3>{% for r in capacities %}<div class="bar-row"><span>{{ r.role_name }}</span><span class="bar-track"><span class="bar-fill" style="width:{{ [100,r.allocated_hours/r.capacity_hours*100]|min }}%"></span></span><strong class="{% if r.allocated_hours>r.capacity_hours %}text-bad{% endif %}">{{ (r.allocated_hours/r.capacity_hours*100)|round(0) }}%</strong></div>{% endfor %}</div></div>
-<div class="section-title"><h3>Projects</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Project</th><th>Status</th><th>Health</th><th>Complete</th><th>Forecast</th></tr></thead><tbody>{% for p in projects %}<tr><td>{{ p.human_id }}</td><td><a href="/projects/{{ p.id }}">{{ p.title }}</a></td><td>{{ p.status }}</td><td><span class="badge badge-{{ (p.health_override or p.health_owner)|badge }}">{{ p.health_override or p.health_owner }}</span></td><td>{{ p.percent_complete }}%</td><td>{{ p.forecast|money }}</td></tr>{% endfor %}</tbody></table></div>
-<div class="grid grid-2" style="margin-top:16px"><div class="card"><h3>Milestones</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Milestone</th><th>Project</th><th>Status</th></tr></thead><tbody>{% for m,p in milestones %}<tr><td>{{ m.current_date|datefmt }}</td><td><a href="/projects/{{ p.id }}?tab=milestones">{{ m.title }}</a></td><td>{{ p.human_id }}</td><td>{{ m.status }}</td></tr>{% endfor %}</tbody></table></div></div><div class="card"><h3>RAID and leadership actions</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Type</th><th>Record</th><th>Severity</th><th>Project</th></tr></thead><tbody>{% for r,p in raid %}<tr><td>{{ r.type }}</td><td><a href="/projects/{{ p.id }}?tab=raid">{{ r.title }}</a></td><td><span class="badge badge-{{ ('Off Track' if r.severity in ['High','Critical'] else 'At Risk')|badge }}">{{ r.severity }}</span></td><td>{{ p.human_id }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+{% extends "base.html" %}
+{% block title %}{{ org.code }} · {{ org.name }} · DDC5I Portfolio{% endblock %}
+{% block content %}
+<div class="division-experience {% if briefing_mode %}is-briefing{% endif %}" data-division-experience>
+  <div class="division-viewbar" role="navigation" aria-label="Division view controls">
+    <div class="division-viewbar-left"><a href="/divisions">← All divisions</a><span>{{ org.code }}</span>{% if profile %}<span class="badge badge-{{ profile.status|badge }}">{{ profile.status }}</span>{% endif %}</div>
+    <div class="division-view-switcher">
+      <a class="{% if not briefing_mode %}active{% endif %}" href="/divisions/{{ org.code }}">Current view</a>
+      <a class="{% if briefing_mode %}active{% endif %}" href="/divisions/{{ org.code }}?mode=briefing">Briefing view</a>
+      {% if latest_briefing %}<a href="/portfolio-reviews/{{ latest_briefing.id }}/brief">Open review workspace</a>{% else %}<a href="/portfolio-reviews">Prepare briefing</a>{% endif %}
+      <button class="btn btn-small btn-ghost" type="button" data-action="division-fullscreen">Present</button>
+    </div>
+  </div>
+
+  {% include "_division_hero.html" %}
+
+  <div class="division-title-row">
+    <div>
+      <span class="eyebrow">{{ org.code }} · J6 / Deputy Directorate for C5 Integration</span>
+      <h2>{{ org.name }}</h2>
+      <p>{{ profile.mission if profile else org.narrative }}</p>
+      {% if profile and profile.focus_areas %}<div class="division-focus-tags large">{% for item in profile.focus_areas %}<span>{{ item }}</span>{% endfor %}</div>{% endif %}
+    </div>
+    <div class="actions division-primary-actions">
+      <a class="btn" href="/projects?division={{ org.code }}">Project inventory</a>
+      <a class="btn" href="/demands?division={{ org.code }}">Demand pipeline</a><a class="btn" href="/travel?division={{ org.code }}">Travel &amp; engagements</a>
+      <details class="action-menu"><summary class="btn">Export ▾</summary><div class="action-menu-popover"><a href="/divisions/{{ org.code }}/export/json">JSON data package</a><a href="/divisions/{{ org.code }}/export/csv">CSV data package</a>{% if can_edit_profile %}<a href="/divisions/{{ org.code }}/profile/import">Import profile JSON/CSV</a>{% endif %}</div></details>
+      {% if can_edit_profile %}<a class="btn btn-primary" href="/divisions/{{ org.code }}/profile/edit">Edit profile</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-5 division-kpis">
+    <a class="card kpi" href="/projects?division={{ org.code }}"><div class="kpi-label">Active projects</div><div class="kpi-value">{{ active_count }}</div><small>Open inventory →</small></a>
+    <div class="card kpi {% if exception_count %}kpi-warn{% endif %}"><div class="kpi-label">Health exceptions</div><div class="kpi-value">{{ exception_count }}</div><small>{% if exception_count %}Needs attention{% else %}No current exceptions{% endif %}</small></div>
+    <a class="card kpi" href="/demands?division={{ org.code }}"><div class="kpi-label">Open demands</div><div class="kpi-value">{{ demands|length }}</div><small>Review pipeline →</small></a>
+    <div class="card kpi"><div class="kpi-label">Core functions</div><div class="kpi-value">{{ core|length }}</div><small>{{ core|selectattr('health','equalto','On Track')|list|length }} on track</small></div>
+    <div class="card kpi"><div class="kpi-label">Forecast</div><div class="kpi-value compact-money">{{ financials|sum(attribute='forecast')|money }}</div><small>Accessible records</small></div>
+  </div>
+
+  <div class="grid grid-2 division-leadership-grid">
+    <section class="card narrative division-summary-card">
+      <div class="panel-head"><div><span class="eyebrow">Leadership summary</span><h3>Division narrative</h3></div>{% if latest_briefing %}<span class="badge badge-{{ latest_briefing.status|badge }}">{{ latest_briefing.status }}</span>{% endif %}</div>
+      <p>{{ narrative }}</p>
+      {% if profile and profile.vision %}<div class="division-vision"><strong>Vision</strong><p>{{ profile.vision }}</p></div>{% endif %}
+      <div class="leadership-attention">
+        <strong>Leadership attention</strong>
+        <div><span>{{ exception_count }}</span> project exceptions</div><div><span>{{ severe_raid_count }}</span> high-severity assurance records</div>
+      </div>
+    </section>
+    <section class="card core-health-card">
+      <div class="panel-head"><div><span class="eyebrow">Mission health</span><h3>Core-function capacity</h3></div></div>
+      {% for c in core %}<div class="core-health-row"><div class="core-health-copy"><strong>{{ c.code }} · {{ c.title }}</strong><span class="badge badge-{{ c.health|badge }}">{{ c.health }}</span></div><div class="progress"><span style="width:{{ [100,(c.allocated_capacity_hours/c.minimum_capacity_hours*100 if c.minimum_capacity_hours else 0)]|min }}%"></span></div><small class="muted">{{ c.allocated_capacity_hours|int }} / {{ c.minimum_capacity_hours|int }} hours allocated</small></div>{% else %}<div class="empty compact">No core functions are configured.</div>{% endfor %}
+    </section>
+  </div>
+
+  <section class="division-data-section" aria-labelledby="travel-division-title">
+    <div class="section-title"><div><span class="eyebrow">External engagement outcomes</span><h3 id="travel-division-title">Travel, forums, and trip reports</h3></div><a class="btn btn-small" href="/travel?division={{ org.code }}">Open travel workspace</a></div>
+    <div class="grid grid-4">
+      <div class="card kpi"><div class="kpi-label">Travel requests</div><div class="kpi-value">{{ travel_requests|length }}</div><small>Approval-source records</small></div>
+      <div class="card kpi"><div class="kpi-label">Estimated cost</div><div class="kpi-value compact-money">{{ travel_estimated_cost|money }}</div><small>Not authoritative actuals</small></div>
+      <div class="card kpi {% if travel_report_gap %}kpi-warn{% endif %}"><div class="kpi-label">Reports due / missing</div><div class="kpi-value">{{ travel_report_gap }}</div><small>Completed approved travel</small></div>
+      <div class="card kpi {% if travel_reconciliation %}kpi-warn{% endif %}"><div class="kpi-label">Needs reconciliation</div><div class="kpi-value">{{ travel_reconciliation }}</div><small>Unmatched trip reports</small></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card"><div class="panel-head"><h4>Recent travel requests</h4><span>{{ travel_requests|length }} total</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Traveler</th><th>Event / location</th><th>Dates</th><th>Estimate</th></tr></thead><tbody>{% for item in travel_requests[:6] %}<tr><td><a href="/travel/requests/{{ item.id }}">{{ item.human_id }}</a></td><td>{{ item.traveler_name }}</td><td>{{ item.location }}</td><td>{{ item.departure_date|datefmt }}–{{ item.return_date|datefmt }}</td><td>{{ item.estimated_cost|money }}</td></tr>{% else %}<tr><td colspan="5"><div class="empty compact">No travel requests are available.</div></td></tr>{% endfor %}</tbody></table></div></div>
+      <div class="card"><div class="panel-head"><h4>Trip-report outcomes</h4><span>{{ trip_reports|length }} total</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Report</th><th>Traveler</th><th>Match</th><th>Review</th></tr></thead><tbody>{% for item in trip_reports[:6] %}<tr><td><a href="/travel/reports/{{ item.id }}">{{ item.human_id }}</a></td><td>{{ item.title }}</td><td>{{ item.traveler_name }}</td><td>{{ (item.match_confidence*100)|round(0) if item.match_confidence is not none else '—' }}{% if item.match_confidence is not none %}%{% endif %}</td><td><span class="badge badge-{{ item.review_status|badge }}">{{ item.review_status }}</span></td></tr>{% else %}<tr><td colspan="5"><div class="empty compact">No trip reports are available.</div></td></tr>{% endfor %}</tbody></table></div></div>
+    </div>
+  </section>
+
+  {% if profile %}
+  <section class="division-profile-section" aria-labelledby="about-division-title">
+    <div class="section-title"><div><span class="eyebrow">Operating context</span><h3 id="about-division-title">About this division</h3></div><small>Profile reviewed {{ profile.last_reviewed_at|datefmt if profile.last_reviewed_at else '—' }}</small></div>
+    <div class="division-profile-grid">
+      <details class="card profile-panel" open><summary><span>Core responsibilities</span><b>{{ profile.responsibilities|length }}</b></summary><ul>{% for item in profile.responsibilities %}<li>{{ item }}</li>{% endfor %}</ul></details>
+      <details class="card profile-panel" {% if profile.branches %}open{% endif %}><summary><span>Organization</span><b>{{ profile.branches|length }}</b></summary>{% if profile.branches %}<div class="profile-record-list">{% for item in profile.branches %}<div><strong>{{ item.name }}</strong><p>{{ item.focus }}</p></div>{% endfor %}</div>{% else %}<p class="muted">Branch structure is awaiting content-owner confirmation.</p>{% endif %}</details>
+      <details class="card profile-panel"><summary><span>Major initiatives</span><b>{{ profile.initiatives|length }}</b></summary><div class="profile-chip-list">{% for item in profile.initiatives %}<span>{{ item }}</span>{% endfor %}</div></details>
+      <details class="card profile-panel"><summary><span>Relationships</span><b>{{ profile.relationships|length }}</b></summary><div class="profile-record-list">{% for item in profile.relationships %}<div><strong>{{ item.name }}</strong><p>{{ item.role }}</p><small>{{ item.category }}</small></div>{% endfor %}</div></details>
+      <details class="card profile-panel"><summary><span>Forums &amp; governance</span><b>{{ profile.forums|length }}</b></summary><div class="profile-record-list">{% for item in profile.forums %}<div><strong>{{ item.name }}</strong><p>{{ item.purpose }}</p><small>{{ item.role }}</small></div>{% endfor %}</div></details>
+      <details class="card profile-panel"><summary><span>Doctrine &amp; standards</span><b>{{ profile.doctrine|length }}</b></summary>{% if profile.doctrine %}<div class="profile-record-list">{% for item in profile.doctrine %}<div><strong>{{ item.name }}</strong><p>{{ item.notes }}</p><small>{{ item.role }}</small></div>{% endfor %}</div>{% else %}<p class="muted">No doctrine or standards responsibilities are currently recorded.</p>{% endif %}</details>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="grid grid-2 division-operating-grid">
+    <section class="card"><div class="panel-head"><h3>Demand stages</h3><a href="/demands?division={{ org.code }}">View demands</a></div><div class="bar-list">{% for s,n in pipeline.items() %}<a class="bar-row" href="/demands?division={{ org.code }}&status={{ s|urlencode }}"><span>{{ s }}</span><span class="bar-track"><span class="bar-fill" style="width:{{ n/demands|length*100 if demands else 0 }}%"></span></span><strong>{{ n }}</strong></a>{% else %}<div class="empty compact">No demands are currently assigned.</div>{% endfor %}</div></section>
+    <section class="card"><div class="panel-head"><h3>Capacity and skills</h3><a href="/resources">Open resources</a></div>{% for r in capacities %}<div class="bar-row"><span>{{ r.role_name }}</span><span class="bar-track"><span class="bar-fill" style="width:{{ [100,(r.allocated_hours/r.capacity_hours*100 if r.capacity_hours else 0)]|min }}%"></span></span><strong class="{% if r.allocated_hours>r.capacity_hours %}text-bad{% endif %}">{{ (r.allocated_hours/r.capacity_hours*100 if r.capacity_hours else 0)|round(0) }}%</strong></div>{% else %}<div class="empty compact">No capacity records are configured.</div>{% endfor %}</section>
+  </div>
+
+  <section class="division-data-section"><div class="section-title"><div><span class="eyebrow">Delivery portfolio</span><h3>Projects</h3></div><a class="btn btn-small" href="/projects?division={{ org.code }}">Open inventory</a></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Project</th><th>Status</th><th>Health</th><th>Complete</th><th>Forecast</th></tr></thead><tbody>{% for p in projects %}<tr><td>{{ p.human_id }}</td><td><a href="/projects/{{ p.id }}">{{ p.title }}</a></td><td>{{ p.status }}</td><td><span class="badge badge-{{ (p.health_override or p.health_owner)|badge }}">{{ p.health_override or p.health_owner }}</span></td><td>{{ p.percent_complete }}%</td><td>{{ p.forecast|money }}</td></tr>{% else %}<tr><td colspan="6"><div class="empty compact">No accessible projects are assigned to this division.</div></td></tr>{% endfor %}</tbody></table></div></section>
+
+  <div class="grid grid-2 division-exception-grid">
+    <section class="card"><div class="panel-head"><h3>Milestones</h3><span>{{ milestones|length }} shown</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Milestone</th><th>Project</th><th>Status</th></tr></thead><tbody>{% for m,p in milestones %}<tr><td>{{ m.current_date|datefmt }}</td><td><a href="/projects/{{ p.id }}?tab=milestones">{{ m.title }}</a></td><td>{{ p.human_id }}</td><td>{{ m.status }}</td></tr>{% else %}<tr><td colspan="4"><div class="empty compact">No milestones to display.</div></td></tr>{% endfor %}</tbody></table></div></section>
+    <section class="card"><div class="panel-head"><h3>RAID and leadership actions</h3><span>{{ raid|length }} shown</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Type</th><th>Record</th><th>Severity</th><th>Project</th></tr></thead><tbody>{% for r,p in raid %}<tr><td>{{ r.type }}</td><td><a href="/projects/{{ p.id }}?tab=raid">{{ r.title }}</a></td><td><span class="badge badge-{{ ('Off Track' if r.severity in ['High','Critical'] else 'At Risk')|badge }}">{{ r.severity }}</span></td><td>{{ p.human_id }}</td></tr>{% else %}<tr><td colspan="4"><div class="empty compact">No open RAID items to display.</div></td></tr>{% endfor %}</tbody></table></div></section>
+  </div>
+
+  {% if profile and profile.source_documents %}<footer class="division-source-note"><strong>Profile sources</strong><span>{{ profile.source_documents|join(' · ') }}</span><small>{{ profile.source_notes }}</small></footer>{% endif %}
+</div>
 {% endblock %}

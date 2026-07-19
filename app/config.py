@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -25,3 +26,13 @@ class Settings:
 
 
 settings = Settings()
+
+def _read_version() -> str:
+    """Single source of truth for the release version (VERSION file at repo root)."""
+    try:
+        return (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()
+    except OSError:
+        return "0.8.0"
+
+
+APP_VERSION = _read_version()

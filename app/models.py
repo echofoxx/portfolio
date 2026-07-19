@@ -31,6 +31,175 @@ class Organization(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class DivisionProfile(Base):
+    __tablename__ = "division_profiles"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), unique=True, index=True)
+    mission: Mapped[str] = mapped_column(Text, default="")
+    vision: Mapped[str] = mapped_column(Text, default="")
+    focus_areas: Mapped[list[str]] = mapped_column(JSON, default=list)
+    responsibilities: Mapped[list[str]] = mapped_column(JSON, default=list)
+    branches: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    initiatives: Mapped[list[str]] = mapped_column(JSON, default=list)
+    relationships: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    forums: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    doctrine: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    banner_asset: Mapped[str] = mapped_column(String(240), default="")
+    banner_alt: Mapped[str] = mapped_column(Text, default="")
+    focal_x: Mapped[int] = mapped_column(Integer, default=50)
+    focal_y: Mapped[int] = mapped_column(Integer, default=50)
+    status: Mapped[str] = mapped_column(String(30), default="Published")
+    source_documents: Mapped[list[str]] = mapped_column(JSON, default=list)
+    source_notes: Mapped[str] = mapped_column(Text, default="")
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TravelEngagement(Base):
+    __tablename__ = "travel_engagements"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(300), index=True)
+    normalized_title: Mapped[str] = mapped_column(String(300), index=True, default="")
+    location: Mapped[str] = mapped_column(String(240), default="")
+    country_code: Mapped[str] = mapped_column(String(8), default="")
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Planned")
+    lead_org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    cross_division: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_system: Mapped[str] = mapped_column(String(100), default="Travel Approval Export")
+    source_record: Mapped[str] = mapped_column(String(160), default="")
+    source_filename: Mapped[str] = mapped_column(String(260), default="")
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TravelRequest(Base):
+    __tablename__ = "travel_requests"
+    __table_args__ = (UniqueConstraint("source_system", "external_id", name="uq_travel_request_source_external"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    external_id: Mapped[str] = mapped_column(String(100), index=True)
+    engagement_id: Mapped[str | None] = mapped_column(ForeignKey("travel_engagements.id"), nullable=True, index=True)
+    traveler_name: Mapped[str] = mapped_column(String(220), index=True)
+    traveler_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    location: Mapped[str] = mapped_column(String(240), default="")
+    determination: Mapped[str] = mapped_column(String(40), default="Pending", index=True)
+    departure_date: Mapped[date] = mapped_column(Date, index=True)
+    return_date: Mapped[date] = mapped_column(Date, index=True)
+    estimated_cost: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
+    purpose_roi: Mapped[str] = mapped_column(Text, default="")
+    impact_if_not: Mapped[str] = mapped_column(Text, default="")
+    funding: Mapped[str] = mapped_column(String(120), default="")
+    exemption_category: Mapped[str] = mapped_column(Text, default="")
+    report_required: Mapped[bool] = mapped_column(Boolean, default=True)
+    report_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sensitivity: Mapped[str] = mapped_column(String(40), default="Controlled Unclassified")
+    source_system: Mapped[str] = mapped_column(String(100), default="Travel Approval Export")
+    source_record: Mapped[str] = mapped_column(String(160), default="")
+    source_filename: Mapped[str] = mapped_column(String(260), default="")
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    import_batch_id: Mapped[str | None] = mapped_column(ForeignKey("import_batches.id"), nullable=True)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TravelApprovalStep(Base):
+    __tablename__ = "travel_approval_steps"
+    __table_args__ = (UniqueConstraint("request_id", "step_order", name="uq_travel_approval_request_step"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    request_id: Mapped[str] = mapped_column(ForeignKey("travel_requests.id"), index=True)
+    step_order: Mapped[int] = mapped_column(Integer, default=1)
+    approver_name: Mapped[str] = mapped_column(String(220), default="")
+    approver_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approver_role: Mapped[str] = mapped_column(String(100), default="")
+    determination: Mapped[str] = mapped_column(String(40), default="Pending")
+    comments: Mapped[str] = mapped_column(Text, default="")
+    determination_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TripReport(Base):
+    __tablename__ = "trip_reports"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    request_id: Mapped[str | None] = mapped_column(ForeignKey("travel_requests.id"), nullable=True, index=True)
+    engagement_id: Mapped[str | None] = mapped_column(ForeignKey("travel_engagements.id"), nullable=True, index=True)
+    traveler_name: Mapped[str] = mapped_column(String(220), index=True)
+    traveler_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    title: Mapped[str] = mapped_column(String(300), index=True)
+    start_date: Mapped[date] = mapped_column(Date)
+    return_date: Mapped[date] = mapped_column(Date)
+    location: Mapped[str] = mapped_column(String(240), default="")
+    purpose_objectives: Mapped[str] = mapped_column(Text, default="")
+    discussion: Mapped[str] = mapped_column(Text, default="")
+    key_findings: Mapped[str] = mapped_column(Text, default="")
+    recommendations: Mapped[str] = mapped_column(Text, default="")
+    action_items: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(40), default="Submitted")
+    review_status: Mapped[str] = mapped_column(String(40), default="Awaiting Review")
+    review_comments: Mapped[str] = mapped_column(Text, default="")
+    reviewed_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sensitivity: Mapped[str] = mapped_column(String(40), default="Controlled Unclassified")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    match_status: Mapped[str] = mapped_column(String(40), default="Unmatched", index=True)
+    match_confidence: Mapped[float] = mapped_column(Float, default=0)
+    match_rationale: Mapped[str] = mapped_column(Text, default="")
+    matched_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    matched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_system: Mapped[str] = mapped_column(String(100), default="Trip Reports SharePoint")
+    source_record: Mapped[str] = mapped_column(String(260), default="")
+    source_filename: Mapped[str] = mapped_column(String(260), default="")
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    import_batch_id: Mapped[str | None] = mapped_column(ForeignKey("import_batches.id"), nullable=True)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TripReportItem(Base):
+    __tablename__ = "trip_report_items"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    report_id: Mapped[str] = mapped_column(ForeignKey("trip_reports.id"), index=True)
+    item_type: Mapped[str] = mapped_column(String(60), default="Finding", index=True)
+    sequence: Mapped[int] = mapped_column(Integer, default=1)
+    title: Mapped[str] = mapped_column(String(260), default="")
+    body: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(40), default="Candidate")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    promoted_entity_type: Mapped[str] = mapped_column(String(60), default="")
+    promoted_entity_id: Mapped[str] = mapped_column(String(80), default="")
+    source_excerpt: Mapped[str] = mapped_column(Text, default="")
+    reviewed_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TravelEntityLink(Base):
+    __tablename__ = "travel_entity_links"
+    __table_args__ = (UniqueConstraint("source_entity_type", "source_entity_id", "target_entity_type", "target_entity_id", name="uq_travel_entity_link"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    source_entity_type: Mapped[str] = mapped_column(String(60), index=True)
+    source_entity_id: Mapped[str] = mapped_column(String(80), index=True)
+    target_entity_type: Mapped[str] = mapped_column(String(60), index=True)
+    target_entity_id: Mapped[str] = mapped_column(String(80), index=True)
+    link_type: Mapped[str] = mapped_column(String(80), default="Related")
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
@@ -173,6 +342,11 @@ class Project(Base):
     demand_id: Mapped[str | None] = mapped_column(ForeignKey("demands.id"), nullable=True, unique=True)
     template_code: Mapped[str] = mapped_column(String(60), default="")
     template_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    governance_level: Mapped[str] = mapped_column(String(40), default="Portfolio Managed", index=True)
+    funding_posture: Mapped[str] = mapped_column(String(40), default="Existing Funding")
+    resource_posture: Mapped[str] = mapped_column(String(40), default="Existing Capacity")
+    promotion_status: Mapped[str] = mapped_column(String(40), default="Not Required", index=True)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     desired_end_state: Mapped[str] = mapped_column(Text, default="")
     scope: Mapped[str] = mapped_column(Text, default="")
     deliverables: Mapped[str] = mapped_column(Text, default="")
@@ -440,6 +614,42 @@ class ProjectTemplate(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ProjectPromotionRequest(Base):
+    """Auditable request to move division-local work into portfolio governance."""
+    __tablename__ = "project_promotion_requests"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    requested_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str] = mapped_column(Text)
+    scope_change: Mapped[str] = mapped_column(Text, default="")
+    enterprise_impact: Mapped[str] = mapped_column(Text, default="")
+    funding_requirement: Mapped[str] = mapped_column(Text, default="")
+    resource_requirement: Mapped[str] = mapped_column(Text, default="")
+    schedule_risk: Mapped[str] = mapped_column(Text, default="")
+    requested_portfolio_id: Mapped[str | None] = mapped_column(ForeignKey("portfolios.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Submitted", index=True)
+    reviewed_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decision_rationale: Mapped[str] = mapped_column(Text, default="")
+    conditions: Mapped[str] = mapped_column(Text, default="")
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class DashboardPreference(Base):
+    """Server-side role lens and smart-grid preferences for a user's landing page."""
+    __tablename__ = "dashboard_preferences"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_dashboard_preference_user"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    active_lens: Mapped[str] = mapped_column(String(80), default="")
+    panel_order: Mapped[list[str]] = mapped_column(JSON, default=list)
+    hidden_panels: Mapped[list[str]] = mapped_column(JSON, default=list)
+    panel_sizes: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class StatusReport(Base):
     __tablename__ = "status_reports"
     __table_args__ = (UniqueConstraint("project_id", "period_end", "version", name="uq_status_report_period_version"),)
@@ -661,6 +871,81 @@ class PortfolioReviewItem(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     decision_id: Mapped[str | None] = mapped_column(ForeignKey("decisions.id"), nullable=True)
     action_id: Mapped[str | None] = mapped_column(ForeignKey("actions.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BriefingSection(Base):
+    __tablename__ = "briefing_sections"
+    __table_args__ = (UniqueConstraint("review_id", "section_key", name="uq_briefing_section_review_key"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    review_id: Mapped[str] = mapped_column(ForeignKey("portfolio_reviews.id"), index=True)
+    section_key: Mapped[str] = mapped_column(String(80))
+    title: Mapped[str] = mapped_column(String(200))
+    narrative: Mapped[str] = mapped_column(Text, default="")
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Not Started")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    source_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class BriefingSnapshot(Base):
+    __tablename__ = "briefing_snapshots"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    review_id: Mapped[str] = mapped_column(ForeignKey("portfolio_reviews.id"), unique=True, index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    captured_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ReviewQuestion(Base):
+    __tablename__ = "review_questions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    review_id: Mapped[str] = mapped_column(ForeignKey("portfolio_reviews.id"), index=True)
+    section_id: Mapped[str | None] = mapped_column(ForeignKey("briefing_sections.id"), nullable=True)
+    entity_type: Mapped[str] = mapped_column(String(60), default="")
+    entity_id: Mapped[str] = mapped_column(String(80), default="")
+    question: Mapped[str] = mapped_column(Text)
+    asked_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    assigned_to_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    priority: Mapped[str] = mapped_column(String(30), default="Normal")
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    response: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(40), default="Open")
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ReviewChangeRequest(Base):
+    __tablename__ = "review_change_requests"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    human_id: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    review_id: Mapped[str] = mapped_column(ForeignKey("portfolio_reviews.id"), index=True)
+    section_id: Mapped[str | None] = mapped_column(ForeignKey("briefing_sections.id"), nullable=True)
+    entity_type: Mapped[str] = mapped_column(String(60), default="")
+    entity_id: Mapped[str] = mapped_column(String(80), default="")
+    field_name: Mapped[str] = mapped_column(String(120), default="")
+    current_value: Mapped[str] = mapped_column(Text, default="")
+    proposed_value: Mapped[str] = mapped_column(Text, default="")
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    requested_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Open")
+    resolution: Mapped[str] = mapped_column(Text, default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ReviewNote(Base):
+    __tablename__ = "review_notes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    review_id: Mapped[str] = mapped_column(ForeignKey("portfolio_reviews.id"), index=True)
+    section_id: Mapped[str | None] = mapped_column(ForeignKey("briefing_sections.id"), nullable=True)
+    note_type: Mapped[str] = mapped_column(String(40), default="Discussion")
+    body: Mapped[str] = mapped_column(Text)
+    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

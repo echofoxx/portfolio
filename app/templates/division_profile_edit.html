@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ org.code }} Profile · DDC5I Portfolio{% endblock %}
+{% block content %}
+<div class="page-head"><div><span class="eyebrow">Division profile</span><h2>Edit {{ org.code }} · {{ org.name }}</h2><p>Maintain mission context in plain language. Changes publish to the division view and are retained in the audit history.</p></div><div class="actions"><a class="btn" href="/divisions/{{ org.code }}">Cancel</a><a class="btn" href="/divisions/{{ org.code }}/profile/import">Import JSON/CSV</a></div></div>
+{% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="/divisions/{{ org.code }}/profile/edit" class="profile-edit-form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <section class="card form-section">
+    <div class="form-section-head"><div><span class="section-number">1</span><div><h3>Mission and identity</h3><p>Keep this concise enough to read during a leadership review.</p></div></div></div>
+    <div class="field-stack">
+      <label>Mission statement <span class="field-hint">What the division does, for whom, and why it matters.</span><textarea class="input" name="mission" rows="4" required>{{ values.mission }}</textarea></label>
+      <label>Vision <span class="field-hint">The future state the division is working toward.</span><textarea class="input" name="vision" rows="3">{{ values.vision }}</textarea></label>
+      <label>Focus areas <span class="field-hint">One per line. Four to six works well.</span><textarea class="input" name="focus_areas" rows="5">{{ values.focus_areas }}</textarea></label>
+    </div>
+  </section>
+
+  <section class="card form-section">
+    <div class="form-section-head"><div><span class="section-number">2</span><div><h3>What the division owns</h3><p>Use one responsibility or initiative per line.</p></div></div></div>
+    <div class="grid grid-2">
+      <label>Core responsibilities <span class="field-hint">One complete statement per line.</span><textarea class="input" name="responsibilities" rows="9">{{ values.responsibilities }}</textarea></label>
+      <label>Major initiatives <span class="field-hint">One program, portfolio, or recurring body of work per line.</span><textarea class="input" name="initiatives" rows="9">{{ values.initiatives }}</textarea></label>
+    </div>
+    <label>Branches or organizational elements <span class="field-hint">Use: Branch name | What it focuses on</span><textarea class="input mono-lite" name="branches" rows="7" placeholder="Combined Joint Fires Branch | All-domain fires integration">{{ values.branches }}</textarea></label>
+  </section>
+
+  <section class="card form-section">
+    <div class="form-section-head"><div><span class="section-number">3</span><div><h3>Relationships and governance</h3><p>These entries help leaders understand where the division leads, supports, or coordinates.</p></div></div></div>
+    <label>Relationships <span class="field-hint">Use: Organization | Division role | Category</span><textarea class="input mono-lite" name="relationships" rows="8" placeholder="NATO | Digital interoperability alignment | Coalition">{{ values.relationships }}</textarea></label>
+    <div class="grid grid-2">
+      <label>Forums and governance <span class="field-hint">Use: Forum | Lead/support role | Purpose</span><textarea class="input mono-lite" name="forums" rows="8">{{ values.forums }}</textarea></label>
+      <label>Doctrine and standards <span class="field-hint">Use: Publication or standard | Division role | Notes</span><textarea class="input mono-lite" name="doctrine" rows="8">{{ values.doctrine }}</textarea></label>
+    </div>
+  </section>
+
+  <section class="card form-section">
+    <div class="form-section-head"><div><span class="section-number">4</span><div><h3>Banner and source stewardship</h3><p>Banner focal points range from 0 to 100. The supplied optimized assets are already configured.</p></div></div></div>
+    <div class="grid grid-2">
+      <label>Banner asset path<input class="input" name="banner_asset" value="{{ values.banner_asset }}" placeholder="/static/division-banners/cid.webp"></label>
+      <label>Publishing status<select class="select" name="status"><option {% if values.status=='Draft' %}selected{% endif %}>Draft</option><option {% if values.status=='Published' %}selected{% endif %}>Published</option><option {% if values.status=='Needs Review' %}selected{% endif %}>Needs Review</option></select></label>
+    </div>
+    <label>Banner alternative text <span class="field-hint">Describe the meaning of the image for users who cannot see it.</span><textarea class="input" name="banner_alt" rows="3" required>{{ values.banner_alt }}</textarea></label>
+    <div class="grid grid-2">
+      <label>Horizontal focal point<input class="input" type="number" min="0" max="100" name="focal_x" value="{{ values.focal_x }}"></label>
+      <label>Vertical focal point<input class="input" type="number" min="0" max="100" name="focal_y" value="{{ values.focal_y }}"></label>
+    </div>
+    <label>Source documents <span class="field-hint">One file or source title per line.</span><textarea class="input" name="source_documents" rows="5">{{ values.source_documents }}</textarea></label>
+    <label>Source and review notes<textarea class="input" name="source_notes" rows="4">{{ values.source_notes }}</textarea></label>
+  </section>
+
+  <div class="sticky-form-actions"><div><strong>Ready to publish?</strong><span>The previous state remains available in the audit record.</span></div><div class="actions"><a class="btn" href="/divisions/{{ org.code }}">Cancel</a><button class="btn btn-primary" type="submit">Publish profile</button></div></div>
+</form>
+{% endblock %}

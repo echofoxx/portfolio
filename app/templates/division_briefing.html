@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}{{ review.human_id }} · Division Briefing{% endblock %}
+{% block content %}
+<div class="breadcrumbs-row"><a href="/portfolio-reviews">Briefings</a><span>›</span><span>{{ review.human_id }}</span></div>
+<div class="page-head briefing-page-head">
+  <div>
+    <div class="eyebrow">{{ org.code if org else 'ENT' }} · {{ review.period_start|datefmt }} – {{ review.period_end|datefmt }}</div>
+    <h2>{{ review.title }}</h2>
+    <p>{{ review.summary or 'Prepare, validate, brief, question, decide, and follow through from one source-backed workspace.' }}</p>
+  </div>
+  <div class="actions briefing-lifecycle-actions">
+    <span class="badge large-badge badge-{{ review.status|badge }}">{{ review.status }}</span>
+    {% if presentation_mode %}<a class="btn" href="/portfolio-reviews/{{ review.id }}/brief?section={{ current_section.id if current_section else '' }}">Exit presentation</a>{% else %}<a class="btn" href="/portfolio-reviews/{{ review.id }}/brief?section={{ current_section.id if current_section else '' }}&mode=present">Presentation mode</a>{% endif %}
+    {% if can_edit and review.status not in ['Ready to Brief','In Review','Completed'] %}<form action="/portfolio-reviews/{{ review.id }}/briefing/refresh" method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn" type="submit">Refresh source data</button></form>{% endif %}
+    {% if can_edit and review.status in ['In Preparation','Draft'] %}<form action="/portfolio-reviews/{{ review.id }}/briefing/lifecycle" method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="submit"><button class="btn btn-primary" type="submit">Submit for approval</button></form>{% endif %}
+    {% if can_approve and review.status == 'Ready for Division Review' %}<form action="/portfolio-reviews/{{ review.id }}/briefing/lifecycle" method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="approve"><button class="btn btn-primary" type="submit">Approve briefing</button></form>{% endif %}
+    {% if can_facilitate and review.status == 'Ready to Brief' %}<form action="/portfolio-reviews/{{ review.id }}/briefing/lifecycle" method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit">Start live review</button></form>{% endif %}
+  </div>
+</div>
+
+{% if snapshot_record %}<div class="callout info briefing-snapshot"><strong>Briefing snapshot:</strong> leadership view frozen {{ snapshot_record.captured_at|datefmt }}. Live source data remains available for follow-up comparison.</div>{% endif %}
+{% if payload.metrics.excluded_sensitive_projects or payload.metrics.excluded_sensitive_demands %}<div class="callout warning"><strong>Protected-source boundary:</strong> {{ payload.metrics.excluded_sensitive_projects or 0 }} restricted project record(s) and {{ payload.metrics.excluded_sensitive_demands or 0 }} restricted demand record(s) are excluded from this standard briefing view. Review them only in an approved restricted forum.</div>{% endif %}
+
+<section class="grid grid-6 briefing-kpis" aria-label="Division briefing summary">
+  <div class="card kpi"><div class="kpi-label">Readiness</div><div class="kpi-value">{{ readiness }}%</div><div class="kpi-foot">{{ sections|selectattr('status','in',['Ready for Division Review','Division Approved','Ready to Brief'])|list|length }} of {{ sections|length }} sections ready</div></div>
+  <div class="card kpi"><div class="kpi-label">Active Projects</div><div class="kpi-value">{{ payload.metrics.active_projects or 0 }}</div><div class="kpi-foot">{{ payload.metrics.attention_projects or 0 }} need attention</div></div>
+  <div class="card kpi"><div class="kpi-label">Open Demands</div><div class="kpi-value">{{ payload.metrics.open_demands or 0 }}</div><div class="kpi-foot">Upcoming work</div></div>
+  <div class="card kpi"><div class="kpi-label">High Risks</div><div class="kpi-value">{{ payload.metrics.open_high_risks or 0 }}</div><div class="kpi-foot">{{ payload.metrics.open_dependencies or 0 }} dependencies</div></div>
+  <div class="card kpi"><div class="kpi-label">Forecast Variance</div><div class="kpi-value">{{ payload.metrics.forecast_variance|money }}</div><div class="kpi-foot">Forecast less approved budget</div></div>
+  <div class="card kpi"><div class="kpi-label">Open Follow-ups</div><div class="kpi-value">{{ questions|selectattr('status','equalto','Open')|list|length + changes|selectattr('status','in',['Open','Clarification Required'])|list|length }}</div><div class="kpi-foot">Questions and changes</div></div>
+</section>
+
+<div class="briefing-workspace {% if presentation_mode %}is-presenting{% endif %}">
+  <aside class="briefing-sections" aria-label="Briefing sections">
+    <div class="briefing-pane-head"><div><div class="eyebrow">Briefing flow</div><h3>Division summary</h3></div><span class="badge">{{ sections|length }}</span></div>
+    <nav class="briefing-section-nav">
+      {% for section in sections %}
+      <a class="{% if current_section and section.id == current_section.id %}active{% endif %}" href="/portfolio-reviews/{{ review.id }}/brief?section={{ section.id }}{% if presentation_mode %}&mode=present{% endif %}">
+        <span class="section-order">{{ loop.index }}</span><span><strong>{{ section.title }}</strong><small>{{ section.status }}</small></span>
+      </a>
+      {% endfor %}
+    </nav>
+    {% if not presentation_mode %}<div class="briefing-readiness-meter" aria-label="Briefing readiness {{ readiness }} percent"><span style="width:{{ readiness }}%"></span></div>{% endif %}
+  </aside>
+
+  <section class="briefing-stage" aria-live="polite">
+    {% if current_section %}
+    <div class="briefing-stage-head">
+      <div><div class="eyebrow">Section {{ current_section.sort_order }} · {{ current_content.status }}</div><h2>{{ current_content.title }}</h2><small>Owner: {{ users_map.get(current_content.owner_id).full_name if users_map.get(current_content.owner_id) else 'Unassigned' }}</small></div>
+      {% if presentation_mode %}<button class="btn btn-small" type="button" data-action="briefing-fullscreen">Fullscreen</button>{% endif %}
+    </div>
+
+    <article class="briefing-narrative">
+      {% if current_content.narrative %}<p>{{ current_content.narrative|replace('\n','<br>')|safe }}</p>{% else %}<div class="empty">No leadership narrative has been entered for this section. The source-backed evidence below is still available.</div>{% endif %}
+    </article>
+
+    <div class="briefing-source-label"><span>Source-backed evidence</span><small>Generated {{ payload.generated_at[:10] if payload.generated_at else 'from current records' }}</small></div>
+
+    {% set source = current_content.source_summary or {} %}
+    {% if current_content.section_key in ['executive-summary','portfolio-health'] %}
+      <div class="grid grid-4 compact-kpis">
+        <div class="card"><div class="eyebrow">Projects</div><h3>{{ payload.metrics.projects or 0 }}</h3></div>
+        <div class="card"><div class="eyebrow">Needs attention</div><h3>{{ payload.metrics.attention_projects or 0 }}</h3></div>
+        <div class="card"><div class="eyebrow">Stale status</div><h3>{{ payload.metrics.stale_projects or 0 }}</h3></div>
+        <div class="card"><div class="eyebrow">Overdue actions</div><h3>{{ payload.metrics.overdue_actions or 0 }}</h3></div>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Project</th><th>Health</th><th>Status</th><th>Complete</th><th>Forecast</th></tr></thead><tbody>{% for project in payload.projects %}<tr><td><a href="/projects/{{ project.id }}"><strong>{{ project.human_id }}</strong><br>{{ project.title }}</a></td><td><span class="badge badge-{{ project.health|badge }}">{{ project.health }}</span></td><td>{{ project.status }}</td><td>{{ project.percent_complete }}%</td><td>{{ project.forecast|money }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No projects in scope.</td></tr>{% endfor %}</tbody></table></div>
+    {% elif current_content.section_key == 'accomplishments' %}
+      <div class="briefing-cards">{% for report in payload.status_reports %}<article class="card compact"><div class="panel-head"><div><strong>{{ report.project }}</strong><small>Approved through {{ report.period_end }}</small></div><span class="badge badge-{{ report.health|badge }}">{{ report.health }}</span></div><p>{{ report.accomplishments or report.summary or 'No accomplishment narrative recorded.' }}</p></article>{% else %}<div class="empty">No approved project status reports are available for this division.</div>{% endfor %}</div>
+    {% elif current_content.section_key == 'leadership-attention' %}
+      <div class="briefing-cards">{% for project in payload.attention_projects %}<a class="card briefing-record-card" href="/projects/{{ project.id }}"><span class="badge badge-{{ project.health|badge }}">{{ project.health }}</span><h3>{{ project.human_id }} · {{ project.title }}</h3><p>{{ project.percent_complete }}% complete</p></a>{% else %}<div class="callout success">No active projects are currently marked At Risk, Off Track, Blocked, or Not Reported.</div>{% endfor %}</div>
+    {% elif current_content.section_key == 'demand-pipeline' %}
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Demand</th><th>Status</th><th>Urgency</th><th>Next action</th></tr></thead><tbody>{% for demand in payload.demands %}<tr><td><a href="/demands/{{ demand.id }}"><strong>{{ demand.human_id }}</strong><br>{{ demand.title }}</a></td><td><span class="badge badge-{{ demand.status|badge }}">{{ demand.status }}</span></td><td>{{ demand.urgency }}</td><td>{{ demand.next_action }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No open demands in scope.</td></tr>{% endfor %}</tbody></table></div>
+    {% elif current_content.section_key == 'milestones' %}
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Project</th><th>Milestone</th><th>Date</th><th>Status</th><th>Confidence</th></tr></thead><tbody>{% for milestone in payload.milestones %}<tr><td><a href="/projects/{{ milestone.project_id }}?tab=milestones">{{ milestone.project }}</a></td><td>{{ milestone.title }}</td><td>{{ milestone.date or '—' }}</td><td>{{ milestone.status }}</td><td>{{ milestone.confidence }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No open critical milestones in scope.</td></tr>{% endfor %}</tbody></table></div>
+    {% elif current_content.section_key in ['risks-dependencies','cross-division'] %}
+      <div class="grid grid-2"><div><h3>Risks and issues</h3><div class="briefing-cards">{% for item in payload.raid %}<a class="card compact briefing-record-card" href="/projects/{{ item.project_id }}?tab=raid"><span class="badge badge-{{ item.severity|badge }}">{{ item.severity }}</span><strong>{{ item.human_id }} · {{ item.title }}</strong><small>{{ item.project }} · {{ item.type }} · {{ item.status }}</small></a>{% else %}<div class="empty">No high-exposure open RAID items.</div>{% endfor %}</div></div><div><h3>Dependencies</h3><div class="briefing-cards">{% for item in payload.dependencies %}<a class="card compact briefing-record-card" href="/projects/{{ item.project_id }}?tab=raid"><span class="badge">{{ item.status }}</span><strong>{{ item.human_id }} · {{ item.title }}</strong><small>{{ item.project }}{% if item.external_party %} · {{ item.external_party }}{% endif %}</small></a>{% else %}<div class="empty">No open dependencies in scope.</div>{% endfor %}</div></div></div>
+    {% elif current_content.section_key == 'workforce-capacity' %}
+      <div class="grid grid-4 compact-kpis"><div class="card"><div class="eyebrow">Capacity</div><h3>{{ payload.metrics.capacity_hours }}h</h3></div><div class="card"><div class="eyebrow">Allocated</div><h3>{{ payload.metrics.allocated_hours }}h</h3></div><div class="card"><div class="eyebrow">Actual</div><h3>{{ payload.metrics.actual_hours }}h</h3></div><div class="card"><div class="eyebrow">Utilization</div><h3>{{ payload.metrics.utilization }}%</h3></div></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Role</th><th>Skill</th><th>Period</th><th>Capacity</th><th>Allocated</th><th>Gap</th></tr></thead><tbody>{% for gap in payload.resource_gaps %}<tr><td>{{ gap.role }}</td><td>{{ gap.skill }}</td><td>{{ gap.period }}</td><td>{{ gap.capacity }}</td><td>{{ gap.allocated }}</td><td><strong>{{ gap.gap }}</strong></td></tr>{% else %}<tr><td colspan="6" class="empty">No over-allocation or protected-coverage gaps detected.</td></tr>{% endfor %}</tbody></table></div>
+    {% elif current_content.section_key == 'investment-position' %}
+      <div class="grid grid-4 compact-kpis"><div class="card"><div class="eyebrow">Budget</div><h3>{{ payload.metrics.budget|money }}</h3></div><div class="card"><div class="eyebrow">Actual</div><h3>{{ payload.metrics.actual|money }}</h3></div><div class="card"><div class="eyebrow">Forecast</div><h3>{{ payload.metrics.forecast|money }}</h3></div><div class="card"><div class="eyebrow">Variance</div><h3>{{ payload.metrics.forecast_variance|money }}</h3></div></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Project</th><th>Budget</th><th>Actual</th><th>Forecast</th><th>Funding</th></tr></thead><tbody>{% for item in payload.financials %}<tr><td><a href="/projects/{{ item.project_id }}?tab=financial">{{ item.project }}</a></td><td>{{ item.budget|money }}</td><td>{{ item.actual|money }}</td><td>{{ item.forecast|money }}</td><td>{{ item.funding_status }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No financial records in scope.</td></tr>{% endfor %}</tbody></table></div>
+    {% elif current_content.section_key == 'benefits-outcomes' %}
+      <div class="grid grid-2 compact-kpis"><div class="card"><div class="eyebrow">Target value</div><h3>{{ payload.metrics.benefit_target }}</h3></div><div class="card"><div class="eyebrow">Realized value</div><h3>{{ payload.metrics.benefit_realized }}</h3></div></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Project</th><th>Benefit</th><th>Target</th><th>Realized</th><th>Status</th></tr></thead><tbody>{% for item in payload.benefits %}<tr><td><a href="/projects/{{ item.project_id }}?tab=financial">{{ item.project }}</a></td><td>{{ item.title }}</td><td>{{ item.target }} {{ item.unit }}</td><td>{{ item.realized }} {{ item.unit }}</td><td>{{ item.status }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No benefit records in scope.</td></tr>{% endfor %}</tbody></table></div>
+    {% elif current_content.section_key == 'travel-engagements' %}
+      <div class="grid grid-5 compact-kpis"><div class="card"><div class="eyebrow">Travel requests</div><h3>{{ payload.metrics.travel_requests or 0 }}</h3></div><div class="card"><div class="eyebrow">Estimated cost</div><h3>{{ payload.metrics.travel_estimated_cost|money }}</h3></div><div class="card"><div class="eyebrow">Trip reports</div><h3>{{ payload.metrics.trip_reports or 0 }}</h3></div><div class="card"><div class="eyebrow">Awaiting review</div><h3>{{ payload.metrics.travel_reports_awaiting_review or 0 }}</h3></div><div class="card"><div class="eyebrow">Needs match</div><h3>{{ payload.metrics.travel_reconciliation or 0 }}</h3></div></div>
+      <div class="travel-banner-note"><strong>Cost basis</strong><span>Approval estimates support portfolio planning and are not authoritative actual expenditures.</span></div>
+      <div class="grid grid-2"><div><h3>Travel and forums</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Traveler / location</th><th>Dates</th><th>Estimate</th></tr></thead><tbody>{% for item in payload.travel_requests %}<tr><td><a href="/travel/requests/{{ item.id }}">{{ item.human_id }}</a></td><td>{{ item.traveler }}<br><small>{{ item.location }}</small></td><td>{{ item.departure_date }}–{{ item.return_date }}</td><td>{{ item.estimated_cost|money }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No travel requests in the briefing period.</td></tr>{% endfor %}</tbody></table></div></div><div><h3>Outcome reports</h3><div class="briefing-cards">{% for item in payload.trip_reports %}<a class="card compact briefing-record-card" href="/travel/reports/{{ item.id }}"><span class="badge badge-{{ item.review_status|badge }}">{{ item.review_status }}</span><strong>{{ item.human_id }} · {{ item.title }}</strong><small>{{ item.traveler }} · {{ item.location }}</small><p>{{ item.key_findings or item.recommendations or 'Outcome narrative available in the linked report.' }}</p></a>{% else %}<div class="empty">No trip reports in the briefing period.</div>{% endfor %}</div></div></div>
+    {% elif current_content.section_key == 'prior-actions' %}
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Action</th><th>Due</th><th>Status</th></tr></thead><tbody>{% for item in payload.actions %}<tr><td><a href="/records/action/{{ item.id }}"><strong>{{ item.human_id }}</strong> · {{ item.title }}</a></td><td>{% if item.overdue %}<span class="badge badge-Off-Track">Overdue · {{ item.due_date }}</span>{% else %}{{ item.due_date or '—' }}{% endif %}</td><td>{{ item.status }}</td></tr>{% else %}<tr><td colspan="3" class="empty">No open prior actions in scope.</td></tr>{% endfor %}</tbody></table></div>
+    {% else %}
+      <div class="source-summary-json"><pre>{{ source|tojson(indent=2) }}</pre></div>
+    {% endif %}
+
+    {% if can_edit and not presentation_mode %}
+    <details class="card briefing-editor" open>
+      <summary>Edit section narrative and readiness</summary>
+      <form action="/portfolio-reviews/{{ review.id }}/briefing/sections/{{ current_section.id }}" method="post" class="form-grid">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <label class="field field-span-2">Leadership narrative<textarea class="textarea" name="narrative" rows="6" placeholder="Summarize what changed, why it matters, and what leadership should understand.">{{ current_content.narrative }}</textarea></label>
+        <label class="field">Section owner<select class="select" name="owner_id"><option value="">Unassigned</option>{% for uid,u in users_map.items() %}<option value="{{ uid }}" {% if uid == current_section.owner_id %}selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
+        <label class="field">Readiness<select class="select" name="status">{% for state in ['Not Started','In Preparation','Ready for Division Review','Changes Required','Division Approved','Ready to Brief'] %}<option {% if state == current_section.status %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></label>
+        <div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="submit">Save section</button></div>
+      </form>
+    </details>
+    {% endif %}
+    {% endif %}
+  </section>
+
+  <aside class="briefing-review-panel">
+    <div class="briefing-pane-head"><div><div class="eyebrow">Live review</div><h3>Questions &amp; follow-up</h3></div><span class="badge">{{ questions|length + changes|length }}</span></div>
+
+    <details class="review-panel-group" open><summary>Questions <span>{{ questions|selectattr('status','equalto','Open')|list|length }} open</span></summary>
+      <div class="review-panel-list">{% for item in questions if (not current_section or not item.section_id or item.section_id == current_section.id) %}<article class="review-thread"><div class="panel-head"><strong>{{ item.human_id }}</strong><span class="badge badge-{{ item.status|badge }}">{{ item.status }}</span></div><p>{{ item.question }}</p><small>Assigned to {{ users_map.get(item.assigned_to_id).full_name if users_map.get(item.assigned_to_id) else 'Unassigned' }} · {{ item.priority }}{% if item.due_date %} · Due {{ item.due_date|datefmt }}{% endif %}</small>{% if item.response %}<div class="callout success"><strong>Response</strong><br>{{ item.response }}</div>{% endif %}{% if can_participate and review.status != 'Completed' and (user.id == item.assigned_to_id or can_facilitate or can_edit) %}<form action="/portfolio-reviews/{{ review.id }}/briefing/questions/{{ item.id }}/respond" method="post" class="stack-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><textarea class="textarea" name="response" rows="2" required placeholder="Document the answer or research result">{{ item.response }}</textarea><div class="inline-controls"><select class="select" name="status"><option>Answered</option><option>Closed</option><option>Open</option></select><button class="btn btn-small" type="submit">Update</button></div></form>{% endif %}</article>{% else %}<div class="empty compact">No questions for this section.</div>{% endfor %}</div>
+      {% if can_participate and review.status != 'Completed' %}<form action="/portfolio-reviews/{{ review.id }}/briefing/questions" method="post" class="stack-form review-create-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="section_id" value="{{ current_section.id if current_section else '' }}"><textarea class="textarea" name="question" rows="2" required placeholder="Ask a question"></textarea><select class="select" name="assigned_to_id"><option value="">Assign to chair</option>{% for uid,u in users_map.items() %}<option value="{{ uid }}">{{ u.full_name }}</option>{% endfor %}</select><div class="inline-controls"><select class="select" name="priority"><option>Normal</option><option>High</option><option>Critical</option><option>Low</option></select><input class="input" type="date" name="due_date"><button class="btn btn-small" type="submit">Ask</button></div></form>{% endif %}
+    </details>
+
+    <details class="review-panel-group"><summary>Change requests <span>{{ changes|selectattr('status','in',['Open','Clarification Required'])|list|length }} open</span></summary>
+      <div class="review-panel-list">{% for item in changes if (not current_section or not item.section_id or item.section_id == current_section.id) %}<article class="review-thread"><div class="panel-head"><strong>{{ item.human_id }} · {{ item.field_name or 'Source change' }}</strong><span class="badge badge-{{ item.status|badge }}">{{ item.status }}</span></div><p>{{ item.rationale }}</p>{% if item.current_value or item.proposed_value %}<small>Current: {{ item.current_value or '—' }}<br>Proposed: {{ item.proposed_value or '—' }}</small>{% endif %}{% if item.resolution %}<div class="callout"><strong>Resolution</strong><br>{{ item.resolution }}</div>{% endif %}{% if can_participate and review.status != 'Completed' and (user.id == item.owner_id or can_facilitate or can_edit) %}<form action="/portfolio-reviews/{{ review.id }}/briefing/change-requests/{{ item.id }}/resolve" method="post" class="stack-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><textarea class="textarea" name="resolution" rows="2" required placeholder="Document disposition and source-record follow-up">{{ item.resolution }}</textarea><div class="inline-controls"><select class="select" name="status"><option>Accepted</option><option>Partially Accepted</option><option>Rejected</option><option>Clarification Required</option><option>Applied</option><option>Closed</option><option>Open</option></select><button class="btn btn-small" type="submit">Resolve</button></div></form>{% endif %}</article>{% else %}<div class="empty compact">No change requests for this section.</div>{% endfor %}</div>
+      {% if can_participate and review.status != 'Completed' %}<form action="/portfolio-reviews/{{ review.id }}/briefing/change-requests" method="post" class="stack-form review-create-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="section_id" value="{{ current_section.id if current_section else '' }}"><input class="input" name="field_name" placeholder="Field or information to change"><input class="input" name="current_value" placeholder="Current value"><input class="input" name="proposed_value" placeholder="Proposed value"><textarea class="textarea" name="rationale" rows="2" required placeholder="Why is the change needed?"></textarea><select class="select" name="owner_id"><option value="">Assign to chair</option>{% for uid,u in users_map.items() %}<option value="{{ uid }}">{{ u.full_name }}</option>{% endfor %}</select><div class="inline-controls"><input class="input" type="date" name="due_date"><button class="btn btn-small" type="submit">Request change</button></div></form>{% endif %}
+    </details>
+
+    <details class="review-panel-group"><summary>Notes &amp; parking lot <span>{{ notes|length }}</span></summary>
+      <div class="review-panel-list">{% for item in notes if (not current_section or not item.section_id or item.section_id == current_section.id) %}<article class="review-note"><span class="badge">{{ item.note_type }}</span><p>{{ item.body }}</p><small>{{ users_map.get(item.author_id).full_name if users_map.get(item.author_id) else 'Unknown' }} · {{ item.created_at|datefmt }}</small></article>{% else %}<div class="empty compact">No notes for this section.</div>{% endfor %}</div>
+      {% if can_participate and review.status != 'Completed' %}<form action="/portfolio-reviews/{{ review.id }}/briefing/notes" method="post" class="stack-form review-create-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="section_id" value="{{ current_section.id if current_section else '' }}"><select class="select" name="note_type"><option>Discussion</option><option>Parking Lot</option><option>Clarification</option><option>Observation</option></select><textarea class="textarea" name="body" rows="2" required placeholder="Capture the discussion or parking-lot item"></textarea><button class="btn btn-small" type="submit">Add note</button></form>{% endif %}
+    </details>
+
+    {% if can_facilitate and review.status != 'Completed' %}<details class="review-panel-group"><summary>Assign action</summary><form action="/portfolio-reviews/{{ review.id }}/briefing/actions" method="post" class="stack-form review-create-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input class="input" name="title" required placeholder="Expected follow-up outcome"><select class="select" name="owner_id" required><option value="">Select owner</option>{% for uid,u in users_map.items() %}<option value="{{ uid }}">{{ u.full_name }}</option>{% endfor %}</select><div class="inline-controls"><input class="input" type="date" name="due_date"><button class="btn btn-small" type="submit">Assign</button></div></form></details>{% endif %}
+  </aside>
+</div>
+
+{% if can_approve and review.status == 'In Review' %}
+<section class="card briefing-closeout">
+  <div class="panel-head"><div><div class="eyebrow">Close the forum</div><h3>Complete leadership review</h3><p>Open questions and change requests remain assigned after closure and continue to appear in My Work.</p></div></div>
+  <form action="/portfolio-reviews/{{ review.id }}/complete" method="post" class="form-grid"><input type="hidden" name="csrf" value="{{ csrf_token }}"><label class="field field-span-2">Final summary<textarea class="textarea" name="summary" rows="4">{{ review.summary }}</textarea></label><label class="check-row field-span-2"><input type="checkbox" name="acknowledge_open_items" value="1"> Acknowledge that unresolved questions and change requests will remain open as governed follow-up.</label><div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="submit">Complete review</button></div></form>
+</section>
+{% endif %}
+
+{% if not presentation_mode %}<div class="section-title"><h3>Briefing audit activity</h3></div><div class="activity-list">{% for event in audit %}<div class="activity-item"><span class="activity-dot"></span><div><strong>{{ event.action }}</strong><small>{{ event.created_at|datefmt }} · {{ users_map.get(event.actor_id).full_name if users_map.get(event.actor_id) else 'System' }}</small></div></div>{% else %}<div class="empty">No briefing activity has been recorded.</div>{% endfor %}</div>{% endif %}
+{% endblock %}

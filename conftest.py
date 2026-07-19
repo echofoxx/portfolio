@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
-TEST_DB = Path(__file__).resolve().parent / "test.db"
+# Keep the high-write integration database off synced/overlay workspaces. This
+# also makes parallel release verification independent of the source tree.
+TEST_DB = Path(tempfile.gettempdir()) / f"jsj6-enterprise-portfolio-test-{os.getpid()}.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["UPLOAD_DIR"] = str(Path(__file__).resolve().parent / "uploads")

@@ -1,35 +1,55 @@
-# Test Results — v0.6.0
+# Test Results — v0.8.0
 
-| Area | Result |
+## v0.8.0 release result
+
+- Full suite: **97 passed, 0 failed**.
+- v0.8.0 acceptance tests: **7 passed** covering direct divisions and banners, local project creation, stable-ID promotion, Admin resource preview/commit/export, persisted dashboard preferences, 14-blueprint catalog, and focused project-entry pages.
+- Python module and migration compilation: passed.
+- JavaScript syntax (`node --check app/static/app.js`): passed.
+- Clean Alembic upgrade: passed from base through `0009_self_service_v080`.
+- Schema assertions: promotion and dashboard-preference tables present; all five project governance fields present.
+- Clean seed assertions: 8 divisions, 14 active blueprints, 27 demonstration users.
+- Docker Compose validation: not run because Docker is unavailable in the build environment; target-host verification remains required.
+
+Framework emitted 175 Starlette template-signature deprecation warnings. They are non-failing technical debt and do not change release behavior.
+
+---
+
+# Historical Test Results — v0.7.7
+
+## Summary
+
+- Automated tests: **89 passed** (80 regression + 9 new v0.7.9 acceptance tests).
+- Framework deprecation warnings: 134; no test failures.
+- Python compilation: passed.
+- JavaScript syntax validation: passed.
+- Jinja template compilation and principal route rendering: passed.
+- RTM regeneration: 335 rows.
+
+## v0.7.7 acceptance evidence
+
+| Area | Evidence |
 |---|---|
-| Automated tests | 60 passed |
-| Application-code coverage | Existing v0.5.0 baseline: 83% |
-| Template compilation | 43 passed |
-| Clean migration | Passed through `0005_portfolio_governance_v050` |
-| v0.4.0 upgrade migration | Passed; core record counts preserved |
-| Authenticated route smoke | 9 primary workspaces returned HTTP 200 |
-| Python compilation | Passed |
-| JavaScript syntax | Passed |
-| Docker runtime | Not executed; Docker daemon unavailable in artifact environment |
+| Location normalization | Known aliases and source typographical variants resolve to canonical destinations; mapping coverage exceeds 95% |
+| Interactive travel map | Local map asset, JSON-backed markers, aggregate detail, Top Locations synchronization, and location filter render |
+| Travel analytics | Monthly trend, determination mix, outcome funnel, report compliance, reconciliation, and engagement impact render |
+| Investment Flow | Approved budget flows through category, division, project, actual-to-date, and unspent-approved outcomes |
+| Reconciliation | Investment Flow summary conserves approved values within rounding tolerance |
+| Drill-through | Sankey nodes open financial filters or projects; travel locations open filtered request/report populations |
+| Accessibility | Keyboard labels and selection, table/list alternatives, and source links are present |
+| Security | Visualizations use local assets and same-origin JavaScript under the existing CSP |
+| Briefings label | User-facing labels show Briefings while `/portfolio-reviews` remains functional |
+| Regression | All prior v0.1.0–v0.7.6 automated tests pass |
 
-## New v0.6.0 acceptance evidence
+## Primary v0.7.7 test module
 
-1. The application shell identifies JSJ6 Enterprise Portfolio Management.
-2. Premium Enterprise Dark is the first-run default and the complete light theme remains available.
-3. The requested top navigation and reorganized sidebar render with functional links.
-4. Portfolio Overview renders six KPI cards, both portfolio visualizations, recent decisions, assigned work, and portfolio drill-down rows.
-5. The legacy `/war-room` route is absent and no War Room control appears in the rendered navigation or dashboard.
-6. Shared controls and responsive layout rules apply across templates without altering server-side workflows.
+`tests/test_v077.py` covers location normalization and coverage, map and travel analytics rendering, Investment Flow rendering and basis, Briefings relabeling, static versioning, and financial drill-through filters.
 
-## Retained v0.5.0 acceptance evidence
 
-1. An administrator can create a local user with roles, division scope, and sensitive-access state.
-2. An administrator can create an auditable acting-role delegation.
-3. A ProjectOS mock synchronization stores a canonical project/task/milestone payload and records that no remote write occurred.
-4. A portfolio-review recommendation can create linked Decision and Action records.
-5. Scenario calculation leaves authoritative records unchanged until approval and explicit apply.
-6. Resource, financial, quality, report-pack, division-scope, and restricted-record workflows continue to pass.
+## v0.7.9 validation summary
 
-## Test boundaries
-
-The automated suite does not constitute RMF authorization, penetration testing, external connector certification, formal accessibility certification, browser certification, load testing, disaster-recovery proof, or financial/workforce-system accreditation.
+- Full suite: `pytest` → **89 passed, 0 failed** (Python 3.12, SQLite test database).
+- New acceptance tests (`tests/test_v079.py`): version single-source consistency; simplified navigation with collapsible groups; adaptive shell, glossary, and onboarding markers; Action Center groups with empty-group collapse; quick task update permission + audit evidence; quick update rejected for non-owner (403); decision-first dashboard ordering with explainable health; Travel focused views with 25-row pagination and safe view fallback; reduced-motion and telemetry markers.
+- Root-caused stale expectations (not suppressed): hard-coded `0.7.7` asset strings in seven suites now assert against `app.config.APP_VERSION`; `test_v077` updated for the intentional "Outcome pipeline" rename and the inline packaged world map; `test_v060`/`test_v070`/`test_v076` updated for the intentional v0.7.9 navigation and Action Center redesign.
+- Authorization: quick actions verified server-side for owner/managing-PM/ADMIN/PMO; CSRF enforced; audit events (`QUICK_UPDATE`, `QUICK_CLOSE`) asserted with before/after values.
+- Responsive review: 1440 / 1024 / 768 / 390 px rules reviewed in CSS; Action Center reflows to stacked cards, decision row collapses to one column, help drawer is full-screen, touch targets ≥42px, and `prefers-reduced-motion` disables animation globally. (No headless browser is packaged; visual confirmation performed against the running dev server.)

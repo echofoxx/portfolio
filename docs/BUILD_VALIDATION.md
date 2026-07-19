@@ -1,89 +1,48 @@
-# v0.6.0 Build Validation
+# v0.8.0 Build Validation
 
-## Automated test suite
+## Automated validation
 
-Command:
+| Check | Result |
+|---|---|
+| `pytest -q` | **97 passed**, 175 non-failing framework deprecation warnings |
+| Python compilation | Passed for application and migration Python modules |
+| `node --check app/static/app.js` | Passed |
+| Jinja template compilation and route rendering | Passed |
+| Alembic compatibility | Clean upgrade passed through `0009_self_service_v080`; new tables and project fields asserted |
+| Application version | `0.8.0` (single source: `VERSION` → `app.config.APP_VERSION`) |
+| Clean seed | 8 divisions, 14 active project blueprints, 27 demo users |
 
-```bash
-pytest --cov=app --cov-report=term-missing -q
-```
+## v0.8.0 functional evidence
 
-Result:
+- JFID corrected banner, CCD banner, and FO banner render from optimized same-origin WebP assets with populated profile summaries.
+- Division navigation is available from the primary menu, topbar switcher, dashboard, and breadcrumbs.
+- Local and portfolio-managed projects initialize governed boards/tasks/milestones from selected blueprints.
+- Promotion approval updates the same local project record to portfolio-managed and retains its ID.
+- Dashboard panel preferences persist order, size, and hidden state per user; role defaults remain recoverable.
+- Admin resource CSV import performs preview, validation, create/update/unchanged classification, explicit commit, and audit evidence.
+- Division dashboard aggregation reuses permission-scoped project and demand collections.
+- Dedicated task, milestone, RAID, status-report, project, promotion, resource-request, and import-review pages render and retain server-side permission and CSRF enforcement.
 
-- 60 tests passed
-- existing v0.5.0 coverage baseline remains 83%
-- no test failures
-- warnings were framework deprecation notices from the current Jinja/Starlette test stack
+## v0.7.7 functional evidence
 
-Coverage includes demand-to-project, scoring, permissions, audit, import, task, file, board, WBS, schedule, blueprint, status-report, search, and portfolio-overview behavior plus v0.5.0 and v0.6.0 capabilities:
+- Portfolio Overview renders the Investment Flow payload, conserved summary, local SVG Sankey, accessible category table, and financial/project drill-through.
+- Financial flow filters support category, division, actual-to-date, and unspent-approved views.
+- Travel renders the local world outline, normalized location payload, proportional markers, linked Top Locations, and city-level detail.
+- Location aliases such as source typographical variants normalize to governed canonical destinations while original source values remain unchanged.
+- Seeded mapping coverage exceeds 95%; unmapped values are explicitly listed for stewardship.
+- Monthly trend, determination by division, outcome funnel, report compliance, reconciliation, and engagement impact share the same accessible filtered population.
+- Briefings is relabeled without changing stable routes or data records.
+- Static assets are cache-versioned `0.7.7` and remain compatible with the self-only Content Security Policy.
 
-- administration creates and updates users
-- delegation registry creation and audit evidence
-- ProjectOS dry-run canonical payload and no-remote-write behavior
-- field-ownership and integration registry access
-- portfolio-review decision creates linked Decision and Action records
-- resource-request submit and decision workflow
-- financial transaction creation
-- non-destructive scenario calculation, approval, and governed apply
-- data-quality scanning, issue update, and job history
-- report-pack generation and approval
-- division and restricted-record access boundaries
+## Regression evidence
 
-## Migration validation
+All prior demand, project, task, schedule, governance, scenario, resource, financial, data-quality, integration, division, briefing, import, travel, search, audit, and permission tests pass.
 
-### Clean database
+## Manual target-host validation required
 
-- Alembic upgraded from base through `0005_portfolio_governance_v050`.
-- Seed completed successfully.
-- Seed totals included 25 users, 20 demands, 17 projects, 80 tasks, 35 milestones, 307 RTM rows, one portfolio review, one scenario, three integration connections, one resource request, one financial transaction, one report pack, and job evidence.
-
-### In-place v0.4.0 upgrade
-
-An actual v0.4.0 database was migrated and reseeded with the v0.5.0 source.
-
-Preserved after upgrade:
-
-- 25 users
-- 20 demands
-- 17 projects
-- 80 tasks
-- 307 RTM records
-
-New v0.5.0 reference data was added without replacing existing project/demand/task records.
-
-## Template and HTTP validation
-
-- 43 Jinja templates compiled using the application environment and registered filters after removal of the legacy template.
-- Authenticated smoke requests returned HTTP 200 for:
-  - `/dashboard`
-  - `/portfolio-reviews`
-  - `/scenarios`
-  - `/integrations`
-  - `/resources`
-  - `/financials`
-  - `/data-quality`
-  - `/operations`
-  - `/administration`
-
-## Static validation
-
-- Python source compilation completed.
-- JavaScript syntax validation completed.
-- CSP-incompatible inline click handlers and JavaScript pseudo-links were inspected.
-- Docker Compose YAML was parsed structurally.
-
-## Docker limitation
-
-The artifact environment does not provide a usable Docker daemon, so the full PostgreSQL, web, and Mailpit Compose stack could not be started here. The target host must execute:
-
-```bash
-docker compose up -d --build
-docker compose ps
-curl -fsS http://localhost:8080/health/ready
-```
-
-Container-health, reverse-proxy, browser, backup/restore, and persistence-after-restart results should be retained as deployment acceptance evidence.
-
-## Release-package checks
-
-Before publication the release archive is cleaned of local databases, uploaded test files, virtual environments, coverage residue, test caches, and compiled bytecode. ZIP integrity and SHA-256 verification are performed after packaging.
+- Docker Compose build/start and PostgreSQL upgrade against an operational v0.7.6 backup.
+- Browser visual regression at desktop, laptop, tablet, mobile, and conference-room resolutions.
+- Keyboard, screen-reader, reduced-motion, 200% zoom/reflow, and formal WCAG 2.2 AA review.
+- Representative scale/performance testing for significantly larger project and destination populations.
+- Security, privacy, classification/handling, records-retention, coordinate stewardship, and source-owner approval.
+- Signed UAT by financial managers, travelers, division portfolio managers, division chiefs, data stewards, PMO, leaders, auditors, and security reviewers.

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Import {{ org.code }} Profile · DDC5I Portfolio{% endblock %}
+{% block content %}
+<div class="page-head"><div><span class="eyebrow">Division data exchange</span><h2>Import {{ org.code }} profile</h2><p>Upload one JSON profile object or one CSV profile row. The file is validated and previewed before anything changes.</p></div><div class="actions"><a class="btn" href="/divisions/{{ org.code }}">Back to division</a><a class="btn" href="/divisions/{{ org.code }}/export/json">Download JSON example</a></div></div>
+{% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+<div class="grid grid-2 import-approachable-grid">
+  <form class="card friendly-upload-card" method="post" action="/divisions/{{ org.code }}/profile/import/preview" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="upload-icon" aria-hidden="true">⇧</div>
+    <h3>Choose a profile file</h3>
+    <p>Accepted formats: <strong>.json</strong> or <strong>.csv</strong>. A CSV package exported from this page contains <code>division_profile.csv</code>, which can be uploaded here.</p>
+    <label class="file-picker"><span>Select file</span><input type="file" name="file" accept=".json,.csv,application/json,text/csv" required></label>
+    <button class="btn btn-primary" type="submit">Review import</button>
+  </form>
+  <section class="card import-help-card">
+    <span class="eyebrow">How this works</span><h3>Preview first, publish second</h3>
+    <ol class="simple-steps"><li><strong>Choose</strong><span>Select the JSON or CSV profile.</span></li><li><strong>Review</strong><span>Confirm mission, focus areas, relationships, and banner details.</span></li><li><strong>Publish</strong><span>Commit the validated profile with an audit record.</span></li></ol>
+    <div class="callout"><strong>Protected information</strong><p>This importer updates only the division profile. It does not overwrite projects, demands, financial records, briefing questions, decisions, or audit history.</p></div>
+  </section>
+</div>
+{% endblock %}

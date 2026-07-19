@@ -2,14 +2,107 @@
 
 A functional, locally deployable reference implementation for connecting JSJ6 strategy and mission to demand intake, assessment, leadership decisions, portfolio delivery, projects, resources, investments, dependencies, outcomes, benefits, audit, reporting, and requirements traceability.
 
-> **Release:** 0.6.0 — Premium Enterprise UX and Dashboard Modernization  
+> **Release:** 0.8.0 — Self-Service Portfolio Operations  
 > **Deployment:** Docker Desktop / Docker Compose  
 > **Web port:** `8080`  
 > **Mailpit:** `8025`  
 > **Authentication:** local demonstration accounts only; not production SSO, CAC, or PIV  
 > **Authorization:** server-side RBAC, organization scope, sensitivity checks, and audit evidence
 
-The application is deliberately honest about coverage. The imported 307-row RTM is classified as **91 Implemented**, **56 Partially implemented**, **111 Planned**, **27 Requires integration**, **12 Requires policy or governance decision**, and **10 Deferred**. v0.6.0 modernizes the complete interface without changing those coverage claims. The in-app RTM lets administrators update design references, tests, releases, UAT results, acceptance notes, and status.
+The application is deliberately honest about coverage. v0.8.0 adds self-service project governance, configurable role dashboards, direct division navigation, controlled resource exchange, and expanded delivery blueprints while preserving all prior demand, briefing, travel, investment, audit, and traceability capabilities.
+
+## What is new in v0.8.0
+
+- **Self-service projects:** authorized users can create a division-local project using existing capacity or a portfolio-managed project requiring enterprise funding/resources. A local project can later be promoted without changing its stable project ID or losing tasks, evidence, audit history, or relationships.
+- **Focused forms:** project creation, promotion, task, milestone, RAID, status report, resource request, and resource-import review workflows use dedicated pages. Kanban task links use reliable full-page details; inline and slide-out data-entry patterns are minimized.
+- **Role-focused Portfolio Overview:** Leader, Portfolio, Division, Project Manager, Contributor, Resource, Financial, and Operations lenses start with different smart panel orders. Users can reorder, resize, or hide panels and persist their configuration.
+- **Direct Divisions access:** Divisions is a primary navigation destination, a topbar division switcher, a dashboard shortcut, and a breadcrumb destination. Users no longer navigate through Reports to reach Division Summary.
+- **Division identity:** JFID uses the corrected banner and summary; CCD and the DDC5I Front Office are first-class division profiles with responsive banners, mission details, focus areas, responsibilities, and direct portfolio views.
+- **Controlled resource exchange:** Administrators can export resources and requests, download a CSV template, preview a resource-capacity import with row-level validation, and explicitly commit audited creates/updates.
+- **Expanded project blueprints:** 14 active blueprints cover division-local work, general delivery, software, AI/ML, architecture, C2 requirements, coalition interoperability, joint fires/CJADC2, cyber experimentation, policy, events, process improvement, assessments, and data standards.
+- **Release quality:** migration head `0009_self_service_v080`; clean Alembic upgrade validated; Python and JavaScript syntax checks pass; **97 automated tests pass**.
+
+See [Upgrade to v0.8.0](docs/UPGRADE_0.8.0.md), [Release Notes](docs/RELEASE_NOTES.md), [User Guide by Role](docs/USER_GUIDE.md), and [Administrator Guide](docs/ADMIN_GUIDE.md).
+
+## What is new in v0.7.9
+
+- **Simplified navigation:** a normal role now sees nine primary destinations (Home, My Work, Projects, Demand Intake, Briefings, Resources, Investments & Value, Reports & Analytics, Travel & Engagements). Less-frequent workspaces (Strategy, Scenarios, Decisions, Risks & Dependencies, Roadmaps, Blueprints, Notifications, saved views) and Administration & Assurance collapse into persistent expandable sidebar groups. No authorized capability was removed. The top strip is now a contextual shortcut bar (Home, My Work with open count, your top two role actions, Notifications) instead of a duplicate of the sidebar.
+- **My Work Action Center:** one prioritized queue grouped by attention level — Critical now, Awaiting me, Due soon, Needs update, Watching, Recently completed. Each card explains *why* it needs attention, shows parent, priority, due date, and status, and offers one primary action. Empty groups collapse automatically; a single positive empty state replaces multiple empty panels. Briefing questions, change requests, travel follow-ups, stale project status, and health deterioration all feed the same queue.
+- **Quick actions:** task percent-complete and completion, and action close-out, can be performed inline from My Work in seconds — CSRF-protected, permission-checked (owner or managing PM), and fully audited with before/after evidence (`QUICK_UPDATE`, `QUICK_CLOSE`).
+- **Decision-first Portfolio Overview:** the executive dashboard now leads with **Decisions Required** and **Significant Changes** (health deterioration, critical risks, cost-forecast breach, milestone slippage, stale status) before KPIs and health. The Investment Flow Sankey moved into a dedicated **Investment analysis** deep-dive section below the decision surface.
+- **Explainable rollups:** Portfolio Health gained a *Why? · View calculation* control showing the formula, per-status counts, the effective-health precedence (override → owner → calculated) per contributing project, and data freshness.
+- **Travel decomposed into focused workspaces:** Overview (KPIs, map, trends, compliance, outcome pipeline), Requests, Trip Reports, Reconciliation, and Engagement Outcomes — with server-side pagination (25 rows per page) replacing single very long pages, filters preserved across views, and a shorter viewport-friendly map with an independently scrolling location index.
+- **Adaptive guidance and onboarding:** the role-focus strip compacts automatically for returning users (and can be toggled), page guides collapse by default after first visit, and a role-specific *Getting started* checklist appears on first login with dismiss and restart controls.
+- **Help & glossary drawer:** a searchable drawer (topbar **?**) defining RAID, ROM, RTM, health status, calculated vs approved status, benefit realization, ROI, authoritative source, reconciliation, determination, stage gate, and confidence score — each with plain-language meaning, why it matters, owner, authoritative source, and location.
+- **Adoption measurement hooks:** a privacy-conscious local telemetry queue (`window.jsj6Telemetry`) records UX events (page views, quick actions, help usage, glossary and search misses) in a 200-event local ring buffer with no network calls, no identifiers, and no record content — ready for the organization to connect approved analytics tooling later.
+- **Accessibility and mobile:** global `prefers-reduced-motion` support, 42px minimum touch targets on mobile, Action Center cards reflow to stacked mobile layout, and the help drawer is full-screen on small viewports.
+- **Release integrity:** the `VERSION` file is now the single source of truth (`app.config.APP_VERSION`) feeding the FastAPI metadata, UI footer, static asset strings, export schema versions, and package README — resolving the v0.7.7/v0.7.8 drift. Nine stale test expectations were root-caused and intentionally updated; the suite now contains **89 passing tests** including nine new v0.7.9 acceptance tests.
+
+## What is new in v0.7.8
+
+- **Portfolio Overview layout:** the Portfolio planning flow (Investment Flow Sankey) now occupies its own full-width row with a wider diagram; Portfolio Health, My Tasks, and Recent Decisions sit below it in a dedicated three-panel row, in that order.
+- **Realistic travel geography:** the Interactive geographic footprint now renders a locally packaged equirectangular world map with true country landmasses (279 simplified Natural Earth rings, ~72 KB, inline SVG) styled for both light and dark themes. No external tiles, fonts, or services; the air-gap posture is unchanged and existing marker coordinates project identically.
+- **Tighter map panels:** the geographic footprint and Linked map index cards are shorter; the map canvas holds a true 2:1 aspect, and the Top Locations index now lists up to 25 destinations in a scrollable list.
+- **Outcome pipeline:** the Travel-to-value chain funnel is replaced by a horizontal stage-bar pipeline. Each stage shows its record count, bar length relative to starting volume, and the percentage carried over from the previous stage — a direct read of where volume drops off.
+- **First-load motion:** KPI numbers count up, donut segments sweep, bars and meters grow, Sankey links draw in, and map markers pop with staggered timing. Animations run once per element on first visibility, use ~0.6–1.2 s eased curves, honor `prefers-reduced-motion`, and remove themselves after entry so hover interactions stay instant.
+
+## What is new in v0.7.7
+
+- Added an interactive, locally rendered travel map with proportional estimated-cost markers, linked Top Locations, mapping coverage, and visible unmapped-location stewardship.
+- Added governed destination alias normalization while preserving original source values and avoiding external geocoding or map services.
+- Added monthly travel cost-and-volume, determination-by-division, outcome-funnel, report-compliance, and engagement-impact visuals.
+- Added a reconciled **Investment Flow** Sankey on Portfolio Overview with category, division, project, actual-to-date, and unspent-approved drill-through.
+- Relabeled **Briefings & Reviews** to **Briefings** without changing routes, records, permissions, or audit history.
+- Corrected the portfolio benefit KPI so nonmonetary benefit-index values are not formatted as currency.
+- Added ten v0.7.7 RTM requirements and four acceptance tests; the full suite contains 89 passing tests.
+
+See [Upgrade to v0.7.9](docs/UPGRADE_0.7.9.md), [Upgrade to v0.7.7](docs/UPGRADE_0.7.7.md), [Release Notes](docs/RELEASE_NOTES.md), [User Guide by Role](docs/USER_GUIDE.md), and [Roadmap](docs/ROADMAP.md).
+
+## What is new in v0.7.6
+
+- Added a **Travel & Engagements** workspace with date, division, determination, traveler, event, and location filtering; status, division, month, destination, and reconciliation summaries; and complete request/report drill-through.
+- Added canonical `TravelEngagement`, `TravelRequest`, `TravelApprovalStep`, `TripReport`, `TripReportItem`, and `TravelEntityLink` entities through migration `0008_travel_engagements_v076`.
+- Added controlled imports for the supplied Travel Requests and Trip Reports workbooks with validation, non-destructive preview, row-level findings, explicit commit, stable source IDs, raw source payloads, and audit evidence.
+- Seeded all **385** supplied travel approval records totaling **$1,082,395.25** and all **9** supplied trip reports. One source date-sequence anomaly is retained as a governed warning rather than silently corrected.
+- Added candidate matching by traveler, division, date, event, and destination; auto-linking only for high-confidence unique matches; and human reconciliation for ambiguous records.
+- Added full trip-report narrative views, structured findings/recommendations/action candidates, promotion to canonical actions, risks, or decisions, and exact backlinks to the originating report.
+- Added Division Portfolio and Division Briefing sections for travel, forums, external engagement outcomes, estimated costs, report gaps, review workload, and reconciliation.
+- Added travel-specific My Work follow-up, global search, data-quality rules, CSV exports, division export package content, role/sensitivity enforcement, and twelve release RTM requirements.
+- Preserved the dashboard source disclaimer: travel costs are approval estimates, not authoritative actual expenditures.
+
+See [Upgrade to v0.7.6](docs/UPGRADE_0.7.6.md), [Release Notes](docs/RELEASE_NOTES.md), [User Guide by Role](docs/USER_GUIDE.md), and [Roadmap](docs/ROADMAP.md).
+
+## What is new in v0.7.5
+
+- Added responsive, accessible division banners for AID, C3OD2, CID, DSD, JAD, and JFID.
+- Made the Division Portfolio page the canonical current and briefing view, with presentation mode and direct review-workspace access.
+- Added governed Division Profiles for mission, vision, focus areas, responsibilities, initiatives, relationships, forums, doctrine, source documents, and banner metadata.
+- Corrected CID to **Coalition Interoperability Division**, JFID to **Joint Fires Integration Division**, and C3OD2 to **Cyber & C2 Operational Development Division** while preserving stable codes and linked records.
+- Added versioned JSON export, multi-file CSV export, and preview-before-commit JSON/CSV profile import.
+
+## What is new in v0.7.0
+
+- Added division-scoped briefing cycles built on the existing Portfolio Review governance record.
+- Added a standard 15-section briefing structure with source-backed project, demand, milestone, RAID, dependency, workforce, investment, benefit, status-report, and prior-action evidence.
+- Added section ownership, narrative preparation, readiness, submission, approval, and return-for-change controls.
+- Added approved briefing snapshots that preserve exactly what leadership reviewed.
+- Added presentation mode for live briefing without a separate slide deck.
+- Added review questions, responses, notes, parking-lot items, governed change requests, actions, and decision follow-through.
+- Added assigned review questions and change requests to My Work.
+- Added migration `0006_division_briefing_v070`.
+
+See [Upgrade to v0.7.0](docs/UPGRADE_0.7.0.md), [User Guide by Role](docs/USER_GUIDE.md), and [Roadmap](docs/ROADMAP.md).
+
+## What is new in v0.6.1
+
+- Added role-specific focus statements, recommended starting actions, and Focus markers in the left navigation.
+- Added contextual process guides across all major workspaces so users can understand what to do next.
+- Added Standard, Large, and Extra large text preferences plus Comfortable and Compact spacing.
+- Marked substantial editable forms as input areas with instructions and required-field cues.
+- Rebuilt My Work as a personal workbench with direct task/action links, due dates, priorities, progress, health, and next actions.
+- Increased the smallest interface text, focus visibility, control size, and keyboard orientation.
+
+See [UX Navigation, Role Focus, and Accessibility Review](docs/UX_NAVIGATION_ACCESSIBILITY_REVIEW.md) and [Upgrade to v0.6.1](docs/UPGRADE_0.6.1.md).
 
 ## What is new in v0.6.0
 
@@ -104,7 +197,7 @@ The application is deliberately honest about coverage. The imported 307-row RTM 
 - **50 automated tests passed** with **83% application-code coverage**.
 - All **37 Jinja templates**, Python modules, and JavaScript syntax validated.
 - Clean migration and an in-place v0.3.1-to-v0.4.0 migration preserved 17 projects, 80 tasks, and 20 demands.
-- Clean seed includes 85 board columns, three versioned project blueprints, eight approved demonstration status reports, and all 307 RTM records.
+- Clean seed includes 85 board columns, three versioned project blueprints, eight approved demonstration status reports, all 307 source RTM records, six v0.7.5 requirements, and twelve v0.7.6 travel requirements.
 - Docker Compose could not be launched in the artifact environment because the Docker CLI/daemon is unavailable; target-host validation remains required and documented.
 
 ## What is new in v0.3.1
@@ -175,13 +268,14 @@ A user can immediately:
 - See project status changes roll up to division and enterprise views.
 - Search across all major accessible record types, use type-ahead suggestions, filter, save views, export accessible records, review notifications, and inspect material audit history.
 - Upload a versioned demand workbook, preview create/update/duplicate/warning/error/permission outcomes, commit valid rows, and download a correction workbook.
-- Inspect all 307 RTM requirements and filter by ID, domain, phase, preliminary fit, implementation status, release, and other traceability fields.
+- Inspect all 335 packaged RTM requirements and filter by ID, domain, phase, preliminary fit, implementation status, release, and other traceability fields.
 - Create and update local demonstration users, register acting-role delegations, and inspect audit evidence.
 - Conduct a portfolio review, record a governed recommendation, and create linked decision/action records.
 - Generate and inspect a ProjectOS canonical dry-run payload under explicit field-ownership rules.
 - Submit and decide resource requests and append financial transaction evidence.
 - Build a non-destructive scenario, calculate impacts, approve it, and apply only through a separate audited action.
 - Run a data-quality scan, assign findings, generate an approved report pack, and inspect persistent job history.
+- Open Travel & Engagements, reconcile approval-source requests to post-trip reports, review complete narratives, promote accepted outcomes to canonical portfolio records, and drill through source provenance.
 
 No visible control is intentionally decorative. Capabilities that are not usable are documented as roadmap items instead of being presented as working buttons.
 
@@ -338,9 +432,10 @@ Additional seeded users represent assessors, project managers, team members, res
 | Resources | Role and skill capacity, allocation, actual effort, over-allocation, minimum core-function coverage |
 | Financials | ROM, approved budget, actual, forecast, variance, minimum viable, full requirement, funding status |
 | Benefits | Expected/realized values, owner, status, unit, and review date |
+| Travel & Engagements | Approval-source requests, engagements, full trip reports, reconciliation, reviewed outcomes, portfolio promotion, provenance, division/briefing integration, and estimate-only cost labeling |
 | Collaboration | In-app notifications, assignments, workflow updates, persistent task comments and @mentions, task notes/evidence, local Mailpit option |
-| Import / Export | Versioned XLSX templates, demand preview/commit/correction, CSV exports respecting accessible scope |
-| Governance | 307-row RTM, audit history, saved views, data-quality indicators, metric definitions, integration registry |
+| Import / Export | Versioned XLSX templates, demand/travel/trip-report preview and commit, correction guidance, CSV exports, and division JSON/CSV packages respecting accessible scope |
+| Governance | 335-row packaged RTM, audit history, saved views, data-quality indicators, metric definitions, integration registry |
 
 ## Demonstration data
 
@@ -357,6 +452,7 @@ The seed tells a coherent cross-division portfolio story and reconciles dashboar
 - 25 users with role and division assignments
 - Resource capacity and skill-gap records for all divisions
 - Budget, actual, forecast, funding, and benefit records
+- 385 travel requests totaling $1,082,395.25 in approval estimates, 9 trip reports, reusable engagement rollups, and 102 structured report outcomes
 - Multiple reporting periods, stale records, and deliberate data-quality exceptions
 - Cross-division initiatives and a restricted demand
 - 307 traceability records
@@ -467,7 +563,7 @@ Run with coverage:
 docker compose run --rm web pytest --cov=app --cov-report=term-missing
 ```
 
-Validated in the release workspace: **60 tests passed**. The v0.5.0 application-code coverage baseline was 83%. Coverage includes scoring, permissions, stage transitions, database uniqueness, import validation, audit evidence, health checks, critical routes, accessible landmarks, division access denial, auditor read-only behavior, project status roll-up, the full demand-to-project workflow, the v0.6.0 dashboard, requested navigation, theme defaults, and legacy-route removal.
+Validated in the release workspace: **63 tests passed**. The v0.5.0 application-code coverage baseline was 83%. Coverage includes scoring, permissions, stage transitions, database uniqueness, import validation, audit evidence, health checks, critical routes, accessible landmarks, division access denial, auditor read-only behavior, project status roll-up, the full demand-to-project workflow, the v0.6.0 dashboard, requested navigation, theme defaults, and legacy-route removal.
 
 The build environment used to create this package did not include the Docker CLI or daemon, so the Compose stack was structurally validated but not launched here. Run the documented Docker health check on the target Docker Desktop host; this limitation is explicitly recorded in the acceptance checklist.
 
@@ -529,12 +625,19 @@ Status is intentionally conservative. An RTM row is marked Implemented only when
 
 The five-phase roadmap is in [ROADMAP.md](docs/ROADMAP.md). Each roadmap work package includes business value, dependencies, related requirement IDs, complexity, primary owner, acceptance criteria, security implications, integration implications, and recommended release.
 
-The recommended next release is **0.6.0 — Connected Operations and Workforce/Investment Depth**, centered on a live authenticated ProjectOS test connector, OIDC enterprise identity, delegated-role authorization enforcement, durable background workers, SharePoint/Graph document and notification adapters, detailed workforce calendars, multi-year investment profiles, scenario propagation, and reconciliation dashboards. AI remains gated until access control, data quality, metrics, lineage, audit, evaluation, and human-review controls are demonstrably mature.
+v0.8.0 is delivered with self-service projects and promotion, role-focused configurable dashboards, direct division navigation, controlled Admin resource exchange, focused forms, and fourteen project blueprints. The next major planned capability release is **0.9.0 — Connected Operations and Enterprise Identity**, centered on OIDC, enforced delegation, durable workers, a live ProjectOS test connector, reconciliation, and an approved Microsoft Graph/SharePoint pilot. AI remains gated until access control, data quality, metrics, lineage, audit, evaluation, and human-review controls are demonstrably mature.
 
 ## Documentation index
 
 - [Target Operating Model](docs/TARGET_OPERATING_MODEL.md)
 - [Installation Guide](docs/INSTALLATION.md)
+- [Upgrade to v0.8.0](docs/UPGRADE_0.8.0.md)
+- [Upgrade to v0.7.9](docs/UPGRADE_0.7.9.md)
+- [Upgrade to v0.7.7](docs/UPGRADE_0.7.7.md)
+- [Upgrade to v0.7.6](docs/UPGRADE_0.7.6.md)
+- [Upgrade to v0.7.5](docs/UPGRADE_0.7.5.md)
+- [Upgrade to v0.7.0](docs/UPGRADE_0.7.0.md)
+- [Upgrade to v0.6.1](docs/UPGRADE_0.6.1.md)
 - [Upgrade to v0.6.0](docs/UPGRADE_0.6.0.md)
 - [Prior upgrade to v0.5.0](docs/UPGRADE_0.5.0.md)
 - [Upgrade to v0.4.0](docs/UPGRADE_0.4.0.md)

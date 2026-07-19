@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Project Blueprints · DDC5I{% endblock %}
 {% block content %}
-<div class="page-head"><div><div class="eyebrow">Reusable Delivery Governance</div><h2>Project Blueprint Catalog</h2><p>Create governed projects with immutable template versions, preconfigured boards, WBS items, milestones, and traceability.</p></div><div class="actions"><a class="btn" href="/projects">Project Inventory</a><a class="btn" href="/roadmaps">Portfolio Roadmap</a></div></div>
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><a href="/projects">Projects</a><span>›</span><span>Blueprints</span></div>
+<div class="page-head"><div><div class="eyebrow">Reusable Delivery Governance</div><h2>Project Blueprint Catalog</h2><p>Choose a mission-appropriate starting structure with versioned boards, WBS items, milestones, and traceability.</p></div><div class="actions"><a class="btn btn-primary" href="/projects/new">＋ New Project</a><a class="btn" href="/projects">Project Inventory</a><a class="btn" href="/roadmaps">Portfolio Roadmap</a></div></div>
 <div class="template-grid">
   {% for template in templates_rows %}
   <article class="card template-card">
@@ -9,20 +10,7 @@
     <p>{{ template.description }}</p>
     <div class="template-stats"><span><strong>{{ template.blueprint.get('tasks',[])|length }}</strong> WBS items</span><span><strong>{{ template.blueprint.get('milestones',[])|length }}</strong> milestones</span><span><strong>{{ template.blueprint.get('columns',[])|length }}</strong> board states</span></div>
     <details><summary>View blueprint contents</summary><div class="blueprint-preview"><h4>Tasks</h4><ol>{% for item in template.blueprint.get('tasks',[]) %}<li><strong>{{ item.get('title') }}</strong> · {{ item.get('type','Task') }} · day {{ item.get('offset',0) }}</li>{% endfor %}</ol><h4>Milestones</h4><ul>{% for item in template.blueprint.get('milestones',[]) %}<li>{{ item.get('title') }} · day {{ item.get('offset',0) }}{% if item.get('critical') %} · critical{% endif %}</li>{% endfor %}</ul></div></details>
-    {% if 'PROJECT_MANAGER' in user.roles or 'PMO' in user.roles or 'DIVISION_PORTFOLIO_MANAGER' in user.roles or 'ADMIN' in user.roles %}
-    <form class="template-launch" method="post" action="/templates/{{ template.id }}/instantiate">
-      <input type="hidden" name="csrf" value="{{ csrf_token }}">
-      <div class="form-grid">
-        <div class="field field-span-2"><label>Project title</label><input class="input" name="title" required placeholder="Name the governed initiative"></div>
-        <div class="field"><label>Lead division</label><select class="select" name="lead_org_id" required>{% for org in eligible_orgs %}<option value="{{ org.id }}">{{ org.code }} · {{ org.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Mission</label><select class="select" name="mission_id" required>{% for mission in missions %}<option value="{{ mission.id }}">{{ mission.code }} · {{ mission.title }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Sponsor</label><select class="select" name="sponsor_id" required>{% for item in eligible_users %}<option value="{{ item.id }}">{{ item.full_name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Project manager</label><select class="select" name="manager_id" required>{% for item in eligible_users %}<option value="{{ item.id }}">{{ item.full_name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>Start date</label><input class="input" name="start_date" type="date"></div>
-      </div>
-      <button class="btn btn-primary" type="submit">Create Project from v{{ template.version }}</button>
-    </form>
-    {% endif %}
+    {% if 'PROJECT_MANAGER' in user.roles or 'PMO' in user.roles or 'DIVISION_PORTFOLIO_MANAGER' in user.roles or 'DIVISION_CHIEF' in user.roles or 'ADMIN' in user.roles %}<a class="btn btn-primary template-create-link" href="/projects/new?template={{ template.id }}">Use this blueprint</a>{% endif %}
   </article>
   {% else %}<div class="empty">No active project blueprints are available.</div>{% endfor %}
 </div>

@@ -1,122 +1,79 @@
 # Requirements Traceability Report
 
-## Source and treatment
+## Packaged baseline
 
-The attached DDC5I Requirements Traceability Matrix Draft 1.2 contains **307 requirements**, all marked Must. The MVP imports every row into `RequirementTrace`, makes the rows filterable in the Administration/Governance area, and exports the implementation baseline to `DDC5I_RTM_MVP_Status.csv`.
+The governed source baseline contains **307 requirements**. v0.7.5 added six division-experience requirements, v0.7.6 added twelve travel-and-engagement requirements, and v0.7.7 adds ten visual-intelligence requirements. The packaged application, in-app RTM, JSON source, and CSV status report therefore contain **335 rows**.
 
-No claim is made that all requirements are implemented. Status was assigned conservatively based on a usable feature, module evidence, integration dependency, policy dependency, phase, and known limitation.
+No claim is made that every source requirement is implemented. Status remains conservative and distinguishes usable implementation from partial capability, planned work, external integration, policy/governance dependency, and deliberate deferral.
 
-## Baseline summary
+## Status summary
 
-| Implementation status | Count | Meaning in this release |
-|---|---:|---|
-| Implemented | 84 | usable vertical slice exists in the MVP with design/module reference |
-| Partially implemented | 40 | meaningful capability exists but required depth or configuration is incomplete |
-| Planned | 131 | not implemented in the MVP; assigned to roadmap work |
-| Requires integration | 30 | cannot be completed without an authoritative external system or connector |
-| Requires policy or governance decision | 12 | technical implementation must wait for an approved operating/policy decision |
-| Deferred | 10 | deliberately beyond the five-phase MVP scope or responsible-AI gate |
-| **Total** | **307** | complete imported matrix |
-
-## Phase distribution in source RTM
-
-| Source phase | Count |
+| Implementation status | Count |
 |---|---:|
-| Phase 1 | 146 |
-| Phase 2 | 49 |
-| Phase 3 | 71 |
-| Phase 4 | 31 |
-| Phase 5 | 10 |
-
-## Evidence fields
-
-Each RTM record supports:
-
-- requirement ID, domain, title, statement, priority, and phase;
-- preliminary fit and accountable owner;
-- verification method and source status;
-- implementation status;
-- design reference;
-- module or API reference;
-- test case;
-- UAT result;
-- release;
-- acceptance notes;
-- decision/comments.
-
-## MVP requirement-ID groups
-
-The usable MVP emphasizes these groups:
-
-- `GOV-*` strategy, mission alignment, governance, decisions, roll-up;
-- `ORG-*` organization, roles, accountability, lead/support scope;
-- `DMD-*` governed intake and demand lifecycle;
-- `ASM-*` assessment, prioritization, stage gates, approvals;
-- `PFM-*` portfolio and recurring-function management;
-- selected `PRJ-*` built-in execution management;
-- selected `RES-*` role/skill capacity;
-- selected `FIN-*` basic budget, actual, forecast, and underfunding;
-- selected `COL-*` in-app notifications and traceable collaboration;
-- selected `DSH-*` executive/division dashboards, reports, narrative, metric metadata;
-- selected `DAT-*` Excel demand import/export, OpenAPI, lineage, IDs;
-- selected `SEC-*`, `ADM-*`, `NFR-*`, and `IMP-*` security, audit, configuration, quality, operations, migration, and documentation.
-
-## v0.3.1 evidence additions
-
-- **DMD-008** links to the submitted-demand edit workflow, optimistic version check, revision history, audit evidence, notification behavior, and assessment-stage lock test.
-- **PRJ-007** links to the task drawer, full-page fallback route, versioned local bundle, task workspace, and automated fallback-route test.
-- Migration `0003_v031_reliability_hotfix` updates these evidence references in existing databases without modifying business-data schema.
-
-## Verification evidence
-
-Automated tests are linked at the suite level in the imported trace records. The suite covers primary workflow, status roll-up, drill-down route access, import validation, scoped access, auditor read-only behavior, scoring, workflow transitions, audit evidence, database uniqueness, comprehensive search, task workspace persistence, comments/mentions, checklist, task relationships, WBS actions, and secure task-file handling. Rows with automated release evidence record Automated test passed; organization-level UAT remains open until an authorized DDC5I user group executes and signs the acceptance checklist.
-
-## How to update status
-
-1. Sign in as `admin`, `pmo`, or an authorized data steward.
-2. Open **Requirements RTM**.
-3. Filter by ID, domain, phase, fit, or status.
-4. Update only with evidence: design reference, module/API, test case, UAT result, release, notes.
-5. Preserve rationale for Partially implemented, Requires integration, or governance-dependent status.
-6. Export the updated report for release governance.
-
-## Traceability artifacts
-
-- JSON seed: `app/data/requirements.json`
-- In-app RTM: `/requirements`
-- CSV baseline: `docs/DDC5I_RTM_MVP_Status.csv`
-- Tests: `tests/` and `e2e/`
-- Architecture and module references: `docs/` and `app/`
-- Roadmap linkage: `docs/ROADMAP.md`
-
-## Acceptance caution
-
-“Implemented” in this reference package means the capability can be demonstrated locally. It does not mean production authorization, enterprise integration acceptance, records approval, operational data certification, accessibility certification, or policy approval.
-
-
-## v0.4.0 evidence additions
-
-- **PRJ-003** links configurable board columns, WIP validation, criteria, ordering, archival, UI, and tests.
-- **PRJ-004** links WBS hierarchy, sequencing, baselines, Gantt, cycle rejection, and basic critical-path evidence.
-- **PRJ-008** links versioned task files, preview, integrity metadata, download evidence, soft deletion, and restoration.
-- **PRJ-012** links versioned project blueprints, complete instantiation, and immutable project provenance.
-- **PRJ-014** links project status-report lifecycle, approval, print view, notifications, audit, and governed reporting roll-up.
-- Migration `0004_execution_roadmap_v040` applies those evidence references to upgraded installations while creating the supporting canonical records.
-
-## v0.5.0 evidence additions
-
-The v0.5.0 release updates conservative design, module, test, release, acceptance, and UAT references for administration, governance forums, integration ownership, resource/financial planning, scenarios, data quality, and report operations. Representative anchors include ORG-007, GOV-006, PFM-015, COL-010, DSH-015, ADM-005, DAT-003, DAT-010, DAT-016–019, RES-004, RES-012, FIN-002, FIN-007–009, FIN-013, and SCN-002–013.
-
-Current 307-row classification:
-
-| Status | Count |
-|---|---:|
-| Implemented | 91 |
+| Implemented | 119 |
 | Partially implemented | 56 |
 | Planned | 111 |
 | Requires integration | 27 |
 | Requires policy or governance decision | 12 |
 | Deferred | 10 |
-| **Total** | **307** |
+| **Total** | **335** |
 
-A requirement is not marked Implemented merely because a database table or screen exists. Live ProjectOS, Microsoft 365, SharePoint, identity, workforce, and financial-system capabilities remain Partially implemented or Requires integration where the external authority, authentication, reconciliation, accreditation, or governance decision is absent.
+## Phase distribution
+
+| Phase | Count |
+|---|---:|
+| Phase 1 | 174 |
+| Phase 2 | 49 |
+| Phase 3 | 71 |
+| Phase 4 | 31 |
+| Phase 5 | 10 |
+
+## v0.7.7 requirements
+
+| ID | Requirement | Evidence summary |
+|---|---|---|
+| `UX-077-001` | Simplified Briefings navigation | User-facing relabel with stable routes and records |
+| `TRV-077-001` | Interactive geographic footprint | Local map, proportional markers, aggregate detail, drill-through |
+| `TRV-077-002` | Governed location normalization | Alias registry, mapping coverage, unmapped stewardship |
+| `TRV-077-003` | Map and Top Locations cross-filtering | Synchronized focus and stable location-filter URLs |
+| `TRV-077-004` | Travel trend and determination analytics | Monthly cost/volume and division status mix |
+| `TRV-077-005` | Outcome funnel and report compliance | Approved-to-promoted flow and division gaps |
+| `FIN-077-001` | Portfolio Investment Flow Sankey | Category/division/project/outcome flow |
+| `FIN-077-002` | Reconciled flow and drill-through | Conservation check, basis, financial/project links |
+| `UX-077-002` | Accessible visual alternatives | Keyboard labels, table/list alternatives, source access |
+| `SEC-077-001` | Local visualization assets | Same-origin assets, CSP compatibility, no external data transfer |
+
+## v0.7.6 requirements
+
+| ID | Requirement | Evidence summary |
+|---|---|---|
+| `TRV-076-001` | Controlled travel-request import | XLSX validation, preview, commit, provenance, tests |
+| `TRV-076-002` | Controlled trip-report import | Full narrative retention, validation, preview, commit, tests |
+| `TRV-076-003` | Matching and human reconciliation | Candidate score/rationale, auto-match threshold, confirm/clear/rematch |
+| `TRV-076-004` | Dashboard and drill-through | Enterprise filters, KPIs, summaries, request/report/engagement routes |
+| `TRV-076-005` | Engagement-level consolidation | Reusable engagement records and multi-traveler/division rollup |
+| `TRV-076-006` | Promote report outcomes | Canonical Actions, RAID risks, Decisions, Dependencies, and backlinks |
+| `TRV-076-007` | Division travel integration | Division travel metrics, reports, compliance, and source links |
+| `TRV-076-008` | Briefing snapshot integration | Sixteenth section and immutable approved briefing payload |
+| `TRV-076-009` | Provenance and audit evidence | Source file/row/system/record, raw payload, batch, audit history |
+| `TRV-076-010` | Role and sensitivity enforcement | Enterprise/division scope, write authority, restricted-content checks |
+| `TRV-076-011` | Data-quality controls | Date sequence, missing reports, unmatched reports |
+| `TRV-076-012` | CSV export and linked portability | Travel CSV exports and division package integration |
+
+## Evidence fields
+
+Each traceability row can include requirement ID, domain, title, statement, priority, phase, fit, capability, accountable owner, verification method, source status, implementation status, design reference, module/API reference, test case, UAT result, release, acceptance notes, and decision/comments.
+
+## Packaged evidence
+
+- Machine-readable source: `app/data/requirements.json`
+- CSV status report: `docs/DDC5I_RTM_MVP_Status.csv`
+- In-app route: **Requirements RTM**
+- Migration evidence: `migrations/versions/0008_travel_engagements_v076.py` (v0.7.7 is schema-compatible)
+- Functional tests: `tests/test_v076.py` and `tests/test_v077.py`
+- Build evidence: `docs/BUILD_VALIDATION.md` and `docs/TEST_RESULTS.md`
+
+
+## v0.7.9 requirements
+
+Ten v0.7.9 requirements (`UX-079-01` … `REL-079-10`) were appended to `DDC5I_RTM_MVP_Status.csv`, bringing the packaged traceability set from 335 to 345 rows. Each row links the requirement to its implementation files and its validating test in `tests/test_v079.py`. The nine stale pre-existing test expectations that were intentionally updated (asset version strings, the Outcome pipeline label, the inline world map, and the navigation/My Work redesign markers) are documented in `docs/RELEASE_NOTES.md` and `docs/UPGRADE_0.7.9.md` rather than suppressed.

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Travel &amp; Engagements · JSJ6 Enterprise Portfolio{% endblock %}
+{% block content %}
+<div class="page-head travel-page-head">
+  <div><div class="eyebrow">Travel &amp; engagement outcomes</div><h2>Enterprise Travel Dashboard</h2><p>Explore geographic footprint, approval estimates, division participation, report compliance, and portfolio outcomes with linked source evidence.</p></div>
+  <div class="actions"><a class="btn" href="/exports/travel-requests.csv">Requests CSV</a><a class="btn" href="/exports/trip-reports.csv">Reports CSV</a>{% if can_manage %}<a class="btn btn-primary" href="/imports">Import travel data</a>{% endif %}</div>
+</div>
+<div class="callout warning"><strong>Cost basis:</strong> all values are approval-stage estimates. They are not authoritative actual expenditures. Map coordinates are locally maintained city-level reference points and do not disclose traveler routes.</div>
+
+<form class="card travel-filter-bar" method="get" action="/travel">
+  <input type="hidden" name="view" value="{{ view }}">
+  <label class="field">Search<input class="input" name="q" value="{{ filters.q }}" placeholder="Traveler, event, location, or source ID"></label>
+  <label class="field">Division<select class="select" name="division"><option value="">All divisions</option>{% for oid,org in orgs.items() %}<option value="{{ org.code }}" {% if filters.division==org.code %}selected{% endif %}>{{ org.code }} · {{ org.name }}</option>{% endfor %}</select></label>
+  <label class="field">Determination<select class="select" name="determination"><option value="">All statuses</option>{% for status in ['Approved','Pending','Canceled','Disapproved'] %}<option {% if filters.determination==status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
+  <label class="field">Mapped location<input class="input" name="location" value="{{ filters.location }}" placeholder="All locations"></label>
+  <label class="field">Departure from<input class="input" type="date" name="start" value="{{ filters.start }}"></label>
+  <label class="field">Through<input class="input" type="date" name="end" value="{{ filters.end }}"></label>
+  <div class="field filter-actions"><span>{% if active_filter_count %}{{ active_filter_count }} active filter{{ '' if active_filter_count == 1 else 's' }}{% else %}&nbsp;{% endif %}</span><div class="actions"><button class="btn btn-primary" type="submit">Apply filters</button><a class="btn btn-ghost" href="/travel">Reset</a></div></div>
+</form>
+
+<nav class="pill-nav travel-view-tabs" aria-label="Travel workspaces">
+  <a class="{% if view=='overview' %}active{% endif %}" href="/travel?view=overview{% if view_query %}&amp;{{ view_query }}{% endif %}">Overview</a>
+  <a class="{% if view=='requests' %}active{% endif %}" href="/travel?view=requests{% if view_query %}&amp;{{ view_query }}{% endif %}">Requests · {{ requests_total }} records</a>
+  <a class="{% if view=='reports' %}active{% endif %}" href="/travel?view=reports{% if view_query %}&amp;{{ view_query }}{% endif %}">Trip Reports · {{ reports_total }}</a>
+  <a class="{% if view=='reconciliation' %}active{% endif %}" href="/travel?view=reconciliation{% if view_query %}&amp;{{ view_query }}{% endif %}">Reconciliation · {{ reconciliation_total }}</a>
+  <a class="{% if view=='outcomes' %}active{% endif %}" href="/travel?view=outcomes{% if view_query %}&amp;{{ view_query }}{% endif %}">Engagement Outcomes</a>
+</nav>
+
+{% if filters.location %}<div class="active-filter-strip"><span>Geographic footprint:</span><strong>{{ filters.location }}</strong><a href="/travel{% if filters.division or filters.determination or filters.q or filters.start or filters.end %}?{% endif %}{% if filters.division %}division={{ filters.division|urlencode }}{% endif %}{% if filters.determination %}{% if filters.division %}&amp;{% endif %}determination={{ filters.determination|urlencode }}{% endif %}{% if filters.q %}{% if filters.division or filters.determination %}&amp;{% endif %}q={{ filters.q|urlencode }}{% endif %}{% if filters.start %}{% if filters.division or filters.determination or filters.q %}&amp;{% endif %}start={{ filters.start }}{% endif %}{% if filters.end %}{% if filters.division or filters.determination or filters.q or filters.start %}&amp;{% endif %}end={{ filters.end }}{% endif %}">Clear location</a></div>{% endif %}
+
+{% if view == 'overview' %}
+<section class="grid grid-6 travel-kpis" aria-label="Travel summary">
+  <div class="card kpi"><div class="kpi-label">Approved estimate</div><div class="kpi-value compact-money">{{ payload.status_costs.get('Approved',0)|money }}</div><div class="kpi-foot">{{ payload.status_counts.get('Approved',0) }} traveler records</div></div>
+  <div class="card kpi"><div class="kpi-label">Engagements</div><div class="kpi-value">{{ payload.engagement_count }}</div><div class="kpi-foot">{{ payload.cross_division_engagements }} cross-division</div></div>
+  <div class="card kpi"><div class="kpi-label">Trip reports</div><div class="kpi-value">{{ payload.report_count }}</div><div class="kpi-foot">{{ payload.matched_reports }} linked to requests</div></div>
+  <div class="card kpi {% if payload.reconciliation_count %}kpi-warn{% endif %}"><div class="kpi-label">Reconciliation</div><div class="kpi-value">{{ payload.reconciliation_count }}</div><div class="kpi-foot">Reports needing confirmation</div></div>
+  <div class="card kpi {% if payload.reports_awaiting_review %}kpi-warn{% endif %}"><div class="kpi-label">Awaiting review</div><div class="kpi-value">{{ payload.reports_awaiting_review }}</div><div class="kpi-foot">Outcome review queue</div></div>
+  <div class="card kpi {% if payload.completed_without_report %}kpi-warn{% endif %}"><div class="kpi-label">Report gap</div><div class="kpi-value">{{ payload.completed_without_report }}</div><div class="kpi-foot">Completed travel without linked report</div></div>
+</section>
+
+<section class="travel-map-layout">
+  <article class="card travel-map-card">
+    <div class="panel-head"><div><span class="eyebrow">Interactive geographic footprint</span><h3>Places traveled</h3></div><div class="map-coverage"><strong>{{ payload.mapping_coverage }}%</strong><span>requests mapped</span></div></div>
+    <div class="travel-map-shell" data-travel-map>
+      <div class="travel-map-canvas">
+        {% include "_world_map.html" %}
+        <div class="travel-map-markers" data-map-markers></div>
+        <div class="map-empty" data-map-empty {% if payload.mapped_location_rows %}hidden{% endif %}>No mapped locations match the current filters.</div>
+      </div>
+      <aside class="travel-map-detail" data-map-detail aria-live="polite">
+        {% if payload.location_rows %}{% set first=payload.location_rows[0] %}
+        <span class="eyebrow">Top visible location</span><h4>{{ first.location }}</h4><strong>{{ first.cost|money }}</strong><p>{{ first.count }} requests · {{ first.engagement_count }} engagements · {{ first.division_count }} divisions · {{ first.report_count }} reports</p><a class="btn btn-small" href="{{ first.url }}">Filter to this location</a>
+        {% else %}<span class="eyebrow">Map detail</span><h4>No location selected</h4><p>Adjust the filters to display geographic travel activity.</p>{% endif %}
+      </aside>
+    </div>
+    <script type="application/json" id="travel-map-data">{{ payload.location_rows|tojson }}</script>
+    <div class="map-legend"><span><i class="map-dot small"></i>Lower estimate</span><span><i class="map-dot large"></i>Higher estimate</span><span>Marker size represents estimated cost</span></div>
+  </article>
+
+  <aside class="card travel-location-card">
+    <div class="panel-head"><div><span class="eyebrow">Linked map index</span><h3>Top locations</h3></div><span>Estimated cost</span></div>
+    <div class="top-location-list">
+      {% for row in payload.location_rows[:25] %}<a href="{{ row.url }}" data-location-focus="{{ row.key }}" class="{% if filters.location==row.location %}is-active{% endif %}"><span class="location-rank">{{ loop.index }}</span><span><strong>{{ row.location }}</strong><small>{{ row.count }} requests · {{ row.division_count }} divisions</small></span><b>{{ row.cost|money }}</b></a>{% else %}<div class="empty compact">No locations to display.</div>{% endfor %}
+    </div>
+    {% if payload.unmapped_location_rows %}<details class="unmapped-locations"><summary>{{ payload.unmapped_location_rows|length }} locations need coordinate stewardship</summary>{% for row in payload.unmapped_location_rows[:10] %}<span>{{ row.location }} · {{ row.count }} request{{ '' if row.count == 1 else 's' }}</span>{% endfor %}</details>{% endif %}
+  </aside>
+</section>
+
+<div class="grid grid-2 travel-analytics-grid">
+  <section class="card travel-trend-card"><div class="panel-head"><div><span class="eyebrow">Timing and volume</span><h3>Monthly travel trend</h3></div><span>Cost + request count</span></div>
+    <div class="travel-month-chart enhanced">{% for row in payload.month_rows %}<div class="travel-month"><div class="travel-month-bar"><span class="cost-bar" style="height:{{ [100,(row.cost/max_month_cost*100 if max_month_cost else 0)]|min }}%"></span><i class="count-marker" style="bottom:{{ [96,(row.count/max_month_count*92 if max_month_count else 0)]|min }}%" title="{{ row.count }} requests"></i></div><strong>{{ row.cost|money }}</strong><small>{{ row.month }} · {{ row.count }}</small></div>{% else %}<div class="empty compact">No monthly values to display.</div>{% endfor %}</div>
+  </section>
+  <section class="card division-status-chart"><div class="panel-head"><div><span class="eyebrow">Approval pipeline</span><h3>Determination by division</h3></div><span>Request count</span></div>
+    <div class="stacked-bar-list">{% for row in division_status_rows[:10] %}{% set total=row.get('Approved',0)+row.get('Pending',0)+row.get('Canceled',0)+row.get('Disapproved',0) %}<a href="/travel?division={{ row.org.code }}" class="stacked-bar-row"><span class="stacked-label"><strong>{{ row.org.code }}</strong><small>{{ total }} requests</small></span><span class="stacked-track" aria-label="{{ row.org.code }} determination mix"><i class="segment approved" style="width:{{ row.get('Approved',0)/total*100 if total else 0 }}%"></i><i class="segment pending" style="width:{{ row.get('Pending',0)/total*100 if total else 0 }}%"></i><i class="segment canceled" style="width:{{ row.get('Canceled',0)/total*100 if total else 0 }}%"></i><i class="segment disapproved" style="width:{{ row.get('Disapproved',0)/total*100 if total else 0 }}%"></i></span><b>{{ row.get('Approved',0) }}</b></a>{% else %}<div class="empty compact">No division status data.</div>{% endfor %}</div>
+    <div class="chart-key"><span><i class="approved"></i>Approved</span><span><i class="pending"></i>Pending</span><span><i class="canceled"></i>Canceled</span><span><i class="disapproved"></i>Disapproved</span></div>
+  </section>
+</div>
+
+<div class="grid grid-3 travel-analytics-grid">
+  <section class="card travel-funnel-card"><div class="panel-head"><div><span class="eyebrow">Travel-to-value chain</span><h3>Outcome pipeline</h3></div><span class="metric-info" title="Each bar shows the record count reaching that stage. The percentage shows how much carried over from the stage above.">i</span></div>
+    {% set pipeline_max=payload.outcome_funnel[0].count if payload.outcome_funnel and payload.outcome_funnel[0].count else 1 %}
+    <div class="value-pipeline">
+      {% for stage in payload.outcome_funnel %}
+      {% set prev_count = payload.outcome_funnel[loop.index0 - 1].count if not loop.first else 0 %}
+      <a class="pipeline-row" href="{% if stage.key in ['reported','reviewed','promoted'] %}#reconciliation{% else %}/travel{% endif %}">
+        <span class="pipeline-label"><strong>{{ stage.label }}</strong><small>{% if loop.first %}Starting volume{% elif prev_count %}{{ (stage.count / prev_count * 100)|round(0)|int }}% carried from previous{% else %}No prior-stage records{% endif %}</small></span>
+        <span class="pipeline-track"><i class="pipeline-fill stage-{{ loop.index }}" style="width:{{ (stage.count / pipeline_max * 100)|round(1) }}%"></i></span>
+        <b class="pipeline-count">{{ stage.count }}</b>
+      </a>
+      {% endfor %}
+    </div>
+    <div class="pipeline-foot">Read top to bottom: approved travel that produced a report, passed review, and promoted a portfolio outcome.</div></section>
+  <section class="card compliance-card"><div class="panel-head"><div><span class="eyebrow">Post-trip assurance</span><h3>Report compliance</h3></div><a href="#reconciliation">Open queue</a></div><div class="compliance-list">{% for row in compliance_rows[:8] %}<a href="/travel?division={{ row.org.code }}"><span><strong>{{ row.org.code }}</strong><small>{{ row.linked_reports }} linked · {{ row.reviewed_reports }} reviewed</small></span><span class="compliance-meter"><i style="width:{{ row.linked_reports/row.approved_completed*100 if row.approved_completed else 0 }}%"></i></span><b class="{% if row.overdue %}text-bad{% else %}text-ok{% endif %}">{{ row.overdue }} overdue</b></a>{% else %}<div class="empty compact">No completed approved travel in this view.</div>{% endfor %}</div></section>
+  <section class="card"><div class="panel-head"><div><span class="eyebrow">Data linkage</span><h3>Trip report reconciliation</h3></div><a href="#reconciliation">Open queue</a></div>{% for report in reconciliation[:6] %}<a class="travel-reconcile-card" href="/travel/reports/{{ report.id }}"><span class="badge badge-{{ report.match_status|badge }}">{{ report.match_status }}</span><strong>{{ report.human_id }} · {{ report.title }}</strong><small>{{ report.traveler_name }} · confidence {{ (report.match_confidence*100)|round(0) }}%</small></a>{% else %}<div class="callout success">All visible trip reports are linked to a travel request.</div>{% endfor %}</section>
+</div>
+
+<section class="card engagement-impact-card"><div class="panel-head"><div><span class="eyebrow">Engagement impact</span><h3>Top forums and events</h3></div><span>Linked travel and outcomes</span></div><div class="engagement-impact-grid">{% for row in engagement_rows[:8] %}<a href="/travel/engagements/{{ row.engagement.id }}"><span class="engagement-impact-rank">{{ loop.index }}</span><span><strong>{{ row.engagement.title }}</strong><small>{{ row.engagement.location or 'Location not provided' }}</small></span><span class="engagement-impact-metrics"><b>{{ row.cost|money }}</b><small>{{ row.travelers }} travelers · {{ row.divisions }} divisions · {{ row.reports }} reports · {{ row.promoted }} promoted</small></span></a>{% else %}<div class="empty compact">No engagement records match the filters.</div>{% endfor %}</div></section>
+
+{% endif %}
+
+{% if view == 'requests' %}
+<section class="division-data-section"><div class="section-title"><div><span class="eyebrow">Traveler-level approvals</span><h3>Travel requests</h3></div><span>{{ requests|length }} records</span></div><div class="table-wrap"><table class="data-table travel-table"><thead><tr><th>Source / Stable ID</th><th>Traveler</th><th>Division</th><th>Engagement</th><th>Location</th><th>Dates</th><th>Status</th><th>Estimated cost</th><th>Report</th></tr></thead><tbody>{% for item in requests_page %}{% set engagement=engagement_map.get(item.engagement_id) %}{% set report=report_by_request.get(item.id) %}<tr><td><a href="/travel/requests/{{ item.id }}"><strong>{{ item.external_id }}</strong><br><small>{{ item.human_id }}</small></a></td><td>{{ item.traveler_name }}</td><td>{{ orgs.get(item.org_id).code if orgs.get(item.org_id) else '—' }}</td><td>{% if engagement %}<a href="/travel/engagements/{{ engagement.id }}">{{ engagement.title }}</a>{% else %}—{% endif %}</td><td><a href="/travel?q={{ item.location|urlencode }}">{{ item.location }}</a></td><td>{{ item.departure_date|datefmt }}<br><small>to {{ item.return_date|datefmt }}</small></td><td><span class="badge badge-{{ item.determination|badge }}">{{ item.determination }}</span></td><td>{{ item.estimated_cost|money }}</td><td>{% if report %}<a href="/travel/reports/{{ report.id }}"><span class="badge badge-{{ report.review_status|badge }}">{{ report.review_status }}</span></a>{% elif item.return_date < today %}<span class="badge badge-At-Risk">Missing</span>{% else %}<span class="muted">Not due</span>{% endif %}</td></tr>{% else %}<tr><td colspan="9" class="empty">No travel records match the current filters.</td></tr>{% endfor %}</tbody></table></div><div class="table-footer"><span>Showing {{ (requests_current-1)*page_size + (1 if requests_page else 0) }} to {{ (requests_current-1)*page_size + requests_page|length }} of {{ requests_total }} records</span><div class="pagination">{% if requests_current > 1 %}<a href="/travel?view=requests&amp;page={{ requests_current-1 }}{% if view_query %}&amp;{{ view_query }}{% endif %}">‹ Prev</a>{% endif %}<b>Page {{ requests_current }} of {{ requests_pages }}</b>{% if requests_current < requests_pages %}<a href="/travel?view=requests&amp;page={{ requests_current+1 }}{% if view_query %}&amp;{{ view_query }}{% endif %}">Next ›</a>{% endif %}</div></div>
+{% endif %}</section>
+
+{% if view == 'reports' %}
+<section id="reconciliation" class="division-data-section"><div class="section-title"><div><span class="eyebrow">Post-trip outcomes</span><h3>Trip reports</h3></div><span>{{ reports_total }} reports</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Report</th><th>Traveler</th><th>Division</th><th>Dates / location</th><th>Request match</th><th>Review</th></tr></thead><tbody>{% for report in reports_page %}<tr><td><a href="/travel/reports/{{ report.id }}"><strong>{{ report.human_id }}</strong><br>{{ report.title }}</a></td><td>{{ report.traveler_name }}</td><td>{{ orgs.get(report.org_id).code if orgs.get(report.org_id) else '—' }}</td><td>{{ report.start_date|datefmt }} – {{ report.return_date|datefmt }}<br><small>{{ report.location }}</small></td><td><span class="badge badge-{{ report.match_status|badge }}">{{ report.match_status }}</span><br><small>{{ (report.match_confidence*100)|round(0) }}% confidence</small></td><td><span class="badge badge-{{ report.review_status|badge }}">{{ report.review_status }}</span></td></tr>{% else %}<tr><td colspan="6" class="empty">No trip reports are available.</td></tr>{% endfor %}</tbody></table></div>
+<div class="table-footer"><span>Showing {{ (reports_current-1)*page_size + (1 if reports_page else 0) }} to {{ (reports_current-1)*page_size + reports_page|length }} of {{ reports_total }} reports</span><div class="pagination">{% if reports_current > 1 %}<a href="/travel?view=reports&amp;page={{ reports_current-1 }}{% if view_query %}&amp;{{ view_query }}{% endif %}">‹ Prev</a>{% endif %}<b>Page {{ reports_current }} of {{ reports_pages }}</b>{% if reports_current < reports_pages %}<a href="/travel?view=reports&amp;page={{ reports_current+1 }}{% if view_query %}&amp;{{ view_query }}{% endif %}">Next ›</a>{% endif %}</div></div></section>
+{% endif %}
+
+{% if view == 'reconciliation' %}
+<section class="division-data-section"><div class="section-title"><div><span class="eyebrow">Data linkage queue</span><h3>Trip report reconciliation</h3></div><span>{{ reconciliation_total }} needing action</span></div>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Report</th><th>Traveler</th><th>Match status</th><th>Confidence</th><th>Review</th><th></th></tr></thead><tbody>
+{% for report in reconciliation_page %}<tr><td><a href="/travel/reports/{{ report.id }}"><strong>{{ report.human_id }}</strong><br>{{ report.title }}</a></td><td>{{ report.traveler_name }}</td><td><span class="badge badge-{{ report.match_status|badge }}">{{ report.match_status }}</span></td><td>{{ (report.match_confidence*100)|round(0) }}%</td><td><span class="badge badge-{{ report.review_status|badge }}">{{ report.review_status }}</span></td><td><a class="btn btn-small" href="/travel/reports/{{ report.id }}">Resolve →</a></td></tr>
+{% else %}<tr><td colspan="6" class="empty">All visible trip reports are linked to a travel request. Nothing needs reconciliation.</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="table-footer"><span>Showing {{ (reconciliation_current-1)*page_size + (1 if reconciliation_page else 0) }} to {{ (reconciliation_current-1)*page_size + reconciliation_page|length }} of {{ reconciliation_total }}</span><div class="pagination">{% if reconciliation_current > 1 %}<a href="/travel?view=reconciliation&amp;page={{ reconciliation_current-1 }}{% if view_query %}&amp;{{ view_query }}{% endif %}">‹ Prev</a>{% endif %}<b>Page {{ reconciliation_current }} of {{ reconciliation_pages }}</b>{% if reconciliation_current < reconciliation_pages %}<a href="/travel?view=reconciliation&amp;page={{ reconciliation_current+1 }}{% if view_query %}&amp;{{ view_query }}{% endif %}">Next ›</a>{% endif %}</div></div>
+</section>
+{% endif %}
+
+{% if view == 'outcomes' %}
+<section class="card engagement-impact-card"><div class="panel-head"><div><span class="eyebrow">Engagement impact</span><h3>All forums and events</h3></div><span>Linked travel and outcomes</span></div><div class="engagement-impact-grid">{% for row in engagement_rows %}<a href="/travel/engagements/{{ row.engagement.id }}"><span class="engagement-impact-rank">{{ loop.index }}</span><span><strong>{{ row.engagement.title }}</strong><small>{{ row.engagement.location or 'Location not provided' }}</small></span><span class="engagement-impact-metrics"><b>{{ row.cost|money }}</b><small>{{ row.travelers }} travelers · {{ row.divisions }} divisions · {{ row.reports }} reports · {{ row.promoted }} promoted</small></span></a>{% else %}<div class="empty compact">No engagement records match the filters.</div>{% endfor %}</div></section>
+{% endif %}
+{% endblock %}

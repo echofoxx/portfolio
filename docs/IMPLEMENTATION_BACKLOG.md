@@ -85,7 +85,7 @@ The backlog follows the requested delivery order and keeps the repository runnab
 | Mailpit option | Done infrastructure | SMTP capture container; notification sender enhancement next |
 | Excel demand preview and commit | Done | row-level outcomes and correction download |
 | Seven additional import contracts | Done template; commit planned | versioned workbook sheets |
-| RTM administration | Done | all 307 rows and status updates |
+| RTM administration | Done | all 307 source rows, six v0.7.5 release rows, and status updates |
 | Data-quality views | Done baseline | persistent deterministic scans, issue ownership/due date/disposition/resolution and job evidence |
 
 ## Iteration 7 — Hardening
@@ -117,7 +117,7 @@ The backlog follows the requested delivery order and keeps the repository runnab
 | Scenario workspace | Done baseline | non-destructive changes, calculate, approve, separate apply, audit |
 | Data-quality command center | Done baseline | scan, assign, disposition, resolve, job evidence |
 | Report packs and operations | Partial | source-grounded generation/approval and persistent job history; durable scheduler/distribution next |
-| Expanded search/RTM | Done baseline | new record types searchable; conservative 307-row evidence update |
+| Expanded search/RTM | Done baseline | new record types searchable; conservative source-baseline evidence plus release-specific traceability |
 
 ## Next vertical slices — v0.6.0
 

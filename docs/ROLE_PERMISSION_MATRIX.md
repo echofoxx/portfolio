@@ -61,3 +61,49 @@ The UI does not yet provide full user/role administration, project-membership gr
 | Create delegation registry record | No | No | No | No | No | No | No | Read | Yes |
 
 Server-side checks remain authoritative. Division/sensitive/project scope continues to restrict records even when a role grants access to the module. Delegations do not yet augment these checks in v0.5.0.
+
+
+## v0.7.0 Division Briefing & Review permissions
+
+| Capability | Senior Leader | Enterprise Portfolio Owner | PMO | Division Chief | Division Portfolio Manager | Supporting Manager / Contributor | Auditor | Administrator |
+|---|---|---|---|---|---|---|---|---|
+| View enterprise/division briefings | Enterprise | Enterprise | Enterprise | Scoped division | Scoped division | Only when existing review/scope access permits | Read permitted records | Yes |
+| Create a division briefing | Yes | Yes | Yes | Scoped | Scoped | No | No | Yes |
+| Prepare sections and refresh source summaries | Yes | Yes | Yes | Scoped | Scoped | Assigned contributors when their existing role permits review editing | No | Yes |
+| Submit for division approval | Yes | Yes | Yes | Scoped | Scoped | No | No | Yes |
+| Approve / return a division briefing | Yes | Yes | Yes | Scoped authority | Scoped authority | No | No | Yes |
+| Start/facilitate live review | Yes | Yes | Yes | Scoped | Scoped | No by default | No | Yes |
+| Ask questions / add review notes | Yes | Yes | Yes | Scoped | Scoped | Permitted participants with review access | Read | Yes |
+| Respond to assigned question | Yes | Yes | Yes | Scoped | Scoped | Assigned user | Read | Yes |
+| Create / resolve change request | Yes | Yes | Yes | Scoped | Scoped | Assigned owner or permitted facilitator/editor | Read | Yes |
+| Record actions and decisions | Authority-dependent | Yes | Yes | Scoped authority | Scoped authority | No by default | Read | Yes |
+| Complete a briefing | Yes | Yes | Yes | Scoped authority | Scoped authority | No | No | Yes |
+
+All briefing operations continue to use server-side role, organization, record, and sensitivity checks. A briefing snapshot does not expand access to restricted source records; the live workspace presents only information the current user is permitted to read.
+
+## v0.7.5 Division Profile permissions
+
+| Action | Admin | PMO | Enterprise Portfolio Owner | Data Steward | Division Chief | Division Portfolio Manager | Senior Leader | Auditor | Other roles |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| View accessible division profile | Yes | Yes | Yes | Yes | Scoped | Scoped | Yes | Yes | Scoped by existing organization rules |
+| Export accessible JSON/CSV package | Yes | Yes | Yes | Yes | Scoped | Scoped | Yes | Yes | Scoped by existing organization rules |
+| Edit division profile | Yes | Yes | Yes | Yes | Scoped | Scoped | No | No | No |
+| Import and publish profile JSON/CSV | Yes | Yes | Yes | Yes | Scoped | Scoped | No | No | No |
+| Change stable division code or ID | No | No | No | No | No | No | No | No | No |
+
+Profile edits and imports create audit events. Export operations also record format and schema-version evidence.
+
+## v0.7.6 Travel & Engagement permissions
+
+| Capability | Traveler / Requester | Division Portfolio Manager | Division Chief | PMO / Enterprise Owner | Data Steward | Senior Leader | Auditor | Security Reviewer | Admin |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| View accessible travel metadata | Yes | Division | Division | Enterprise | Enterprise | Enterprise | Read only | Enterprise | Enterprise |
+| View sensitive report narrative | Only when authorized | Division + sensitivity | Division + sensitivity | Sensitivity required | Sensitivity required | Sensitivity required | Sensitivity required | Yes | Yes |
+| Import travel requests / reports | No | Division | No | Yes | Yes | No | No | No | Yes |
+| Confirm report/request match | No | Division | Division | Yes | Yes | No | No | Review | Yes |
+| Review trip-report outcomes | Own/assigned future extension | Division | Division | Yes | Steward support | Read | Read only | Security review | Yes |
+| Promote outcome to action/risk/decision | No | Division | Division | Yes | No | No | No | No | Yes |
+| Export accessible travel CSV | Accessible scope | Division | Division | Enterprise | Enterprise | Enterprise | Read scope | Enterprise | Enterprise |
+| View provenance and audit | Own/basic | Division | Division | Enterprise | Enterprise | Enterprise | Yes | Yes | Yes |
+
+Server-side authorization remains authoritative. Hiding a UI control is not an authorization boundary.

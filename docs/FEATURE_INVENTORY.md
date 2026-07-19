@@ -1,3 +1,147 @@
+# Feature Inventory — v0.8.0
+
+## Self-Service Portfolio Operations
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| User-created projects | Implemented | Authorized users create Division Local or Portfolio Managed work from a governed blueprint | It does not bypass project-role, division, or sensitivity authorization |
+| Stable-ID promotion | Implemented | Local work can request and receive portfolio governance while retaining history and relationships | Approval is application governance, not funds certification |
+| Role dashboard lenses | Implemented | Eight role defaults plus persistent user panel order, size, and visibility | Panels move within a smart grid; freeform pixel placement is intentionally excluded |
+| Direct divisions | Implemented | Main navigation, switcher, dashboard shortcuts, and breadcrumbs lead directly to eight divisions | Access continues to follow role and organization scope |
+| CCD/FO/JFID identity | Implemented | New CCD and FO profiles/banners and corrected JFID banner/summary | Source-master rights and imagery approval remain external governance |
+| Focused form pages | Implemented | Primary project/resource create workflows use dedicated pages | Small configuration and approval actions may remain contextual |
+| Resource exchange | Implemented | Admin template/export/preview/commit with row findings and audit | Not a live HR/workforce integration; CSV is for controlled seeding/correction |
+| Expanded blueprints | Implemented | 14 versioned types instantiate boards, tasks, and milestones | Template authoring/version approval is still code/admin governed |
+
+## Platform release status
+
+- Application version: 0.8.0.
+- Migration head: `0009_self_service_v080`.
+- 97 automated tests pass.
+- Clean seed: eight divisions and fourteen active project blueprints.
+
+---
+
+# Historical Feature Inventory — v0.7.7
+
+## Visual Portfolio Intelligence
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| Interactive travel map | Implemented | Local world outline, proportional estimate markers, keyboard selection, linked detail, and location-filter drill-through | City-level reference coordinates are stewarded locally; no route tracking or live map service |
+| Location normalization | Implemented | Known aliases and typographical variants roll up to canonical destinations; mapping coverage and unmapped values are visible | Original source strings remain unchanged; unresolved values require stewardship |
+| Travel visual analytics | Implemented | Monthly cost/volume, determination by division, outcome funnel, report compliance, and engagement impact share the filtered source population | Costs remain approval estimates |
+| Investment Flow Sankey | Implemented | Approved budget flows through category, division, project, and actual or remaining approved outcomes with reconciliation | It is not an authoritative cash-flow statement |
+| Flow drill-through | Implemented | Nodes open filtered financial baselines or source projects; accessible category table is included | Cross-system financial reconciliation remains integration-dependent |
+| Briefings label | Implemented | Navigation and page labels are simplified to Briefings | Stable `/portfolio-reviews` routes and governance semantics remain unchanged |
+| Accessible/local visuals | Implemented | Same-origin JavaScript, local map asset, keyboard labels, linked-list/table alternatives, and no-JavaScript source access | Formal WCAG certification remains required |
+
+## Platform release status
+
+- Application version: 0.7.7.
+- Migration head: `0008_travel_engagements_v076` (no schema migration required for v0.7.7).
+- 335 RTM rows, including ten v0.7.7 visualization, traceability, accessibility, and security requirements.
+- Automated regression and v0.7.7 acceptance coverage are included in `tests/test_v077.py`.
+- v0.7.6 travel lifecycle, v0.7.5 division experience, and v0.7.0 briefing governance remain available.
+
+---
+
+# Historical inventory — v0.7.6
+
+## Travel & Engagement Outcomes
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| Travel approval import | Implemented | Controlled XLSX validation, preview, commit, stable IDs, row/file provenance, raw payload, and audit evidence | Approval-source values are not authoritative actual expenditures |
+| Trip-report import | Implemented | Complete purpose, discussion, findings, recommendations, and action narratives are retained | Narrative sensitivity review does not replace authoritative classification |
+| Engagement consolidation | Implemented | Multiple traveler requests and divisions roll up to a reusable event/forum/exercise record | Alias merge/split administration is not yet configurable in the UI |
+| Request/report reconciliation | Implemented | Candidate scores use traveler, division, date, event title, and location with human confirmation and clear/rematch | Fuzzy matching remains review evidence, not an authoritative join |
+| Travel dashboard | Implemented | Estimate/status/month/division/location/compliance views drill to contributing records | Location presentation is local; no live map/geocoding service is called |
+| Trip-report review | Implemented | Status, comments, reviewer, timestamp, and audit evidence support governed review | Electronic signature and external records archive are not included |
+| Structured outcomes | Implemented | Findings, recommendations, actions, risks, decisions, and dependencies are reviewable independently | Automated text extraction is deterministic and requires human disposition |
+| Portfolio promotion | Implemented | Outcomes become canonical Actions, RAID risks, Decisions, or Dependencies with clickable source backlinks | Promotion does not silently modify the historical report narrative |
+| Division and briefing integration | Implemented | Division Portfolio and sixteen-section briefing show period-specific travel outcomes and follow-through | Standard briefing sensitivity exclusions still apply |
+| Search, My Work, quality, export | Implemented | Travel records appear in search, follow-up queues, data-quality scans, CSV exports, and division packages | Scheduled reminders and external distribution require future workers/connectors |
+
+## Platform release status
+
+- Application version: 0.7.6.
+- Migration head: `0008_travel_engagements_v076`.
+- 325 RTM rows, including twelve v0.7.6 requirements.
+- 77 automated tests pass.
+- Clean seed: 385 requests, $1,082,395.25 approval estimate, 9 trip reports, and one retained date anomaly warning.
+- v0.7.5 division banners/profiles and v0.7.0 briefing/review capabilities remain available.
+
+---
+
+# Historical inventory — v0.7.5
+
+## Division Experience and Data Exchange
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| Division banner identity | Implemented | Six responsive, accessible, optimized division banners render on the division index and detail views | Source image master management remains outside the application |
+| Canonical division view | Implemented | Current and briefing modes use the same source-backed page with presentation support | The separate 15-section review workspace remains available for governed preparation and interaction |
+| Governed division profile | Implemented | Mission, vision, focus, responsibilities, branches, initiatives, relationships, forums, doctrine, sources, and banner metadata are maintained per division | Profile approval is role-gated but does not yet use a separate multi-step content approval workflow |
+| Authoritative division naming | Implemented | CID is Coalition Interoperability Division; JFID and C3OD2 names are corrected without changing stable codes or IDs | Historical external documents are not rewritten |
+| JSON division export | Implemented | Versioned package includes accessible profile and live portfolio entities | Export is a point-in-time application package, not a signed records artifact |
+| CSV division export | Implemented | ZIP package provides separate profile, project, demand, core-function, capacity, financial, milestone, and RAID CSV files | Relationship-rich records are flattened for tabular use |
+| JSON/CSV profile import | Implemented | Authorized users preview, validate, and explicitly publish profile changes with audit evidence | v0.7.5 does not bulk-import project, demand, resource, financial, milestone, or RAID data |
+| Profile stewardship permissions | Implemented | Admin, PMO, enterprise portfolio owner, data steward, division chief, and division portfolio manager roles can maintain profiles within scope | Enterprise identity and formal access certification remain future work |
+
+## Platform release status
+
+- Application version: 0.7.5.
+- Migration head: `0007_division_experience_v075`.
+- 313 RTM rows, including six v0.7.5 division-experience and data-exchange requirements.
+- 72 automated tests pass.
+- v0.7.0 briefing lifecycle, snapshots, interactive review, questions, changes, actions, and closeout remain available.
+- v0.6.1 role guidance, display preferences, and process orientation remain available.
+
+---
+
+# Feature Inventory — v0.7.0
+
+## Division Briefing & Review
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| Division briefing cycle | Implemented baseline | Create a division-scoped recurring briefing using the existing governed Portfolio Review record | Enterprise calendar and meeting-service integration remain future work |
+| Standard briefing structure | Implemented | Generates 15 consistent leadership sections for division comparison and review | Template authoring and approval administration remain roadmap |
+| Source-backed division summary | Implemented | Aggregates standard-scope projects, demands, milestones, RAID, dependencies, resources, financials, benefits, status reports, and prior actions | Restricted, Sensitive, and Limited Distribution project/demand records are excluded and require a separate approved forum |
+| Section preparation and readiness | Implemented | Assign owners, write narrative, track readiness, submit, approve, or return for changes | Does not silently correct underlying source data |
+| Briefing snapshot | Implemented | Freezes the approved evidence and section narrative shown to leadership; section editing is locked after approval | Not a cryptographic signature or external records archive |
+| Presentation mode | Implemented | Brief directly from the application with large-format section navigation and record drill-downs | Formal room-system integration and offline mode are absent |
+| Review questions and responses | Implemented | Assign, answer, and close questions with due dates and audit evidence | Email/digest delivery requires future notification adapters |
+| Governed change requests | Implemented baseline | Record current/proposed values, owner, rationale, due date, and disposition | Application does not automatically mutate arbitrary source fields |
+| Review notes and parking lot | Implemented | Capture time-stamped discussion, observations, clarification, and parking-lot items | Formal transcript or recording integration is absent |
+| In-review actions and decisions | Implemented | Reuses authoritative Action and Decision records rather than meeting-only lists | Complex approval chains remain policy-dependent |
+| My Work follow-up | Implemented | Assigned briefing questions and change requests appear in the personal queue | Cross-system work assignment remains integration-dependent |
+| Briefing closeout | Implemented | Requires unresolved follow-up acknowledgement before completion | External signatures and immutable archive remain planned |
+
+## Platform release status
+
+- Application version: 0.7.5.
+- Migration head: `0007_division_experience_v075`.
+- v0.6.1 role guidance, display preferences, and process orientation remain available.
+- v0.5.0 portfolio governance, scenarios, integrations, data quality, report packs, resource requests, and financial evidence remain available.
+
+---
+
+# Feature Inventory — v0.6.1
+
+## Role guidance and accessible workflow additions
+
+- role-based focus strip and recommended navigation markers
+- contextual process guides for all major menu workspaces
+- Standard, Large, and Extra large browser-local text preferences
+- Comfortable and Compact browser-local spacing preferences
+- clearer input zones and required-field cues for substantial forms
+- redesigned My Work personal workbench
+- scalable small text, stronger focus indicators, and skip navigation
+
+Transparent boundaries: preferences are not yet server-side; a formal WCAG 2.2 AA evaluation remains required; Kanban keyboard reordering and configurable workflow/form design remain incomplete.
+
 
 ## v0.5.0 additions
 
@@ -102,7 +246,7 @@
 
 - versioned workbook with eight template sheets
 - demand preview/commit/correction with row-level outcomes and source lineage
-- 307 RTM records with filters, detail profiles, reverse links, design/module/test/release evidence
+- 313 packaged RTM records with filters, detail profiles, reverse links, design/module/test/release evidence
 - material before/after audit events
 
 ## Partially implemented
@@ -137,3 +281,19 @@ See the in-app RTM, `DDC5I_RTM_MVP_Status.csv`, Known Limitations, and Roadmap. 
 | Project blueprints | Implemented baseline | `ProjectTemplate`, `/templates` |
 | Governed recurring status reports | Implemented baseline | `StatusReport`, project Status tab, reporting views |
 | Blueprint provenance | Implemented | `Project.template_code`, `Project.template_version` |
+
+
+## v0.7.9 — Adoption, Focus & Workflow Simplification
+
+| Feature | Description | Primary roles |
+| ------- | ----------- | ------------- |
+| Simplified navigation | Nine primary destinations; More workspaces + Administration & Assurance collapsible groups with persisted state; contextual shortcut strip | All |
+| My Work Action Center | Unified prioritized queue (Critical now, Awaiting me, Due soon, Needs update, Watching, Recently completed) with per-item rationale and one primary action | Contributor, PM, PMO |
+| Quick actions | Inline task percent/complete/blocker and action close-out; owner/PM permission, CSRF, full audit | Contributor, PM |
+| Decision-first overview | Decisions Required and Significant Changes lead the dashboard; Investment Flow relocated to Investment analysis | Senior leader, Portfolio manager |
+| Explainable health rollup | "Why? · View calculation" showing formula, counts, health precedence per project, and data freshness | Senior leader, PMO |
+| Focused Travel workspaces | Overview / Requests / Trip Reports / Reconciliation / Engagement Outcomes with 25-row server-side pagination | PMO, Data steward, Division managers |
+| Adaptive guidance & onboarding | Compact role-focus for returning users, collapsed page guides, role-specific Getting started checklist with restart | All |
+| Help & glossary drawer | Searchable definitions (RAID, ROM, RTM, statuses, ROI, reconciliation, determination, stage gate, confidence) with owner and authoritative source | All |
+| Adoption telemetry hooks | Local, privacy-conscious UX event ring buffer (`window.jsj6Telemetry`) ready for approved analytics tooling | Administrator |
+| Release-version single source | `VERSION` file drives app metadata, UI, asset strings, and export schemas | Administrator |

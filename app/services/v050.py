@@ -21,6 +21,8 @@ from app.models import (
     ScenarioResult,
     StatusReport,
     Task,
+    TravelRequest,
+    TripReport,
 )
 
 
@@ -242,6 +244,29 @@ def scan_data_quality(db: Session, default_owner_id: str | None = None) -> list[
                 description=f"Allocated {row.allocated_hours:.0f} hours against {row.capacity_hours:.0f} hours capacity for {row.period}.",
                 owner_id=default_owner_id, due_date=today + timedelta(days=7),
             ))
+    matched_request_ids = {item.request_id for item in db.query(TripReport).filter(TripReport.request_id.is_not(None)).all()}
+    for request in db.query(TravelRequest).all():
+        if request.return_date < request.departure_date:
+            detected.append(upsert_quality_issue(
+                db, rule_code="TRAVEL-DATE-SEQUENCE", entity_type="TravelRequest", entity_id=request.id,
+                org_id=request.org_id, severity="High", title=f"Travel date sequence: {request.human_id}",
+                description="The authoritative source lists a return date before the departure date. Source values were retained and require steward correction.",
+                owner_id=default_owner_id, due_date=today + timedelta(days=5),
+            ))
+        if request.determination == "Approved" and request.report_due_date and request.report_due_date < today and request.id not in matched_request_ids:
+            detected.append(upsert_quality_issue(
+                db, rule_code="TRIP-REPORT-MISSING", entity_type="TravelRequest", entity_id=request.id,
+                org_id=request.org_id, severity="Medium", title=f"Trip report due: {request.human_id}",
+                description=f"Approved travel returned {request.return_date.isoformat()} and has no matched trip report.",
+                owner_id=default_owner_id, due_date=today + timedelta(days=7),
+            ))
+    for report in db.query(TripReport).filter(TripReport.request_id.is_(None)).all():
+        detected.append(upsert_quality_issue(
+            db, rule_code="TRIP-REPORT-UNMATCHED", entity_type="TripReport", entity_id=report.id,
+            org_id=report.org_id, severity="Medium", title=f"Trip report reconciliation: {report.human_id}",
+            description="The trip report has no confirmed link to an approval-source travel request.",
+            owner_id=default_owner_id, due_date=today + timedelta(days=7),
+        ))
     for trace in db.query(RequirementTrace).filter(
         (RequirementTrace.implementation_status.in_(["Implemented", "Partially implemented"]))
     ).all():

@@ -1,10 +1,86 @@
-# User Guide by Role
+# User Guide
+
+## v0.8.0 quick start
+
+- Open **Divisions** directly from the main menu or use the topbar division switcher; Reports is no longer part of the path.
+- Use linked breadcrumbs at the top of focused pages to return to the parent project, division, resource workspace, or prior list.
+- Open **New Project** to choose **Division Local** for work handled within existing funding/capacity or **Portfolio Managed** when enterprise funding, resources, prioritization, or reporting are required.
+- If local scope grows, open the project's **Request Portfolio Promotion** page. Approval promotes the existing record and preserves its stable ID and history.
+- Use **Personalize** on Portfolio Overview to move panels up/down, choose compact/standard/wide sizes, hide panels, or restore the role default.
+- Use **Blueprints** to start with one of 14 governed task structures rather than assembling a project from scratch.
+
+## Start with your role focus
+
+Every authenticated page shows a **Your focus** strip based on the signed-in user’s primary role. Use one of its recommended actions or open **My Work**. Menu items marked **Focus** are the best starting points for that role; they do not change authorization.
+
+## Use the page guide
+
+The page guide explains the purpose of the current workspace and shows the normal process sequence. The highlighted step indicates the current area of work when the record status is available. Use **Hide guide** to collapse it; the choice is saved in the current browser.
+
+## Find places to enter information
+
+Substantial editable forms are marked **Input area**. Required fields have an asterisk. Filters and one-click action forms are intentionally not marked as input areas.
+
+## Change text size and spacing
+
+Open **Aa — Display preferences** in the top command bar. Choose Standard, Large, or Extra large text and Comfortable or Compact spacing. These settings are stored in the current browser, not in the user account.
+
+## Daily work
+
+Open **My Work** to review assigned tasks and actions first, then demands and projects you own or sponsor. Open the authoritative record before updating status, evidence, comments, or disposition.
 
 ## Common navigation
 
 The left navigation groups decision support, delivery, personal work, and governance. The top command bar provides global search, current identity and role, light/dark mode, and sign out. Most index pages support filters and saved views. Blue identifiers and titles navigate to authoritative detail records.
 
 Health vocabulary is governed: **On Track, At Risk, Off Track, Blocked, Completed, On Hold, Not Reported**. Project records distinguish owner-reported health, calculated health, and an authorized override with rationale.
+
+## Division Briefing & Review
+
+Use **Briefings** when a division needs to summarize its work and brief leadership directly from current portfolio records instead of preparing a separate slide deck.
+
+### Create the briefing
+
+1. Open **Briefings** and choose **Division Briefing**.
+2. Select the division, reporting period, chair/presenter, participants, purpose, and decisions required.
+3. The application creates the standard 15-section briefing structure and fills each section with accessible source-backed evidence.
+
+### Prepare the division summary
+
+The standard structure includes mission context, executive summary, accomplishments, portfolio health, leadership-attention projects, demand, milestones, RAID, workforce, investment, benefits, cross-division coordination, decisions required, 30/60/90-day priorities, and prior actions.
+
+For each section:
+
+1. Review the generated metrics and source records.
+2. Assign a section owner.
+3. Add a concise leadership narrative explaining what changed, why it matters, and what leadership should understand or decide.
+4. Mark the section **Ready for Division Review** when the narrative and source evidence have been validated.
+
+All sections must be ready before the briefing can be submitted. A Division Chief, PMO, Enterprise Portfolio Owner, Senior Leader, Approval Authority, or Administrator can approve it. Approval captures a briefing snapshot.
+
+### Conduct the live review
+
+Select **Start live review**, then use **Presentation mode**. The left panel moves through the standard agenda, the center panel displays narrative and source evidence, and the right panel captures review activity.
+
+During the review, authorized participants can:
+
+- ask and assign a question;
+- document and close a response;
+- add discussion, clarification, observation, or parking-lot notes;
+- request a governed source-record change with current and proposed values;
+- assign an authoritative Action record;
+- use the existing review-item workflow to record an authoritative Decision and related action; and
+- drill directly into accessible project, demand, milestone, RAID, resource, financial, benefit, status-report, and action records.
+
+### Governed changes
+
+A briefing change request does not silently overwrite the source record. The assigned owner documents whether the request was accepted, partially accepted, rejected, requires clarification, was applied through the authoritative workflow, or was closed. The disposition and review discussion remain auditable.
+
+### Follow up and close
+
+Questions and change requests assigned to a user appear under **My Work → Leadership Review Follow-up**. Actions continue to appear in the existing Actions and Conditions list.
+
+When the live forum is complete, enter the final summary. If open questions or change requests remain, the closing authority must acknowledge that they will continue as governed follow-up. The approved snapshot remains unchanged so the application preserves what leadership saw during the briefing.
 
 ## DDC5I Senior Leader
 
@@ -178,6 +254,8 @@ Use the theme control in the top command bar to switch between **Premium Enterpr
 Use **Portfolio Overview** for enterprise KPIs and drill-downs. Open **Decisions**, **Risks & Dependencies**, **Portfolio Reviews**, **Scenarios**, or an individual project for authoritative leadership and governance records. Project and demand workspaces include a **Bidirectional Traceability** section. Select a requirement ID to view its source text, implementation classification, design/module reference, test evidence, release, and links back to operational application pages.
 
 
+> **Protected-source boundary:** Standard division briefings exclude records marked Restricted, Sensitive, or Limited Distribution; those records must be reviewed in a separately approved restricted forum.
+
 ## Common v0.3.1 troubleshooting
 
 - **Task drawer does not open:** v0.3.1 task controls are links. The browser should open the full task page even when the drawer JavaScript is unavailable. Confirm the page reports v0.3.1 and that `/static/app.js?v=0.3.1` loads. Rebuild the container if an older unversioned bundle is still served.
@@ -286,3 +364,118 @@ Report packs are application snapshots. Scheduled distribution, signed PDF packa
 ### Search the new governance records
 
 Global search now includes Portfolio Reviews, Scenarios, Data Quality, Report Packs, and Resource Requests. Search results remain filtered by role, organization scope, project access, and sensitive-record permissions.
+
+## Division Experience — v0.7.5
+
+### Open a division
+
+1. Open **Briefings**.
+2. Select **Division Portfolios** or open `/divisions`.
+3. Choose a division card. Each card shows the division banner, mission, focus areas, projects, demands, and exceptions.
+
+### Current and Briefing views
+
+The division page provides two views of the same authoritative data:
+
+- **Current view** includes the full profile, operating context, portfolio data, and source notes.
+- **Briefing view** reduces background material and emphasizes leadership summary, KPIs, health, delivery, milestones, and RAID.
+
+Use **Present** to open the division page full-screen. The existing **Open review workspace** action remains available for governed questions, notes, changes, actions, decisions, snapshots, and closeout.
+
+### Export division data
+
+Open **Export** and choose:
+
+- **JSON data package** for a structured, versioned package.
+- **CSV data package** for a ZIP containing separate profile, project, demand, core-function, capacity, financial, milestone, and RAID files.
+
+Exports include only records accessible to the signed-in user.
+
+### Maintain a division profile
+
+Authorized profile stewards can select **Edit profile** and update mission, vision, focus areas, responsibilities, organizational elements, initiatives, relationships, forums, doctrine/standards, banner metadata, and content sources.
+
+The form uses one item per line and pipe-separated records where indicated. Publishing creates an audit event.
+
+### Import a profile
+
+1. Select **Export → Import profile JSON/CSV**.
+2. Upload a JSON profile or `division_profile.csv` from an exported CSV package.
+3. Review the normalized preview and any warnings.
+4. Select **Import and publish**.
+
+The importer does not change projects, demands, resources, financials, briefings, questions, decisions, actions, or audit history.
+
+## Visual Portfolio Intelligence — v0.7.7
+
+### Use the Investment Flow
+
+1. Open **Home** to view Portfolio Overview.
+2. In **Investment Flow**, select an approved-investment, category, division, project, or outcome node.
+3. Review the selected amount and basis in the detail panel.
+4. Choose **Open contributing records** to inspect the filtered financial baseline or source project.
+5. Expand the accessible category table when a precise tabular comparison is preferable.
+
+The flow reconciles approved budget into actual-to-date capped to approved plus unspent approved. Forecast remains a separate portfolio metric. The diagram is planning evidence, not an authoritative accounting statement.
+
+### Use the interactive travel map
+
+1. Open **Travel** and apply division, determination, location, search, or date filters.
+2. Select a map marker to see estimated cost, requests, engagements, participating divisions, and linked reports.
+3. Select **Filter to this location**, or use the synchronized **Top locations** list, to open the contributing travel records.
+4. Review mapping coverage and expand the unmapped-location list when stewardship is needed.
+5. Use the monthly trend, determination-by-division, outcome funnel, report-compliance, and engagement-impact views to identify workload and follow-through.
+
+The map uses locally maintained city-level reference coordinates. It does not display traveler routes or send destination data to an external map or geocoding provider.
+
+### Briefings label
+
+The navigation item previously labeled **Briefings & Reviews** is now **Briefings**. Existing briefing records, review actions, questions, decisions, routes, permissions, snapshots, and audit evidence are unchanged.
+
+## Travel & Engagement Outcomes — v0.7.6
+
+### Start at Travel & Engagements
+
+Open **Reports & Analytics → Travel & Engagements**. Use date, division, determination, and keyword filters to narrow the source-backed approval records. The KPI cards and charts show approval estimates; they are explicitly not authoritative actual expenditures.
+
+Select a request to review traveler, dates, destination, purpose/ROI, impact, estimated cost, funding, exemption, approval chain, source row, linked engagement, matched reports, and audit evidence. Select an engagement to see all participating travelers, divisions, requests, reports, and estimated cost in one place.
+
+### Reconcile a trip report
+
+A report without a confirmed request link shows candidate matches. Review the score and component evidence for traveler, division, date, event, and location. Confirm the correct request only when the source evidence supports it. The application records the score, rationale, confirmer, and timestamp.
+
+### Review outcomes
+
+Trip reports preserve the complete Purpose/Objectives, Discussion, Key Findings, Recommendations, and Action Items narrative. Structured outcome cards are review aids; they do not replace the original report. Authorized reviewers can classify and promote an accepted item to an Action, Risk, or Decision. The target record retains a backlink to the exact source report item.
+
+### Division briefing
+
+Division pages include **Travel, forums, and trip reports** with request count, approval estimate, reports due/missing, reconciliation count, recent travel, and report outcomes. Division briefings include **Travel, forums, and external engagement outcomes** as a source-backed section. When a briefing is approved, the snapshot freezes the displayed travel evidence with the rest of the briefing.
+
+### My Work
+
+Division portfolio managers, division chiefs, PMO, data stewards, and administrators see trip reports requiring review or reconciliation in **My Work**. Open the report from the work item and complete the governed match/review step.
+
+### Import
+
+Open **Administration → Imports**, choose **Travel Requests** or **Trip Reports**, upload an `.xlsx` workbook, inspect every row result, download correction guidance when needed, and commit only valid/warning rows. Source filename, row, identifiers, raw values, batch, and audit evidence are retained.
+
+
+## v0.7.9 — What changed for you
+
+### Finding your way (all roles)
+The sidebar now shows nine primary destinations. Everything else still exists under **More workspaces** and **Administration & Assurance** — click a group heading to expand it; the app remembers your choice and opens a group automatically when you are on one of its pages. The strip under the header shows contextual shortcuts: Home, My Work (with your open-item count), your top two role actions, and Notifications.
+
+### My Work is now your Action Center
+Open **My Work** to see one prioritized queue instead of separate panels: **Critical now** (overdue critical work), **Awaiting me** (answers, dispositions, reconciliation), **Due soon** (next seven days), **Needs update** (stale status), **Watching** (health deterioration and longer-horizon work), and **Recently completed** (confirmation your work rolled up). Each card tells you *why* it needs attention and where it belongs. Empty groups disappear; when nothing needs you, you get one clear "all caught up" state.
+
+**Fast updates:** on any task card, pick a percent and press **Save**, or press **Complete** — done in seconds, no project navigation required. Action items have a one-click **Close**. Every quick update is permission-checked and audited exactly like a full edit.
+
+### Reading the Portfolio Overview (leaders and portfolio managers)
+The dashboard now leads with what needs you: **Decisions Required** first, then **Significant Changes** since the last review (health drops, critical risks, cost forecast over budget, milestone slippage, stale status). Health, tasks, and investments follow. The Investment Flow diagram lives under **Investment analysis** further down. On **Portfolio Health**, click **Why? · View calculation** to see the formula, the per-project contributions, whether each health value is calculated, owner-reported, or a leadership override, and how fresh the data is.
+
+### Travel (PMO, data stewards, division managers)
+Travel is now five focused tabs: **Overview** (KPIs, map, trends, compliance, outcome pipeline), **Requests**, **Trip Reports**, **Reconciliation**, and **Engagement Outcomes**. Long tables show 25 rows per page with clear counts; your filters carry across tabs.
+
+### Getting help
+Click **?** in the topbar for the Help drawer: search definitions (RAID, ROM, RTM, statuses, ROI, reconciliation, determination, stage gate, confidence score), reopen the page guide, or restart the Getting started checklist. Returning users see a compact focus banner and collapsed guides — expand them any time.

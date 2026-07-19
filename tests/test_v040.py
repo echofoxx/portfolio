@@ -25,6 +25,7 @@ from app.services.schedule import critical_path, gantt_layout, wbs_numbers, woul
 from app.services.security import csrf_token
 from app.services.storage import LocalVolumeStorage
 from conftest import login
+from app.config import APP_VERSION
 
 
 def _admin(db) -> User:
@@ -63,7 +64,7 @@ def test_runtime_headers_and_v040_navigation_are_present(client):
     assert response.headers["x-resolved-client-ip-source"] == "direct"
     assert '/roadmaps' in response.text
     assert '/templates' in response.text
-    assert '/static/app.js?v=0.6.0' in response.text
+    assert f'/static/app.js?v={APP_VERSION}' in response.text
 
 
 def test_blueprint_instantiates_governed_project(client, db):

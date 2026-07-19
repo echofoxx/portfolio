@@ -1,1 +1,29 @@
-{% extends "base.html" %}{% block title %}Divisions · DDC5I Portfolio{% endblock %}{% block content %}<div class="page-head"><div><h2>Division Portfolios</h2><p>Enterprise roll-up with direct drill-down to each division's mission, core functions, demand, delivery, RAID, capacity, and financial records.</p></div></div><div class="grid grid-3">{% for row in rows %}<a class="card kpi" href="/divisions/{{ row.org.code }}"><div class="kpi-label">{{ row.org.code }}</div><h3>{{ row.org.name }}</h3><p>{{ row.org.narrative }}</p><div class="grid grid-3"><div><div class="kpi-value" style="font-size:22px">{{ row.projects|length }}</div><div class="kpi-label">Projects</div></div><div><div class="kpi-value text-bad" style="font-size:22px">{{ row.at_risk }}</div><div class="kpi-label">At risk</div></div><div><div class="kpi-value" style="font-size:22px">{{ row.demands }}</div><div class="kpi-label">Demands</div></div></div></a>{% endfor %}</div>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Divisions · DDC5I Portfolio{% endblock %}
+{% block content %}
+<div class="page-head division-index-head">
+  <div><span class="eyebrow">Mission portfolios</span><h2>Division Portfolios</h2><p>Open a division to brief from live portfolio evidence, review mission context, and export an accessible data package.</p></div>
+</div>
+<div class="division-card-grid" data-division-gallery>
+  {% for row in rows %}
+  <a class="division-card" href="/divisions/{{ row.org.code }}" data-division-card data-banner-src="{{ row.profile.banner_asset if row.profile else '' }}">
+    <div class="division-card-media">
+      {% if row.profile and row.profile.banner_asset %}<img src="{{ row.profile.banner_asset }}" alt="" loading="{% if loop.index <= 2 %}eager{% else %}lazy{% endif %}" decoding="async" style="object-position:{{ row.profile.focal_x }}% {{ row.profile.focal_y }}%">{% else %}<div class="division-card-fallback">{{ row.org.code }}</div>{% endif %}
+      <span class="division-card-code">{{ row.org.code }}</span>
+    </div>
+    <div class="division-card-body">
+      <div><h3>{{ row.org.name }}</h3><p>{{ row.profile.mission if row.profile else row.org.narrative }}</p></div>
+      {% if row.profile and row.profile.focus_areas %}<div class="division-focus-tags">{% for item in row.profile.focus_areas[:4] %}<span>{{ item }}</span>{% endfor %}</div>{% endif %}
+      <div class="division-card-metrics">
+        <div><strong>{{ row.projects|length }}</strong><span>Projects</span></div>
+        <div><strong class="{% if row.at_risk %}text-bad{% endif %}">{{ row.at_risk }}</strong><span>Exceptions</span></div>
+        <div><strong>{{ row.demands }}</strong><span>Demands</span></div>
+      </div>
+      <div class="division-card-open"><span>Open division view</span><strong aria-hidden="true">→</strong></div>
+    </div>
+  </a>
+  {% else %}
+  <div class="empty">No accessible divisions were found.</div>
+  {% endfor %}
+</div>
+{% endblock %}

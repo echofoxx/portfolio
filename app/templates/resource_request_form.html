@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Submit Resource Request · JSJ6{% endblock %}{% block content %}
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><a href="/resources">Resources</a><span>›</span><span>Submit request</span></div>
+<div class="page-head"><div><span class="eyebrow">Governed capacity request</span><h2>Submit Resource Request</h2><p>Document the mission need and requested capacity. Approval records a planning decision, not an authoritative personnel assignment.</p></div><a class="btn" href="/resources">Cancel</a></div>
+<form action="/resources/requests" method="post" class="card form-page compact-form-page"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <div class="form-grid field-span-2">
+    <label class="field">Organization *<select class="select" name="org_id" required>{% for item in eligible_orgs %}<option value="{{ item.id }}">{{ item.code }} · {{ item.name }}</option>{% endfor %}</select></label>
+    <label class="field">Project<select class="select" name="project_id"><option value="">Enterprise or core work</option>{% for item in project_options %}<option value="{{ item.id }}" {% if selected_project and selected_project.id==item.id %}selected{% endif %}>{{ item.human_id }} · {{ item.title }}</option>{% endfor %}</select></label>
+    <label class="field">Role needed *<input class="input" name="role_name" required placeholder="e.g., Data Engineer"></label>
+    <label class="field">Skill or specialty<input class="input" name="skill" placeholder="e.g., Semantic interoperability"></label>
+    <label class="field">Requested hours *<input class="input" type="number" min="1" step="1" name="requested_hours" required></label>
+    <label class="field">Priority<select class="select" name="priority"><option>Low</option><option selected>Medium</option><option>High</option><option>Critical</option></select></label>
+    <label class="field">Period start *<input class="input" type="date" name="period_start" required></label>
+    <label class="field">Period end *<input class="input" type="date" name="period_end" required></label>
+    <label class="field field-span-2">Mission need and alternatives considered *<textarea class="textarea" name="rationale" rows="5" required placeholder="Explain the work enabled, impact if unavailable, and alternatives already considered."></textarea></label>
+  </div><div class="sticky-form-actions field-span-2"><div><strong>Before submitting</strong><span>Confirm the hours, period, and skill reflect the smallest viable request.</span></div><div class="actions"><a class="btn" href="/resources">Cancel</a><button class="btn btn-primary" type="submit">Submit request</button></div></div>
+</form>{% endblock %}

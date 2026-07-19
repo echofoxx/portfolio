@@ -10,17 +10,66 @@
     <details class="quick-menu">
       <summary class="btn btn-primary">＋ Quick Add <span>⌄</span></summary>
       <div class="quick-menu-popover">
+        {% if 'PROJECT_MANAGER' in user.roles or 'DIVISION_PORTFOLIO_MANAGER' in user.roles or 'DIVISION_CHIEF' in user.roles or 'PMO' in user.roles or 'ADMIN' in user.roles %}<a href="/projects/new"><strong>New project</strong><small>Start division-local or portfolio-managed work</small></a>{% endif %}
         <a href="/demands/new"><strong>New demand</strong><small>Start a governed intake request</small></a>
         <a href="/scenarios#new-scenario"><strong>New scenario</strong><small>Model a non-destructive change</small></a>
-        <a href="/portfolio-reviews"><strong>Portfolio review</strong><small>Open the governance workspace</small></a>
+        <a href="/portfolio-reviews"><strong>Portfolio briefing</strong><small>Open the leadership briefing workspace</small></a>
       </div>
     </details>
+    <a class="btn" href="/divisions">▦ Divisions</a>
     <a class="btn" href="/projects">⌁ Filters</a>
     <a class="btn icon-btn" href="/reports" aria-label="More reporting options">•••</a>
   </div>
 </div>
 
-<section class="kpi-grid-6" aria-label="Portfolio key performance indicators">
+<section class="dashboard-personalize card"><div><span class="eyebrow">{{ dashboard_lens.label }} landing page</span><h3>Your role-focused Portfolio Overview</h3><p>{{ dashboard_lens.summary }}</p></div><div class="actions"><button class="btn" type="button" data-action="customize-dashboard">Customize panels</button><form method="post" action="/dashboard/preferences"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="reset" value="1"><button class="btn btn-ghost" type="submit">Reset role default</button></form></div></section>
+<form method="post" action="/dashboard/preferences" class="dashboard-customizer card" data-dashboard-customizer hidden><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="panel_order" data-dashboard-order><input type="hidden" name="hidden_panels" data-dashboard-hidden><input type="hidden" name="panel_sizes" data-dashboard-sizes><div><span class="eyebrow">Smart layout</span><h3>Arrange your landing page</h3><p>Use the controls on each panel to move, resize, or hide it. Layouts remain constrained to the responsive grid.</p></div><div class="actions"><button class="btn" type="button" data-action="cancel-dashboard-customize">Cancel</button><button class="btn btn-primary" type="submit">Save layout</button></div></form>
+<script type="application/json" id="dashboard-layout-data">{{ {'order':dashboard_order,'hidden':dashboard_hidden,'sizes':dashboard_sizes}|tojson }}</script>
+<div class="dashboard-layout-grid" data-dashboard-layout aria-label="Configurable role dashboard panels"></div>
+
+<section class="card onboarding-card" data-onboarding hidden aria-label="Getting started">
+  <div class="onboarding-head">
+    <div><span class="eyebrow">Getting started · {{ role_focus.label }}</span><h3>Welcome, {{ user.full_name.split(' ')[0] }} — here is how to get value in your first five minutes</h3><p class="card-subtitle">{{ role_focus.summary }} Complete one real action below and watch it roll up to the manager and leadership views automatically.</p></div>
+    <button class="btn btn-small btn-ghost" type="button" data-action="dismiss-onboarding">Dismiss</button>
+  </div>
+  <div class="onboarding-steps">
+    {% for action in role_focus.actions %}
+    <a href="{{ action.href }}"><strong>{{ loop.index }}. {{ action.label }}</strong><small>{{ action.hint }}</small></a>
+    {% endfor %}
+  </div>
+  <p class="help" style="margin:10px 0 0">You can reopen this anytime from Help (?) → Restart getting started.</p>
+</section>
+
+<section class="decision-first-row" aria-label="Decisions required">
+  <article class="card dashboard-panel decisions-required-panel {% if not decisions_required %}is-clear{% endif %}" data-dashboard-panel="decisions" data-panel-title="Decisions Required">
+    <div class="panel-head"><div><span class="eyebrow">First priority</span><h3>Decisions Required</h3></div><span class="badge {% if decisions_required %}badge-Awaiting-Decision{% endif %}">{{ decisions_required|length }} open</span></div>
+    {% if decisions_required %}
+    <div class="decision-required-list">
+      {% for d in decisions_required[:5] %}
+      <a class="decision-required-row" href="/demands/{{ d.id }}">
+        <span class="decision-copy"><strong>{{ d.human_id }} · {{ d.title }}</strong><small>Awaiting portfolio decision{% if d.rom_cost %} · ROM {{ d.rom_cost|money }}{% endif %}</small></span>
+        <span class="btn btn-small btn-primary">Open decision →</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% if decisions_required|length > 5 %}<a class="panel-link" href="/demands?status=Awaiting+Decision">All {{ decisions_required|length }} pending decisions <span>→</span></a>{% endif %}
+    {% else %}
+    <div class="callout success compact-callout">No portfolio decisions are waiting on leadership right now.</div>
+    {% endif %}
+  </article>
+  <article class="card dashboard-panel changes-panel" data-dashboard-panel="changes" data-panel-title="Significant Changes">
+    <div class="panel-head"><div><span class="eyebrow">Since the last review</span><h3>Significant Changes</h3></div><span class="badge">{{ changes|length }}</span></div>
+    {% if changes %}
+    <div class="change-list">
+      {% for c in changes[:7] %}
+      <a class="change-row sev-{{ c.severity }}" href="{{ c.href }}"><span class="change-dot" aria-hidden="true"></span><span class="change-copy"><strong>{{ c.label }}</strong><small>{{ c.detail }}</small></span></a>
+      {% endfor %}
+    </div>
+    {% else %}<div class="callout success compact-callout">No material changes since the last reporting period.</div>{% endif %}
+  </article>
+</section>
+
+<section class="kpi-grid-6" aria-label="Portfolio key performance indicators" data-dashboard-panel="kpis" data-panel-title="Portfolio KPIs">
   <a class="card kpi premium-kpi" href="/projects">
     <span class="kpi-icon blue">▧</span><div class="kpi-label">Active Projects</div><div class="kpi-value">{{ projects|length }}</div><div class="kpi-trend positive">↑ {{ projects|length - stale|length }} <span>current this period</span></div>
   </a>
@@ -37,12 +86,12 @@
     <span class="kpi-icon amber">△</span><div class="kpi-label">Risks High</div><div class="kpi-value">{{ high_risks|length }}</div><div class="kpi-trend {% if high_risks %}negative{% else %}positive{% endif %}">↑ {{ high_risks|length }} <span>open high / critical</span></div>
   </a>
   <a class="card kpi premium-kpi" href="/benefits">
-    <span class="kpi-icon green">◉</span><div class="kpi-label">Benefits Realized</div><div class="kpi-value">{{ benefit_realized|money }}</div><div class="kpi-trend positive">↑ {{ (benefit_realized/benefit_target*100)|round(1) if benefit_target else 0 }}% <span>of target</span></div>
+    <span class="kpi-icon green">◉</span><div class="kpi-label">Benefit Progress</div><div class="kpi-value">{% if benefit_is_money %}{{ benefit_realized|money }}{% else %}{{ benefit_realized|round(0) }}{% endif %}</div><div class="kpi-trend positive">↑ {{ (benefit_realized/benefit_target*100)|round(1) if benefit_target else 0 }}% <span>of target · {{ benefit_unit }}</span></div>
   </a>
 </section>
 
-<section class="dashboard-panel-grid">
-  <article class="card dashboard-panel portfolio-health-panel">
+<section class="dashboard-panel-grid dashboard-panel-grid-3">
+  <article class="card dashboard-panel portfolio-health-panel" data-dashboard-panel="health" data-panel-title="Portfolio Health">
     <div class="panel-head"><h3>Portfolio Health</h3><span class="metric-info" title="Weighted current project health">i</span></div>
     <div class="chart-layout">
       <div class="donut health-donut" style="--on-track:{{ health_segments.on_track }}%;--at-risk:{{ health_segments.at_risk }}%"><div><strong>{{ health_score }}</strong><span>Overall</span></div></div>
@@ -52,21 +101,31 @@
         <div><span class="legend-dot bad"></span><span>Off Track</span><strong>{{ health_segments.off_track|round(0) }}%</strong></div>
       </div>
     </div>
+
+    <details class="calc-explainer" data-calc-explainer>
+      <summary>Why? · View calculation</summary>
+      <div class="calc-explainer-body">
+        <p class="mono">{{ health_explain.formula }}</p>
+        <p>{{ health_explain.basis }}</p>
+        <ul class="calc-count-list">{% for label, n in health_explain.counts.items() %}<li><strong>{{ n }}</strong> {{ label }}</li>{% endfor %}</ul>
+        <p><strong>Data freshness:</strong> {{ health_explain.fresh }} of {{ health_explain.total }} projects have a status within 14 days{% if health_explain.stale %} · {{ health_explain.stale }} stale{% endif %}.</p>
+        <div class="calc-contributors">{% for c in health_explain.contributors %}<a href="{{ c.href }}"><span class="health-label health-{{ c.health|badge|lower }}"><i></i>{{ c.health }}</span> {{ c.id }} <small>({{ c.source }})</small></a>{% endfor %}</div>
+      </div>
+    </details>
     <a class="panel-link" href="/projects">View full dashboard <span>→</span></a>
   </article>
 
-  <article class="card dashboard-panel investment-panel">
-    <div class="panel-head"><h3>Investment by Category</h3><span class="metric-info" title="Approved investment by financial category">i</span></div>
-    <div class="chart-layout investment-layout">
-      <div class="donut investment-donut" style="background:conic-gradient({{ investment_gradient }})"><div><strong>{{ budget|money }}</strong><span>Total</span></div></div>
-      <div class="chart-legend compact">
-        {% for category in investment_categories[:5] %}<div><span class="legend-dot" style="background:{{ category.color }}"></span><span>{{ category.name }}</span><strong>{{ category.amount|money }} ({{ category.percentage|round(0) }}%)</strong></div>{% else %}<div class="empty">No investment records.</div>{% endfor %}
-      </div>
+  <article class="card dashboard-panel tasks-panel" data-dashboard-panel="my-work" data-panel-title="My Work">
+    <div class="panel-head"><h3>My Tasks</h3></div>
+    <div class="dashboard-list task-list">
+      {% for task, project in my_tasks %}<a class="dashboard-list-row" href="/projects/{{ project.id }}/tasks/{{ task.id }}"><span class="task-bullet"></span><span class="list-main"><strong>{{ task.title }}</strong><small>{{ project.human_id }} · {{ task.priority }} priority</small></span><time>Due {{ task.due_date|datefmt }}</time></a>{% endfor %}
+      {% for action in my_actions %}<a class="dashboard-list-row" href="/my-work"><span class="task-bullet action"></span><span class="list-main"><strong>{{ action.title }}</strong><small>{{ action.human_id }} · {{ action.source_type }}</small></span><time>Due {{ action.due_date|datefmt }}</time></a>{% endfor %}
+      {% if not my_tasks and not my_actions %}<div class="empty">No open assigned work.</div>{% endif %}
     </div>
-    <a class="panel-link" href="/financials">View details <span>→</span></a>
+    <a class="panel-link" href="/my-work">View all tasks <span>→</span></a>
   </article>
 
-  <article class="card dashboard-panel decisions-panel">
+  <article class="card dashboard-panel decisions-panel" data-dashboard-panel="recent-decisions" data-panel-title="Recent Decisions">
     <div class="panel-head"><h3>Recent Decisions</h3></div>
     <div class="dashboard-list">
       {% for decision in recent_decisions %}
@@ -76,19 +135,42 @@
     </div>
     <a class="panel-link" href="/decisions">View all decisions <span>→</span></a>
   </article>
+</section>
 
-  <article class="card dashboard-panel tasks-panel">
-    <div class="panel-head"><h3>My Tasks</h3></div>
-    <div class="dashboard-list task-list">
-      {% for task, project in my_tasks %}<a class="dashboard-list-row" href="/projects/{{ project.id }}/tasks/{{ task.id }}"><span class="task-bullet"></span><span class="list-main"><strong>{{ task.title }}</strong><small>{{ project.human_id }} · {{ task.priority }} priority</small></span><time>Due {{ task.due_date|datefmt }}</time></a>{% endfor %}
-      {% for action in my_actions %}<a class="dashboard-list-row" href="/my-work"><span class="task-bullet action"></span><span class="list-main"><strong>{{ action.title }}</strong><small>{{ action.human_id }} · {{ action.source_type }}</small></span><time>Due {{ action.due_date|datefmt }}</time></a>{% endfor %}
-      {% if not my_tasks and not my_actions %}<div class="empty">No open assigned work.</div>{% endif %}
+<div class="section-title"><div><div class="eyebrow">Investment analysis</div><h3>Approved investment flow and traceability</h3></div><small class="muted">Deep-dive view · supports the decisions above</small></div>
+<section class="investment-flow-row">
+<article class="card dashboard-panel investment-flow-panel flow-standalone" data-dashboard-panel="investment" data-panel-title="Investment Flow">
+    <div class="panel-head"><div><span class="eyebrow">Portfolio planning flow</span><h3>Investment Flow</h3></div><span class="metric-info" title="Approved budget traced through category, division, project, and actual or remaining approved value">i</span></div>
+    <div class="flow-summary" aria-label="Investment flow summary">
+      <span><small>Approved</small><strong>{{ investment_flow.approved|money }}</strong></span>
+      <span><small>Actual to date</small><strong>{{ investment_flow.spent|money }}</strong></span>
+      <span><small>Unspent approved</small><strong>{{ investment_flow.remaining|money }}</strong></span>
+      <span class="flow-basis {% if investment_flow.reconciled %}is-reconciled{% endif %}"><small>Flow check</small><strong>{% if investment_flow.reconciled %}Reconciled{% else %}Review{% endif %}</strong></span>
     </div>
-    <a class="panel-link" href="/my-work">View all tasks <span>→</span></a>
+    <div class="investment-flow-shell" data-investment-flow aria-label="Interactive investment flow diagram">
+      <svg class="investment-flow-svg" viewBox="0 0 1120 430" role="img" aria-labelledby="investment-flow-title investment-flow-desc">
+        <title id="investment-flow-title">Approved investment flow</title>
+        <desc id="investment-flow-desc">Approved budget flows through financial categories, lead divisions, projects, and actual or remaining approved value. Select a node to open its source records.</desc>
+      </svg>
+      <aside class="flow-detail" data-flow-detail aria-live="polite">
+        <span class="eyebrow">Traceable selection</span>
+        <h4>Choose a flow node</h4>
+        <p>Select a category, division, project, or outcome to inspect its amount and open the contributing records.</p>
+      </aside>
+    </div>
+    <script type="application/json" id="investment-flow-data">{{ investment_flow|tojson }}</script>
+    <details class="visual-data-table">
+      <summary>Accessible investment category table</summary>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Category</th><th>Approved amount</th><th>Share</th></tr></thead><tbody>{% for category in investment_categories %}<tr><td><a href="/financials?category={{ category.name|urlencode }}">{{ category.name }}</a></td><td>{{ category.amount|money }}</td><td>{{ category.percentage|round(1) }}%</td></tr>{% else %}<tr><td colspan="3" class="empty">No investment records.</td></tr>{% endfor %}</tbody></table></div>
+    </details>
+    <div class="callout info compact-callout"><strong>Basis:</strong> planning and transaction evidence in this application; not an authoritative accounting statement.</div>
+    <a class="panel-link" href="/financials">Open financial records <span>→</span></a>
   </article>
 </section>
 
-<section class="card glance-panel">
+<section class="card division-dashboard-panel" data-dashboard-panel="divisions" data-panel-title="Division Portfolios"><div class="panel-head"><div><span class="eyebrow">Direct mission access</span><h3>Division Portfolios</h3></div><a class="panel-link" href="/divisions">Open all divisions <span>→</span></a></div><div class="division-dashboard-grid">{% for row in division_rows %}<a href="/divisions/{{ row.org.code }}"><span>{{ row.org.code }}</span><strong>{{ row.org.name }}</strong><small>{{ row.projects }} active · {{ row.at_risk }} exceptions · {{ row.demands }} demands</small></a>{% endfor %}</div></section>
+
+<section class="card glance-panel" data-dashboard-panel="portfolio" data-panel-title="Portfolio at a Glance">
   <div class="panel-head glance-head"><h3>Portfolio at a Glance</h3><div class="glance-controls"><label>View: <select class="select" aria-label="Portfolio table view"><option>Standard</option></select></label><a class="panel-link" href="/projects">View full portfolio <span>→</span></a></div></div>
   <div class="table-wrap dashboard-table-wrap">
     <table class="data-table portfolio-glance-table">

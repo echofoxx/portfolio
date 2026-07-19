@@ -7,7 +7,7 @@
 3. FastAPI is an acceptable comparable stack because it meets deployment, security, persistence, OpenAPI, maintainability, accessibility, testing, and offline-runtime objectives.
 4. PostgreSQL is the authoritative MVP store; SQLite is used only for local automated-test execution in the build workspace.
 5. All demonstration data is synthetic and not an operational statement.
-6. The 307 RTM rows are imported exactly as traceability records and then assigned a separate implementation status; source priority/phase/fit are preserved.
+6. The 307 source RTM rows are imported exactly as traceability records and then assigned a separate implementation status; source priority/phase/fit are preserved. Release-specific requirements use distinct IDs and bring the v0.7.5 packaged set to 313 rows.
 7. Role-based capacity is sufficient for MVP decisions; person-level calendars and rates are not.
 8. Basic financial values are decision-support estimates; commitments, obligations, expenditures, and rates remain external-authority data.
 9. Browser printing is the MVP PDF-ready mechanism; server-generated signed PDF packs are later work.

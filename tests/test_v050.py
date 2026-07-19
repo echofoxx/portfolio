@@ -22,6 +22,7 @@ from app.models import (
 )
 from app.services.security import csrf_token
 from conftest import login
+from app.config import APP_VERSION
 
 
 def admin(db):
@@ -32,9 +33,9 @@ def test_v050_navigation_and_governance_pages_render(client):
     login(client, "admin")
     dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
-    assert '/static/app.js?v=0.6.0' in dashboard.text
+    assert f'/static/app.js?v={APP_VERSION}' in dashboard.text
     for path, marker in [
-        ("/portfolio-reviews", "Portfolio Reviews"),
+        ("/portfolio-reviews", "Briefings"),
         ("/scenarios", "Portfolio Scenarios"),
         ("/integrations", "Synchronization & Field Authority"),
         ("/data-quality", "Data Quality & Reconciliation"),

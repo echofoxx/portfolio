@@ -25,6 +25,7 @@ app/
     integrations.py       adapter protocols and field-ownership registry
     jobs.py               background-job abstraction
     storage.py            secure local-volume adapter
+    briefings.py           source-backed division briefing aggregation and section generation
   templates/              server-rendered pages
   static/                 local CSS, JavaScript, templates
   data/requirements.json  imported RTM baseline
@@ -141,3 +142,52 @@ This remains a modular-monolith boundary. Task collaboration, storage, search, a
 7. Search includes the new governance records using the same user/division/sensitivity filters as the rest of the application.
 
 This preserves the modular-monolith approach: governance modules share one transaction boundary and canonical model now, while integration, scheduling, reporting, identity, and storage boundaries can later move behind independently scalable services without replacing stable identifiers or core workflows.
+
+
+## v0.7.0 division briefing and live-review flow
+
+1. A `PortfolioReview` with type `Division Briefing` remains the governing review header and enforces enterprise or division scope.
+2. `briefings.py` creates the standard 15 `BriefingSection` records and refreshes source summaries from authorized project, demand, milestone, RAID, dependency, workforce, financial, benefit, status-report, and action records.
+3. Section narratives and readiness states are prepared without changing the authoritative source records summarized by the section.
+4. Submission requires every section to be ready. Division approval creates a `BriefingSnapshot` containing the frozen source-backed payload and section narrative presented to leadership.
+5. Presentation mode reads the approved snapshot while direct source links remain available for authorized drill-down. Later changes to a source record do not rewrite the approved snapshot.
+6. `ReviewQuestion`, `ReviewChangeRequest`, and `ReviewNote` capture discussion and follow-up. Existing `Decision` and `Action` records remain the authoritative outcome registers.
+7. Assigned questions and change requests appear in My Work. Closing a briefing with unresolved items requires explicit acknowledgement and retains the open follow-up.
+8. Migration `0006_division_briefing_v070` adds only the new briefing support tables and does not rewrite existing review, decision, action, project, or demand records.
+
+
+## v0.7.5 division experience and data-exchange flow
+
+1. The Division Portfolios index resolves each accessible division by stable organization code and joins its governed `DivisionProfile`.
+2. `_division_hero.html` renders a local optimized WebP asset with fixed aspect-ratio space, profile-controlled focal point, alternative text, loading state, fallback treatment, and reduced-motion support.
+3. The division detail route builds one access-filtered workspace from authoritative project, demand, core-function, capacity, financial, milestone, and RAID records. Current and briefing modes are presentation variants of that same data, not duplicated stores.
+4. Profile edits require approved roles, division scope, CSRF validation, normalized business-language fields, and material audit evidence. Auditors remain read-only.
+5. JSON export emits a versioned structured package. CSV export emits a ZIP of related flat files. Both apply the same division and sensitivity filters used by the page.
+6. Profile import accepts only size-limited JSON or CSV, normalizes and validates content, renders a non-destructive preview, and requires a separate explicit commit before updating the governed profile.
+7. Migration `0007_division_experience_v075` creates `division_profiles` and corrects display names without changing organization codes, IDs, or linked operational records. Idempotent seeding adds missing profile/banner metadata without overwriting maintained content.
+
+## v0.7.6 Travel & Engagement Outcomes architecture
+
+The travel capability follows the existing layered application pattern:
+
+1. **Source ingestion:** `app/services/xlsx_reader.py` reads standard XLSX files and Power BI exports with positional cells.
+2. **Validation and normalization:** `app/services/travel.py` validates controlled columns, normalizes divisions/dates/costs/titles/locations, records warnings, and generates source-aware stable keys.
+3. **Canonical persistence:** migration `0008_travel_engagements_v076` and the six travel models retain approvals, reports, outcomes, links, and provenance.
+4. **Reconciliation:** candidate scoring uses traveler, division, date overlap/proximity, normalized event title, and destination. Only unique high-confidence candidates may auto-link; all other cases remain visible for human confirmation.
+5. **Outcome governance:** report items are reviewable records. Promotion creates or links canonical portfolio entities and adds `TravelEntityLink` backlinks.
+6. **Presentation:** the Travel workspace, request/report/engagement detail pages, Division Portfolio, Division Briefing, My Work, search, reports, and data quality all read the same canonical entities.
+7. **Evidence:** every import, match, review, promotion, export, and correction is protected by role/org/sensitivity checks and audit records.
+
+No live mapping or external geocoding dependency is required for the packaged local build. Destination summaries degrade gracefully and avoid sending source destinations to an unapproved network service.
+
+## v0.7.7 local visualization architecture
+
+v0.7.7 keeps advanced visualization inside the existing trusted application boundary:
+
+- server-side services aggregate only records already authorized for the current user;
+- `resolve_location` maps known source aliases to locally maintained canonical city-level coordinates while preserving source strings;
+- the Travel template embeds escaped aggregate JSON and references a local world-outline SVG;
+- the Portfolio Overview embeds an approved-budget flow payload whose links conserve source financial totals;
+- `app/static/app.js` progressively renders markers and SVG flow nodes with keyboard labels and linked source-record actions;
+- linked lists and tables remain available without JavaScript; and
+- the self-only Content Security Policy remains unchanged, with no external map, geocoding, chart, analytics, font, or CDN dependency.

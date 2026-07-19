@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from app.models import AuditEvent, Demand, DemandRevision, Mission, Organization, Project, Task, User
 from app.services.security import csrf_token
 from conftest import login
+from app.config import APP_VERSION
 
 
 def _task_and_project(db):
@@ -35,8 +36,8 @@ def test_static_assets_are_versioned_to_prevent_stale_task_javascript(client):
     login(client, "admin")
     response = client.get("/dashboard")
     assert response.status_code == 200
-    assert '/static/app.js?v=0.6.0' in response.text
-    assert '/static/app.css?v=0.6.0' in response.text
+    assert f'/static/app.js?v={APP_VERSION}' in response.text
+    assert f'/static/app.css?v={APP_VERSION}' in response.text
 
 
 def test_requester_can_edit_a_submitted_demand_with_revision_and_audit(client, db):

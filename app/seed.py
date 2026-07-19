@@ -12,6 +12,7 @@ from app.models import (
     Assessment,
     AuditEvent,
     Benefit,
+    BriefingSection,
     BoardColumn,
     CoreFunction,
     Decision,
@@ -44,18 +45,21 @@ from app.models import (
     TaskComment,
     TaskNoteRevision,
     TaskRelationship,
+    TravelApprovalStep,
+    TravelRequest,
+    TripReport,
     User,
 )
 from app.services.scoring import calculate_weighted_score
 from app.services.security import hash_password
+from app.services.briefings import ensure_briefing_sections
+from app.services.division_profiles import DIVISION_NAMES, PROFILE_SPECS, ensure_division_profiles
+from app.services.travel import (commit_travel_request_result, commit_trip_report_result, refresh_engagement_rollups, validate_travel_request_rows, validate_trip_report_rows)
+from app.services.xlsx_reader import read_first_sheet_xlsx
 
 DIVISIONS = [
-    ("JAD", "Joint Assessment Division", "Plans and executes decision-centered Joint assessments, operational demonstrations, and evidence-based recommendations."),
-    ("DSD", "Data and Standards Division", "Advances data, messaging, semantic, API, and interoperability standards for Joint and coalition command and control."),
-    ("AID", "Architecture and Integration Division", "Integrates architectures, mission threads, technical baselines, and cross-enterprise solutions."),
-    ("CID", "Cyber and Infrastructure Division", "Strengthens resilient infrastructure, cybersecurity, Zero Trust, and mission-partner connectivity."),
-    ("JFID", "Joint Force Integration Division", "Accelerates integration of Joint Force capabilities, concepts, and operational priorities."),
-    ("C3OD2", "Command, Control, Communications and Operations Division", "Coordinates command-and-control operations, readiness, and enterprise decision support."),
+    (code, DIVISION_NAMES[code], PROFILE_SPECS[code]["mission"])
+    for code in ["JAD", "DSD", "AID", "CID", "JFID", "C3OD2", "FO", "CCD"]
 ]
 
 MISSIONS = [
@@ -184,6 +188,63 @@ def ensure_v040_reference_data(db: Session) -> None:
             }
         }
     ]
+    # v0.8.0 expands the catalog across lightweight division work and mission-specific delivery.
+    additional_templates = [
+        ("LOCAL", "Division Local / Quick Project", "Division Operations", "Lightweight execution using existing division funding and capacity.",
+         ["Confirm owner, outcome, and local authority", "Define deliverables and due dates", "Execute and capture evidence", "Confirm completion and lessons"],
+         ["Local baseline confirmed", "Division acceptance"]),
+        ("SOFTWARE", "Software / Application Delivery", "Digital Delivery", "Iterative application delivery from discovery through secure release and transition.",
+         ["Confirm users, problem, outcomes, and product owner", "Baseline architecture, data, security, and accessibility", "Build prioritized minimum usable increment", "Conduct automated and user acceptance testing", "Authorize release and operational transition"],
+         ["Product baseline approved", "MVP accepted", "Production release authorized"]),
+        ("AIML", "AI/ML Capability Delivery", "AI and Analytics", "Responsible AI lifecycle with data, risk, evaluation, human oversight, and monitoring controls.",
+         ["Define mission use case and prohibited uses", "Assess data quality, representativeness, privacy, and security", "Establish model and human-oversight evaluation plan", "Prototype and red-team capability", "Validate performance, explainability, and safeguards", "Approve deployment and monitoring plan"],
+         ["Responsible AI assessment complete", "Operational evaluation accepted", "Deployment decision"]),
+        ("ARCH", "Architecture & Mission Thread Analysis", "Architecture", "Mission-based analysis and architecture development with traceable gaps and recommendations.",
+         ["Confirm mission thread, decision question, and stakeholders", "Collect authoritative architecture and interface baselines", "Model operational activities, systems, data, and exchanges", "Analyze interoperability gaps and alternatives", "Validate findings and transition recommendations"],
+         ["Analysis plan approved", "Architecture baseline validated", "Recommendations accepted"]),
+        ("C2REQ", "C2 Requirements & Capability Development", "Capability Development", "Warfighter-need-to-fielding traceability for Joint C2 requirements and sponsorship.",
+         ["Document warfighter need and operational context", "Assess capability gaps, impact, risk, and priority", "Develop and validate Joint C2 requirements", "Evaluate material and non-material alternatives", "Sponsor solution and maintain traceability", "Assess fielding evidence and operational feedback"],
+         ["Need validated", "Requirements approved", "Solution sponsored", "Fielding assessment"]),
+        ("COALITION", "Coalition / NATO Interoperability", "Coalition", "Governed multinational coordination, standards alignment, testing, and national-position delivery.",
+         ["Confirm U.S. objective, authority, and national position", "Map allied stakeholders, dependencies, and information exchanges", "Develop coordinated proposal or standard change", "Conduct national and coalition staffing", "Validate interoperability evidence", "Record decision, reservations, and transition actions"],
+         ["National position approved", "Coalition coordination complete", "Interoperability decision"]),
+        ("FIRES", "Joint Fires / CJADC2 Integration", "Operational Integration", "Sensor-to-decision-to-effect integration across fires, targeting, effects, and Joint C2.",
+         ["Define operational problem and effects chain", "Map sensors, decision authorities, C2, data links, and effectors", "Identify policy, doctrine, interface, and interoperability gaps", "Integrate and demonstrate priority mission threads", "Assess operational effectiveness and transition actions"],
+         ["Effects-chain baseline approved", "Integration demonstration", "Operational transition decision"]),
+        ("CYBEREXP", "Cyber / C2 Experiment or Prototype", "Experimentation", "Secure prototyping and experimentation with explicit hypotheses, measures, and transition evidence.",
+         ["Approve hypothesis, users, environment, and constraints", "Complete security, data, and test readiness review", "Build prototype and integration baseline", "Execute experiment and collect evidence", "Analyze results, limitations, and operational risk", "Decide transition, iterate, or stop"],
+         ["Experiment plan approved", "Readiness review", "Transition decision"]),
+        ("POLICY", "Policy, Doctrine, or Standards Revision", "Governance", "Controlled revision from authoritative baseline through coordination, adjudication, approval, and publication.",
+         ["Confirm authority, baseline, problem statement, and change scope", "Draft change package and trace requirements", "Coordinate stakeholders and collect comments", "Adjudicate comments and document dispositions", "Obtain approval and publish controlled baseline", "Plan implementation, communication, and review"],
+         ["Change package accepted", "Adjudication complete", "Publication decision"]),
+        ("EVENT", "Exercise / Event Support", "Operations", "Plan and execute exercise or event support with readiness, daily operations, outcomes, and closeout.",
+         ["Confirm event objectives, supported mission threads, and roles", "Build support plan, schedule, logistics, and communications", "Complete readiness and risk review", "Execute event battle rhythm and issue management", "Capture outcomes, actions, and after-action evidence", "Close travel, resources, and transition actions"],
+         ["Support plan approved", "Ready to execute", "Event complete", "After-action accepted"]),
+        ("BPI", "Business Process Improvement", "Continuous Improvement", "Evidence-based process improvement from current-state measurement through sustained adoption.",
+         ["Define customer, problem, baseline, and success measures", "Map current process and identify root causes", "Design and prioritize future-state changes", "Pilot, measure, and adjust", "Standardize process, training, controls, and ownership", "Verify sustained results"],
+         ["Baseline accepted", "Pilot decision", "Future state adopted"]),
+    ]
+    for code, name, category, description, task_titles, milestone_titles in additional_templates:
+        tasks = [
+            {"title": title, "type": "Approval" if index in {0, len(task_titles) - 1} else "Deliverable", "priority": "High", "offset": 10 + index * 20, "effort": 16 + index * 24}
+            for index, title in enumerate(task_titles)
+        ]
+        milestones = [
+            {"title": title, "offset": min(10 + index * max(20, int((len(task_titles) * 20) / max(1, len(milestone_titles)))), 10 + (len(task_titles) - 1) * 20), "critical": index < len(milestone_titles) - 1}
+            for index, title in enumerate(milestone_titles)
+        ]
+        templates.append({
+            "code": code, "name": name, "category": category, "description": description,
+            "blueprint": {
+                "columns": [
+                    {"name": "Backlog", "wip_limit": 0}, {"name": "Ready", "wip_limit": 8},
+                    {"name": "In Progress", "wip_limit": 6}, {"name": "Review", "wip_limit": 4},
+                    {"name": "Done", "wip_limit": 0},
+                ],
+                "tasks": tasks, "milestones": milestones,
+                "recommended_governance": "Division Local" if code in {"LOCAL", "BPI"} else "Portfolio Managed",
+            },
+        })
     for spec in templates:
         if not db.query(ProjectTemplate).filter_by(code=spec["code"], version=1).first():
             db.add(ProjectTemplate(code=spec["code"], name=spec["name"], description=spec["description"], version=1, category=spec["category"], blueprint=spec["blueprint"], created_by_id=admin.id if admin else None))
@@ -247,6 +308,39 @@ def ensure_v050_reference_data(db: Session) -> None:
         project = db.query(Project).filter(Project.status=="Active").order_by(Project.human_id).first()
         if project:
             db.add(PortfolioReviewItem(review_id=review.id, item_type="Decision", entity_type="Project", entity_id=project.id, title=f"Recovery decision for {project.human_id}", recommendation="Accelerate" if project.health_owner in {"At Risk","Off Track","Blocked"} else "Continue", rationale="Source record indicates schedule, dependency, capacity, and funding posture should be reviewed together.", owner_id=project.manager_id, sort_order=1))
+    if not db.query(PortfolioReview).filter(PortfolioReview.review_type.in_(["Division Briefing", "Division Briefing & Review"])).first():
+        division = db.query(Organization).filter_by(org_type="Division").order_by(Organization.code).first()
+        if division:
+            division_users = db.query(User).filter(User.division_id == division.id, User.is_active.is_(True)).all()
+            chief = next((candidate for candidate in division_users if "DIVISION_CHIEF" in (candidate.roles or [])), pmo)
+            manager = next((candidate for candidate in division_users if "DIVISION_PORTFOLIO_MANAGER" in (candidate.roles or [])), pmo)
+            briefing = PortfolioReview(
+                human_id="REV-26-002",
+                title=f"FY26 Q4 {division.name} Leadership Briefing",
+                review_type="Division Briefing",
+                org_id=division.id,
+                period_start=date.today()-timedelta(days=30),
+                period_end=date.today(),
+                status="In Preparation",
+                chair_id=chief.id,
+                participant_ids=list(dict.fromkeys([chief.id, manager.id, pmo.id, approver.id])),
+                summary="Brief directly from current division work, exceptions, capacity, investment, outcomes, and decisions required.",
+                decisions_required="Confirm recovery actions for at-risk work and resolve the highest-priority cross-division dependency.",
+            )
+            db.add(briefing); db.flush()
+            sections, _ = ensure_briefing_sections(db, briefing, manager.id)
+            for section in sections:
+                if section.section_key == "executive-summary":
+                    section.narrative = "The division is delivering its active mission portfolio while focusing leadership attention on schedule risk, capacity constraints, and cross-division dependencies."
+                    section.status = "Ready for Division Review"
+                elif section.section_key == "leadership-attention":
+                    section.narrative = "Review the projects automatically identified as At Risk, Off Track, Blocked, or Not Reported and confirm the recovery owner and decision needed."
+                    section.status = "Ready for Division Review"
+                elif section.section_key == "decisions-required":
+                    section.narrative = briefing.decisions_required
+                    section.status = "Ready for Division Review"
+                else:
+                    section.status = "In Preparation"
     if not db.query(ResourceRequest).count():
         org = db.query(Organization).filter_by(org_type="Division").first(); project = db.query(Project).filter(Project.lead_org_id==org.id).first() if org else None
         db.add(ResourceRequest(human_id="RRQ-26-001", org_id=org.id, project_id=project.id if project else None, role_name="Data Engineer", skill="Semantic interoperability", requested_hours=240, period_start=date.today(), period_end=date.today()+timedelta(days=90), priority="High", status="Submitted", requested_by_id=project.manager_id if project else pmo.id, rationale="Resolve a forecast skill gap affecting a cross-division mission dependency."))
@@ -276,10 +370,62 @@ def ensure_v050_reference_data(db: Session) -> None:
                 setattr(trace, field, spec[field])
     db.flush()
 
+
+def ensure_travel_reference_data(db: Session) -> None:
+    """Idempotently load the supplied travel approvals and trip reports for v0.7.6."""
+    enterprise = db.query(Organization).filter_by(code="DDC5I").first()
+    for code, name, narrative in [
+        ("CCD", DIVISION_NAMES["CCD"], PROFILE_SPECS["CCD"]["mission"]),
+        ("FO", DIVISION_NAMES["FO"], PROFILE_SPECS["FO"]["mission"]),
+    ]:
+        if not db.query(Organization).filter_by(code=code).first():
+            db.add(Organization(code=code, name=name, org_type="Division", parent_id=enterprise.id if enterprise else None, narrative=narrative))
+    db.flush()
+    actor = db.query(User).filter_by(username="admin").first() or db.query(User).first()
+    source_dir = Path(__file__).resolve().parent.parent / "docs" / "source" / "travel"
+    request_path = source_dir / "Trip data.xlsx"
+    report_path = source_dir / "Trip Report.xlsx"
+
+    if request_path.exists() and db.query(TravelRequest).count() == 0:
+        rows = read_first_sheet_xlsx(request_path.read_bytes())
+        results, _ = validate_travel_request_rows(db, rows, actor)
+        for result in results:
+            if result["severity"] == "Error":
+                continue
+            commit_travel_request_result(db, result, source_filename=request_path.name)
+        db.flush()
+
+    # Enrich the exact example shown on page 3 of the supplied dashboard.
+    example = db.query(TravelRequest).filter_by(source_system="Travel Approval Export", external_id="426").first()
+    if example:
+        example.purpose_roi = "This trip is for MSgt Christopher Bartlett (283rd CBCS). Establish the Bold Quest Mission Network (BQMN), distributed site setup, Tier I/II Help Desk support and redeployment."
+        example.impact_if_not = "Risk to establishment of critical networks in support of mission. Help desk support for over 1,200 personnel is critical to execution of Bold Quest mission threads."
+        example.funding = "J6"
+        example.exemption_category = "B. Direct enablement of Joint Staff and Combatant Command military exercises and wargames"
+        if db.query(TravelApprovalStep).filter_by(request_id=example.id).count() == 0:
+            db.add_all([
+                TravelApprovalStep(request_id=example.id, step_order=1, approver_name="Powell, Penny E CIV JS J6 (USA)", approver_role="Division Chief", determination="Approved", determination_date=date(2026, 4, 27)),
+                TravelApprovalStep(request_id=example.id, step_order=2, approver_name="Minks, Jenniffer F SES JS J6 (USA)", approver_role="DDS Approver", determination="Approved", comments="by ADD", determination_date=date(2026, 5, 13)),
+            ])
+
+    if report_path.exists() and db.query(TripReport).count() == 0:
+        rows = read_first_sheet_xlsx(report_path.read_bytes())
+        results, _ = validate_trip_report_rows(db, rows, actor)
+        for result in results:
+            if result["severity"] == "Error":
+                continue
+            commit_trip_report_result(db, result, source_filename=report_path.name, actor_id=actor.id if actor else None)
+        db.flush()
+
+    refresh_engagement_rollups(db)
+    db.flush()
+
 def seed_database(db: Session) -> None:
     if db.query(User).count() > 0:
         ensure_v040_reference_data(db)
         ensure_v050_reference_data(db)
+        ensure_division_profiles(db)
+        ensure_travel_reference_data(db)
         db.commit()
         return
     random.seed(42)
@@ -299,13 +445,20 @@ def seed_database(db: Session) -> None:
         db.add(u); users[username] = u
     first_names = ["Avery", "Cameron", "Drew", "Emerson", "Finley", "Harper", "Jamie", "Kendall", "Logan", "Micah", "Nico", "Peyton", "Quinn", "Reese", "Skyler", "Terry", "Val", "Winter", "Zion"]
     roles = ["DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER", "REQUESTER", "ASSESSOR", "PROJECT_MANAGER", "TEAM_MEMBER", "RESOURCE_MANAGER", "FINANCIAL_MANAGER", "BENEFITS_OWNER", "DATA_STEWARD", "SECURITY_REVIEWER"]
+    # Preserve established demo identities while adding FO and CCD as first-class portfolios.
+    user_division_cycle = ["JAD", "DSD", "AID", "CID", "JFID", "C3OD2"]
     for i, name in enumerate(first_names):
-        code = DIVISIONS[i % len(DIVISIONS)][0]
+        code = user_division_cycle[i % len(user_division_cycle)]
         role = roles[i % len(roles)]
         username = f"{name.lower()}.{code.lower()}"
         u = _user(username, f"{name} {code}", role, divisions[code].id, sensitive=(role in {"SECURITY_REVIEWER", "DIVISION_CHIEF"}))
         if i < 6:
             u.roles = ["DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER"]
+        db.add(u); users[username] = u
+    for code, name in [("FO", "Morgan"), ("CCD", "Riley")]:
+        username = f"{name.lower()}.{code.lower()}"
+        u = _user(username, f"{name} {code}", "DIVISION_PORTFOLIO_MANAGER", divisions[code].id, sensitive=True)
+        u.roles = ["DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER"]
         db.add(u); users[username] = u
     db.flush()
 
@@ -470,6 +623,8 @@ def seed_database(db: Session) -> None:
     db.flush()
     ensure_v040_reference_data(db)
     ensure_v050_reference_data(db)
+    ensure_division_profiles(db, users.get("admin").id if users.get("admin") else None)
+    ensure_travel_reference_data(db)
     db.commit()
 
 

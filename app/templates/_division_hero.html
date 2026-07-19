@@ -1,0 +1,9 @@
+<section class="division-hero" data-division-hero aria-label="{{ org.code }} division identity">
+  <div class="division-hero-placeholder" aria-hidden="true"></div>
+  {% if profile and profile.banner_asset %}
+  <img class="division-hero-image" src="{{ profile.banner_asset }}" alt="{{ profile.banner_alt }}" decoding="async" fetchpriority="high" style="object-position:{{ profile.focal_x }}% {{ profile.focal_y }}%">
+  {% else %}
+  <div class="division-hero-fallback"><span>{{ org.code }}</span><strong>{{ org.name }}</strong></div>
+  {% endif %}
+  <div class="division-hero-sheen" aria-hidden="true"></div>
+</section>

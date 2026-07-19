@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Portfolio Promotion · {{ project.human_id }}{% endblock %}
+{% block content %}
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><a href="/projects">Projects</a><span>›</span><a href="/projects/{{ project.id }}">{{ project.human_id }}</a><span>›</span><span>Portfolio promotion</span></div>
+<div class="page-head"><div><span class="eyebrow">Local-to-portfolio governance</span><h2>Portfolio Promotion</h2><p>{{ project.human_id }} · {{ project.title }}</p></div><a class="btn" href="/projects/{{ project.id }}">Back to project</a></div>
+<div class="grid grid-3 promotion-summary"><div class="card kpi"><div class="kpi-label">Governance</div><div class="kpi-value text-value">{{ project.governance_level }}</div></div><div class="card kpi"><div class="kpi-label">Funding</div><div class="kpi-value text-value">{{ project.funding_posture }}</div></div><div class="card kpi"><div class="kpi-label">Resources</div><div class="kpi-value text-value">{{ project.resource_posture }}</div></div></div>
+
+{% if can_request and not promotions|selectattr('status','equalto','Submitted')|list %}
+<form method="post" action="/projects/{{ project.id }}/promotion" class="card form-page compact-form-page">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <div class="section-title field-span-2"><div><span class="eyebrow">Promotion request</span><h3>Explain what changed</h3><p>Approval retains this project and places it under portfolio governance without re-entering work.</p></div></div>
+  <div class="form-grid field-span-2">
+    <label class="field field-span-2">Reason for promotion *<textarea class="textarea" name="reason" rows="3" required></textarea></label>
+    <label class="field field-span-2">Scope change<textarea class="textarea" name="scope_change" rows="2"></textarea></label>
+    <label class="field field-span-2">Enterprise or cross-division impact<textarea class="textarea" name="enterprise_impact" rows="2"></textarea></label>
+    <label class="field">Funding requirement<textarea class="textarea" name="funding_requirement" rows="3"></textarea></label>
+    <label class="field">Resource requirement<textarea class="textarea" name="resource_requirement" rows="3"></textarea></label>
+    <label class="field field-span-2">Schedule and risk implications<textarea class="textarea" name="schedule_risk" rows="2"></textarea></label>
+    <label class="field field-span-2">Requested portfolio<select class="select" name="requested_portfolio_id"><option value="">Use lead-division portfolio</option>{% for item in portfolios %}<option value="{{ item.id }}">{{ item.code }} · {{ item.name }}</option>{% endfor %}</select></label>
+  </div><div class="actions field-span-2"><button class="btn btn-primary" type="submit">Submit promotion request</button></div>
+</form>
+{% endif %}
+
+<section class="section-stack"><div class="section-title"><div><span class="eyebrow">Decision history</span><h3>Promotion requests</h3></div></div>
+{% for item in promotions %}<article class="card promotion-record"><div class="panel-head"><div><strong>{{ item.human_id }}</strong><small>Requested {{ item.created_at|datefmt }} by {{ users_map.get(item.requested_by_id).full_name if users_map.get(item.requested_by_id) else '—' }}</small></div><span class="badge badge-{{ item.status|badge }}">{{ item.status }}</span></div><p><strong>Reason:</strong> {{ item.reason }}</p>{% if item.scope_change %}<p><strong>Scope change:</strong> {{ item.scope_change }}</p>{% endif %}{% if item.enterprise_impact %}<p><strong>Enterprise impact:</strong> {{ item.enterprise_impact }}</p>{% endif %}
+  {% if item.status=='Submitted' and can_decide %}<form method="post" action="/projects/{{ project.id }}/promotion/{{ item.id }}/decision" class="decision-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><label class="field">Decision<select class="select" name="decision"><option>Approved</option><option>Returned</option><option>Declined</option></select></label><label class="field field-span-2">Decision rationale *<textarea class="textarea" name="decision_rationale" required></textarea></label><label class="field field-span-2">Conditions<textarea class="textarea" name="conditions"></textarea></label><button class="btn btn-primary" type="submit">Record decision</button></form>{% elif item.decision_rationale %}<div class="callout"><strong>Decision rationale:</strong> {{ item.decision_rationale }}{% if item.conditions %}<br><strong>Conditions:</strong> {{ item.conditions }}{% endif %}</div>{% endif %}
+</article>{% else %}<div class="empty">No promotion requests have been submitted.</div>{% endfor %}</section>
+{% endblock %}

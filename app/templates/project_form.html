@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Create Project · JSJ6 Portfolio{% endblock %}
+{% block content %}
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><a href="/projects">Projects</a><span>›</span><span>Create project</span></div>
+<div class="page-head form-page-head"><div><span class="eyebrow">Self-service project intake</span><h2>Create a New Project</h2><p>Start division-local work using existing capacity, or create a portfolio-managed project with formal oversight.</p></div><a class="btn" href="{{ return_to }}">Cancel</a></div>
+
+<form method="post" action="/projects" class="form-page" data-project-create-form>
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="return_to" value="{{ return_to }}">
+  <section class="card form-section"><div class="form-section-number">1</div><div><span class="eyebrow">Classification</span><h3>How will this project be governed?</h3><p class="muted">A local project can be promoted later without losing its tasks, evidence, or history.</p></div>
+    <div class="choice-card-grid field-span-2">
+      <label class="choice-card"><input type="radio" name="governance_level" value="Division Local" checked><span><strong>Division Local Project</strong><small>Visible in the division portfolio; uses existing funding and capacity by default.</small></span></label>
+      <label class="choice-card"><input type="radio" name="governance_level" value="Portfolio Managed"><span><strong>Portfolio-Managed Project</strong><small>Enterprise-visible work with formal portfolio, funding, and capacity oversight.</small></span></label>
+    </div>
+  </section>
+
+  <section class="card form-section"><div class="form-section-number">2</div><div><span class="eyebrow">Blueprint</span><h3>Select a delivery pattern</h3><p class="muted">The selected version creates the starting board, WBS, milestones, and traceability.</p></div>
+    <label class="field field-span-2">Project blueprint<select class="select" name="template_id" required>{% for item in templates_rows %}<option value="{{ item.id }}" {% if selected_template and selected_template.id==item.id %}selected{% endif %}>{{ item.category }} · {{ item.name }} (v{{ item.version }})</option>{% endfor %}</select></label>
+    <a class="btn btn-small" href="/templates">Review full blueprint catalog</a>
+  </section>
+
+  <section class="card form-section"><div class="form-section-number">3</div><div><span class="eyebrow">Purpose and scope</span><h3>Describe the work</h3></div>
+    <div class="form-grid field-span-2">
+      <label class="field field-span-2">Project title *<input class="input" name="title" maxlength="240" required placeholder="Clear outcome-oriented project name"></label>
+      <label class="field field-span-2">Description<textarea class="textarea" name="description" rows="3" placeholder="Why this work matters and who it supports"></textarea></label>
+      <label class="field field-span-2">Scope<textarea class="textarea" name="scope" rows="3" placeholder="In scope, out of scope, assumptions, and constraints"></textarea></label>
+      <label class="field field-span-2">Desired end state<textarea class="textarea" name="desired_end_state" rows="2"></textarea></label>
+      <label class="field field-span-2">Key deliverables<textarea class="textarea" name="deliverables" rows="2"></textarea></label>
+    </div>
+  </section>
+
+  <section class="card form-section"><div class="form-section-number">4</div><div><span class="eyebrow">Accountability</span><h3>Assign ownership and alignment</h3></div>
+    <div class="form-grid field-span-2">
+      <label class="field">Lead division *<select class="select" name="lead_org_id" required>{% for org in eligible_orgs %}<option value="{{ org.id }}" {% if selected_org and selected_org.id==org.id %}selected{% endif %}>{{ org.code }} · {{ org.name }}</option>{% endfor %}</select></label>
+      <label class="field">Mission alignment *<select class="select" name="mission_id" required>{% for item in missions %}<option value="{{ item.id }}">{{ item.code }} · {{ item.title }}</option>{% endfor %}</select></label>
+      <label class="field">Sponsor *<select class="select" name="sponsor_id" required>{% for item in eligible_users %}<option value="{{ item.id }}" {% if item.id==user.id %}selected{% endif %}>{{ item.full_name }}</option>{% endfor %}</select></label>
+      <label class="field">Project manager *<select class="select" name="manager_id" required>{% for item in eligible_users %}<option value="{{ item.id }}" {% if item.id==user.id %}selected{% endif %}>{{ item.full_name }}</option>{% endfor %}</select></label>
+      <label class="field">Start date<input class="input" type="date" name="start_date"></label>
+      <label class="field">Target completion<input class="input" type="date" name="target_end_date"></label>
+      <label class="field">Sensitivity<select class="select" name="sensitivity"><option>Controlled Unclassified</option><option>Public</option><option>Restricted</option></select></label>
+      <label class="field">Portfolio (used for portfolio-managed work)<select class="select" name="portfolio_id"><option value="">Use lead-division portfolio</option>{% for item in portfolios %}<option value="{{ item.id }}">{{ item.code }} · {{ item.name }}</option>{% endfor %}</select></label>
+    </div>
+  </section>
+
+  <section class="card form-section"><div class="form-section-number">5</div><div><span class="eyebrow">Resourcing posture</span><h3>State what the project needs now</h3></div>
+    <div class="form-grid field-span-2">
+      <label class="field">Funding posture<select class="select" name="funding_posture"><option>No Additional Funding</option><option>Existing Funding</option><option>Funding Required</option><option>To Be Determined</option></select></label>
+      <label class="field">Resource posture<select class="select" name="resource_posture"><option>Existing Capacity</option><option>Additional Resources Required</option><option>Mixed / Shared Capacity</option><option>To Be Determined</option></select></label>
+    </div>
+    <div class="callout info field-span-2"><strong>Promotion-ready:</strong> If a local project later needs enterprise funding, scarce resources, or cross-division governance, submit a portfolio-promotion request from the project page.</div>
+  </section>
+  <div class="sticky-form-actions"><div><strong>Ready to create?</strong><span>The blueprint generates a traceable starting workspace that can be tailored after creation.</span></div><div class="actions"><a class="btn" href="{{ return_to }}">Cancel</a><button class="btn btn-primary" type="submit">Create project</button></div></div>
+</form>
+{% endblock %}
