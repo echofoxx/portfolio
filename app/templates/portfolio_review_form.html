@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}New Governance Cycle · JSJ6 Enterprise Portfolio{% endblock %}
+{% block content %}
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><a href="/portfolio-reviews">Briefings</a><span>›</span><span>New governance cycle</span></div>
+<div class="page-head"><div><div class="eyebrow">New governance cycle</div><h2>Create a Briefing or Portfolio Review</h2><p>Create the accountable workspace, define its operating period and scope, and identify the participants responsible for preparation and decisions.</p></div><a class="btn" href="/portfolio-reviews">Cancel</a></div>
+<form action="/portfolio-reviews" method="post" class="card dedicated-form-card">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <div class="form-section"><span class="form-section-number">1</span><div class="field-span-2"><div class="eyebrow">Forum definition</div><h3>Name and classify the governance cycle</h3></div>
+    <label class="field field-span-2">Title<input class="input" name="title" required placeholder="FY27 Q1 Joint Assessment Division Briefing"></label>
+    <label class="field">Review type<select class="select" name="review_type"><option>Division Briefing</option><option>Portfolio Review</option><option>Investment Review</option><option>Demand Prioritization Board</option><option>Resource Review</option><option>Financial Review</option><option>Benefits Review</option></select></label>
+    <label class="field">Portfolio<select class="select" name="portfolio_id"><option value="">Enterprise / no single portfolio</option>{% for p in portfolios %}<option value="{{ p.id }}">{{ p.code }} · {{ p.name }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="form-section"><span class="form-section-number">2</span><div class="field-span-2"><div class="eyebrow">Scope and accountability</div><h3>Set the operating boundary and ownership</h3><p class="card-subtitle">Division Briefing requires a division scope. Other forum types may use enterprise scope.</p></div>
+    <label class="field">Organization scope<select class="select" name="org_id"><option value="">Enterprise (not valid for Division Briefing)</option>{% for o in organizations if o.org_type=='Division' %}<option value="{{ o.id }}" {% if user.division_id == o.id %}selected{% endif %}>{{ o.code }} · {{ o.name }}</option>{% endfor %}</select></label>
+    <label class="field">Chair / presenter<select class="select" name="chair_id" required>{% for u in users %}<option value="{{ u.id }}" {% if u.id==user.id %}selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
+    <label class="field">Period start<input class="input" type="date" name="period_start" required></label><label class="field">Period end<input class="input" type="date" name="period_end" required></label>
+    <label class="field field-span-2">Participants<select class="select multi-select" name="participant_ids" multiple size="7">{% for u in users %}<option value="{{ u.id }}">{{ u.full_name }} · {{ u.roles[0]|replace('_',' ')|title if u.roles else 'User' }}</option>{% endfor %}</select><span class="help">Use Ctrl/Command to select more than one participant.</span></label>
+  </div>
+  <div class="form-section"><span class="form-section-number">3</span><div class="field-span-2"><div class="eyebrow">Operating intent</div><h3>State the purpose and expected leadership action</h3></div>
+    <label class="field field-span-2">Purpose and summary<textarea class="textarea" name="summary" rows="4" placeholder="State the operating context, leadership purpose, and intended outcome."></textarea></label>
+    <label class="field field-span-2">Decisions or assistance required<textarea class="textarea" name="decisions_required" rows="4" placeholder="Identify the decision, assistance, or cross-division action expected from this forum."></textarea></label>
+  </div>
+  <div class="dedicated-form-actions"><a class="btn" href="/portfolio-reviews">Cancel</a><button class="btn btn-primary" type="submit">Create workspace</button></div>
+</form>
+{% endblock %}

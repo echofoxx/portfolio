@@ -1,4 +1,36 @@
-# Known Limitations — v0.5.0
+# Known Limitations — v0.8.3.1
+
+## v0.8.3.1 boundaries
+
+- The Linked Map Index height correction has automated implementation and route coverage; final cross-browser visual acceptance remains a target-host responsibility.
+- All v0.8.3 functional boundaries below remain unchanged.
+
+## v0.8.3 boundaries
+
+- The v0.8.3 map is marker-based. Country choropleth, COCOM AOR boundaries, fiscal-quarter scrubbing, heat/density, saved geographic views, and briefing export are Phase 2 capabilities.
+- Map costs are approval-stage estimates, not authoritative actual expenditures.
+- Report compliance uses completed, approved, report-required travel and a linked request/report relationship. It does not certify report quality, records disposition, or action completion.
+- City coordinates and aliases are locally governed planning references. Unmapped values are shown, but a steward correction UI and per-country geometry registry are not included.
+- Direct gestures have automated implementation/route coverage; formal target-browser, touchscreen, Section 508, and assistive-technology certification remain deployment/UAT responsibilities.
+- Themes persist in local browser storage and are individual preferences, not centrally managed branding policy.
+
+## v0.8.2 boundaries
+
+- Regional travel lenses normalize the current governed region labels into leadership-friendly rollups. They are presentation lenses, not authoritative geopolitical, combatant-command, or country-taxonomy classifications.
+- Zoom and fit operate on the locally packaged world geometry. The application intentionally does not load external tiles, geocoding, routing, or traveler-location services.
+- Low-zoom clusters reduce overlap using a deterministic display grid. They are visual summaries, not analytical geospatial clusters.
+- Map URLs persist region and measure presentation state. Server-side travel authorization and source filters remain the governing data boundary.
+- Formal conference-room browser, 200% zoom/reflow, assistive-technology, Docker Compose, performance, and signed leader UAT remain required on the target environment.
+
+## Prior v0.8.1 boundaries
+
+## v0.8.1 boundaries
+
+- RAID and dependency tables are optimized for the project workspace. The separate enterprise RAID register retains its broader, horizontally scrollable data table because it carries additional portfolio-wide columns.
+- Gantt task labels are responsive, but the actual time track remains a contained horizontal schedule surface on narrow devices so dates and bar geometry are not distorted.
+- Investment Flow is role-scoped planning and transaction evidence, not an authoritative accounting statement or financial-system reconciliation.
+- Dashboard Compact, Standard, and Wide sizes are governed layout tokens. Arbitrary pixel sizing and shared team layouts remain excluded.
+- v0.8.1 was fully regression-tested in the application runtime, but Docker daemon and formal target-browser visual validation remain deployment/UAT responsibilities in this environment.
 
 ## v0.8.0 boundaries
 

@@ -32,7 +32,7 @@ def _read_version() -> str:
     try:
         return (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()
     except OSError:
-        return "0.8.0"
+        return "0.8.1"
 
 
 APP_VERSION = _read_version()

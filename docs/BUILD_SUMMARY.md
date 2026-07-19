@@ -1,4 +1,60 @@
-# JSJ6 Enterprise Portfolio Management v0.8.0 Build Summary
+# JSJ6 Enterprise Portfolio Management v0.8.3.1 Build Summary
+
+v0.8.3.1 is the **Linked Map Index Height Patch**. It retains the complete v0.8.3 baseline while matching the index panel to the rendered map canvas and containing overflow within the ranked location list.
+
+- Migration head remains `0009_self_service_v080`; no schema change or runtime dependency.
+- One linked map/index/detail system with executive spend, completion, gap, and unmapped chips.
+- Cost/measure-sized blue/amber/neutral compliance-ring markers with accessible equivalent text.
+- Wheel, trackpad, pointer, touch/pinch, double-click, and keyboard navigation; automatic filtered fit and bounded pan.
+- Nine persistent themes and legacy dark-to-Dusk browser migration.
+- All injected Input Area source/styling removed; Blueprint Catalog wording and alignment corrected.
+- Validation: **117 automated tests passed**, plus JavaScript syntax and Python compilation.
+- Known boundary: Docker and formal graphical target-browser validation remain required on the deployment host.
+
+---
+
+# Prior v0.8.3 Build Summary
+
+v0.8.3 is the **Executive Travel Assurance & Theme Refinement** release. It retains the complete v0.8.2 baseline while adding request-accurate per-location compliance, one linked direct-manipulation map, nine themes, clean form presentation, and the aligned Blueprint Catalog control.
+
+- Validation: **115 automated tests passed**, plus JavaScript syntax and Python compilation.
+
+---
+
+# Prior v0.8.2 Build Summary
+
+v0.8.2 is the **Executive Demo Readiness Hotfix**. It closes the eight reported follow-up issues without changing the schema or weakening existing role, scope, CSRF, audit, source-link, or privacy controls.
+
+- Migration head remains `0009_self_service_v080`; no database schema change.
+- Complete, one-line RAID identifiers with narrative-only wrapping.
+- One full-width Board Governance guidance area and corrected Travel filter guidance.
+- Content-fit six-KPI dashboard grid and equal eight-division grid.
+- Semantic, fully navigable task breadcrumbs with a safe board fallback.
+- Aligned accessible role-focus icon and persistent sidebar Sign out.
+- Regional, multi-measure travel map with zoom, fit, clustering, URL state, and executive summaries.
+- Validation: **111 automated tests passed** plus Python, JavaScript, Jinja, and Alembic checks.
+- Known environment boundary: Docker and formal target-browser validation remain required on the deployment host.
+
+---
+
+# Prior v0.8.1 Build Summary
+
+v0.8.1 is the **Responsive Portfolio Presentation Hotfix**. It retains the complete v0.8.0 operating model while correcting the seven reported presentation and navigation issues across projects, schedules, RAID, governance, roadmaps, dashboard panels, and investment analysis.
+
+- Migration head remains `0009_self_service_v080`; no database schema change.
+- Project Overview: structured purpose, accountability, schedule comparison, variance, completion, and uniformly aligned project signals.
+- Schedule: distinct WBS badge, task title, and date range with a protected Gantt track.
+- RAID: responsive panel stacking, auto-fit tables, non-wrapping metadata, narrative wrapping, and narrow-screen record cards.
+- Governance: dedicated create/cancel page at `/portfolio-reviews/new`.
+- Roadmap: aligned Status/Division filters with stable Apply/Reset actions.
+- Portfolio Overview: consistent Compact/Standard/Wide panel tokens and row stretching.
+- Investment: smaller dashboard summary plus full role-scoped analysis at `/financials/flow`.
+- Validation: **104 automated tests passed** plus Python, JavaScript, Jinja, and Alembic checks.
+- Known environment boundary: Docker target-host validation remains required because Docker is unavailable in the build environment.
+
+---
+
+# Prior v0.8.0 Build Summary
 
 v0.8.0 is the **Self-Service Portfolio Operations** release. It turns the prior decision and reporting baseline into a more navigable working environment where divisions can initiate local work, promote it when scope changes, use role-focused configurable dashboards, exchange resource seed/correction data under Admin control, and move through focused form pages with linked breadcrumbs.
 

@@ -23,7 +23,7 @@ def test_v060_jsj6_dashboard_structure_and_theme(client):
         "Portfolio at a Glance",
     ]:
         assert marker in response.text
-    assert 'data-theme="dark"' in response.text
+    assert 'data-theme="dusk"' in response.text
     assert f'/static/app.css?v={APP_VERSION}' in response.text
     assert "/war-room" not in response.text
 
@@ -59,14 +59,11 @@ def test_v061_role_focus_process_guide_and_display_preferences(client):
         'data-font-size="standard"',
         'data-font-size-choice',
         "Extra large",
-        "Input area",
+        "Black / Pure Dark",
+        "Deep Forest",
     ]:
-        # Input area is injected client-side, so its source marker lives in the JS asset.
-        if marker == "Input area":
-            asset = client.get("/static/app.js")
-            assert marker in asset.text
-        else:
-            assert marker in response.text
+        assert marker in response.text
+    assert "Input area" not in client.get("/static/app.js").text
 
 
 def test_v061_role_focus_changes_with_user_role(client):

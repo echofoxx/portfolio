@@ -782,21 +782,32 @@ def render(request: Request, template_name: str, user: User, db: Session, **cont
         "scenarios": "Scenarios", "requirements": "Requirements RTM", "imports": "Imports", "administration": "Administration",
         "new": "Create", "promotion": "Portfolio Promotion", "requests": "Requests", "import": "Import / Export",
     }
-    parts = [part for part in request.url.path.split("/") if part]
-    crumbs = [{"label": "Home", "href": "/dashboard"}]
-    running = ""
-    for index, part in enumerate(parts):
-        if part == "dashboard":
-            continue
-        running += "/" + part
-        label = breadcrumb_labels.get(part, part.replace("-", " ").title())
-        if index == 1 and parts[0] == "divisions" and context.get("org"):
-            label = context["org"].code
-        elif index == 1 and parts[0] == "projects" and context.get("project"):
-            label = context["project"].human_id
-        elif parts[:2] == ["resources", "requests"] and index == 2 and context.get("record"):
-            label = context["record"].human_id
-        crumbs.append({"label": label, "href": running if index < len(parts) - 1 else ""})
+    explicit_crumbs = context.get("breadcrumbs")
+    if explicit_crumbs:
+        crumbs = [{"label": "Home", "href": "/dashboard"}]
+        crumbs.extend(
+            {"label": item[0], "href": item[1]}
+            if isinstance(item, (tuple, list))
+            else {"label": item.get("label", ""), "href": item.get("href", "")}
+            for item in explicit_crumbs
+            if not ((isinstance(item, (tuple, list)) and item[0] == "Home") or (isinstance(item, dict) and item.get("label") == "Home"))
+        )
+    else:
+        parts = [part for part in request.url.path.split("/") if part]
+        crumbs = [{"label": "Home", "href": "/dashboard"}]
+        running = ""
+        for index, part in enumerate(parts):
+            if part == "dashboard":
+                continue
+            running += "/" + part
+            label = breadcrumb_labels.get(part, part.replace("-", " ").title())
+            if index == 1 and parts[0] == "divisions" and context.get("org"):
+                label = context["org"].code
+            elif index == 1 and parts[0] == "projects" and context.get("project"):
+                label = context["project"].human_id
+            elif parts[:2] == ["resources", "requests"] and index == 2 and context.get("record"):
+                label = context["record"].human_id
+            crumbs.append({"label": label, "href": running if index < len(parts) - 1 else ""})
     base["global_breadcrumbs"] = crumbs
     base["has_local_breadcrumbs"] = template_name in {
         "travel_engagement_detail.html", "trip_report_detail.html", "travel_request_detail.html", "portfolio_review_detail.html",
@@ -2579,6 +2590,13 @@ def task_new(project_id: str, request: Request, db: Session = Depends(get_db), u
                   breadcrumbs=[("Projects", "/projects"), (project.human_id, f"/projects/{project.id}"), ("Board", f"/projects/{project.id}?tab=board"), ("New Task", "")])
 
 
+@app.get("/projects/{project_id}/tasks")
+def task_collection(project_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Keep collection links navigable while task creation remains POST-only."""
+    project = get_accessible_project(db, user, project_id)
+    return RedirectResponse(f"/projects/{project.id}?tab=board", status_code=303)
+
+
 @app.post("/projects/{project_id}/tasks")
 def task_create(
     project_id: str,
@@ -3248,6 +3266,49 @@ def resource_import_commit(batch_id: str, request: Request, csrf: str = Form(...
     db.commit(); return flash_redirect("/resources", f"Resource import committed: {changed} records created or updated.")
 
 
+@app.get("/financials/flow", response_class=HTMLResponse)
+def investment_flow_page(
+    request: Request, category: str = "", division: str = "",
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    """Dedicated, role-scoped investment traceability workspace."""
+    base_query = db.query(FinancialRecord, Project).join(Project, FinancialRecord.project_id == Project.id)
+    if not is_enterprise_user(user):
+        base_query = base_query.filter(Project.lead_org_id == user.division_id)
+    accessible_rows = base_query.order_by(FinancialRecord.fiscal_year.desc(), Project.title).all()
+    organizations = [
+        org for org in db.query(Organization).filter(Organization.org_type == "Division").order_by(Organization.code).all()
+        if can_access_org(user, org.id)
+    ]
+    organization_by_code = {org.code: org for org in organizations}
+    selected_category = category.strip()
+    selected_division = division.strip().upper()
+    rows = accessible_rows
+    if selected_category:
+        rows = [(record, project) for record, project in rows if (record.category or "Other") == selected_category]
+    if selected_division:
+        selected_org = organization_by_code.get(selected_division)
+        rows = [(record, project) for record, project in rows if selected_org and project.lead_org_id == selected_org.id]
+
+    financials = [record for record, _project in rows]
+    projects = list({project.id: project for _record, project in rows}.values())
+    investment_flow = _portfolio_investment_flow(financials, projects, organizations)
+    category_totals: dict[str, float] = defaultdict(float)
+    for record in financials:
+        category_totals[record.category or "Other"] += float(record.approved_budget or 0)
+    category_total = sum(category_totals.values()) or 1
+    investment_categories = [
+        {"name": name, "amount": amount, "percentage": amount / category_total * 100}
+        for name, amount in sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
+    ]
+    category_options = sorted({record.category or "Other" for record, _project in accessible_rows})
+    return render(
+        request, "investment_flow.html", user, db, rows=rows, organizations=organizations,
+        investment_flow=investment_flow, investment_categories=investment_categories,
+        category_options=category_options, filters={"category": selected_category, "division": selected_division},
+    )
+
+
 @app.get("/financials", response_class=HTMLResponse)
 def financials_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
     q = db.query(FinancialRecord, Project).join(Project, FinancialRecord.project_id == Project.id)
@@ -3793,13 +3854,13 @@ def export_resources(db: Session = Depends(get_db), user: User = Depends(current
         item.id, orgs.get(item.org_id).code if orgs.get(item.org_id) else item.org_id, item.role_name, item.skill,
         item.period, item.capacity_hours, item.allocated_hours, item.actual_hours, item.minimum_core_coverage,
     ] for item in db.query(ResourceCapacity).order_by(ResourceCapacity.org_id, ResourceCapacity.role_name, ResourceCapacity.skill, ResourceCapacity.period).all()]
-    return csv_response("jsj6-resource-capacity-v0.8.0.csv", RESOURCE_COLUMNS, rows)
+    return csv_response(f"jsj6-resource-capacity-v{APP_VERSION}.csv", RESOURCE_COLUMNS, rows)
 
 
 @app.get("/exports/resource-template.csv")
 def export_resource_template(user: User = Depends(current_user)):
     require_roles(user, "ADMIN")
-    return csv_response("jsj6-resource-capacity-import-template-v0.8.0.csv", RESOURCE_COLUMNS, [])
+    return csv_response(f"jsj6-resource-capacity-import-template-v{APP_VERSION}.csv", RESOURCE_COLUMNS, [])
 
 
 @app.get("/exports/resource-requests.csv")
@@ -3810,7 +3871,7 @@ def export_resource_requests(db: Session = Depends(get_db), user: User = Depends
              projects.get(item.project_id).human_id if item.project_id and projects.get(item.project_id) else "",
              item.role_name, item.skill, item.requested_hours, item.period_start, item.period_end, item.priority,
              item.status, item.rationale, item.resolution] for item in db.query(ResourceRequest).order_by(ResourceRequest.created_at).all()]
-    return csv_response("jsj6-resource-requests-v0.8.0.csv", ["request_id", "division_code", "project_id", "role_name", "skill", "requested_hours", "period_start", "period_end", "priority", "status", "rationale", "resolution"], rows)
+    return csv_response(f"jsj6-resource-requests-v{APP_VERSION}.csv", ["request_id", "division_code", "project_id", "role_name", "skill", "requested_hours", "period_start", "period_end", "priority", "status", "rationale", "resolution"], rows)
 
 
 @app.get("/exports/demands.csv")
@@ -4372,6 +4433,14 @@ def portfolio_reviews_page(request: Request, db: Session = Depends(get_db), user
     return render(request, "portfolio_reviews.html", user, db, reviews=reviews, portfolios=portfolios, users=users)
 
 
+@app.get("/portfolio-reviews/new", response_class=HTMLResponse)
+def portfolio_review_form_page(request: Request, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    require_roles(user, "SENIOR_LEADER", "ENTERPRISE_PORTFOLIO_OWNER", "PMO", "DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER", "APPROVAL_AUTHORITY", "ADMIN")
+    portfolios = db.query(Portfolio).order_by(Portfolio.name).all()
+    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.full_name).all()
+    return render(request, "portfolio_review_form.html", user, db, portfolios=portfolios, users=users)
+
+
 @app.post("/portfolio-reviews")
 def create_portfolio_review(
     request: Request, csrf: str = Form(...), title: str = Form(...), review_type: str = Form("Portfolio Review"),
@@ -4379,11 +4448,11 @@ def create_portfolio_review(
     chair_id: str = Form(...), participant_ids: list[str] = Form([]), summary: str = Form(""), decisions_required: str = Form(""),
     db: Session = Depends(get_db), user: User = Depends(current_user),
 ):
-    require_csrf(request, user, csrf); require_roles(user, "SENIOR_LEADER", "ENTERPRISE_PORTFOLIO_OWNER", "PMO", "DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER", "ADMIN")
+    require_csrf(request, user, csrf); require_roles(user, "SENIOR_LEADER", "ENTERPRISE_PORTFOLIO_OWNER", "PMO", "DIVISION_CHIEF", "DIVISION_PORTFOLIO_MANAGER", "APPROVAL_AUTHORITY", "ADMIN")
     scoped_org = org_id or None
     if scoped_org and not can_access_org(user, scoped_org): raise HTTPException(status_code=403, detail="Organization outside permitted scope")
     if review_type in {"Division Briefing", "Division Briefing & Review"} and not scoped_org:
-        return flash_redirect("/portfolio-reviews", "A division briefing requires an organization scope.", "error")
+        return flash_redirect("/portfolio-reviews/new", "A division briefing requires an organization scope.", "error")
     status = "In Preparation" if review_type in {"Division Briefing", "Division Briefing & Review"} else "Draft"
     review = PortfolioReview(human_id=next_human_id(db, PortfolioReview, "REV"), title=title.strip(), review_type=review_type, portfolio_id=portfolio_id or None, org_id=scoped_org, period_start=date.fromisoformat(period_start), period_end=date.fromisoformat(period_end), status=status, chair_id=chair_id, participant_ids=participant_ids, summary=summary, decisions_required=decisions_required)
     db.add(review); db.flush()

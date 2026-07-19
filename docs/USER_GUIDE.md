@@ -1,5 +1,36 @@
 # User Guide
 
+## v0.8.3 themes and executive travel assurance
+
+- Open **Aa — Display preferences** to choose Light, Dusk, Black, Deep Forest, Navy Command, Charcoal + Teal, Plum Authority, Steel Executive, or Warm Stone. The browser remembers the choice while semantic green/amber/red status colors remain stable.
+- Forms use direct labels, required indicators, validation, and page guidance without injecting separate “Input area” boxes.
+- On project creation, **Blueprint Catalog** opens the complete governed template catalog.
+- On **Travel & Engagements**, marker size communicates the selected concentration measure. Blue ring segments represent linked required reports, amber represents missing required reports, and neutral indicates planned/no-report-due activity.
+- Hover or focus a Top Location to highlight its marker. Click the marker or list row for the same detail and source filter.
+- Scroll or pinch to zoom, drag to pan, double-click to zoom, use arrows to pan, `+`/`-` to zoom, `0` to refit, and Escape to close detail. Region/page filters automatically refit the map.
+- The map keeps missing reports and unmapped spend visible as stewardship exposure.
+
+## Prior v0.8.2 navigation changes
+
+- In **Project → RAID & Dependencies**, complete IDs stay visible. Scan compact metadata across the row and read wrapped detail only in narrative fields.
+- In **Board Settings**, column names, WIP limits, and entry/exit criteria remain grouped in Board Governance; v0.8.3 removes the prior injected banner.
+- On **Portfolio Overview**, the six summary KPIs and eight division cards now form even responsive grids; each division card remains a direct link to its portfolio.
+- On a task creation page, use **Board** in the breadcrumb to return to the task board. Every breadcrumb target is a navigable page.
+- Use the chevron icon on **Your focus** to expand or compact role guidance. Its tooltip and accessible label describe the available action.
+- Use **Sign out** at the bottom of the left navigation when the topbar user action is not visible. It remains available in compact and mobile navigation.
+- In **Travel & Engagements**, region and measure choices remain in the URL. v0.8.3 replaces the prior − / + / Fit controls with direct map gestures and automatic fit.
+
+The geographic footprint is a planning view built from locally governed city-level reference points. It does not show traveler routes or precise traveler positions, and cost remains an approval-stage estimate.
+
+## v0.8.1 presentation and navigation updates
+
+- Open a project and use **Overview** for structured purpose, accountability, baseline/current schedule, variance, completion, reporting, schedule assurance, and flow-management information.
+- Use **Timeline / Gantt** to read each WBS number, task title, and date range independently; select the label to open the task workspace.
+- Use **RAID & Dependencies** without dragging tables horizontally. Panels stack when needed; long record and impact text wraps while IDs, owners, targets, status, and due dates remain compact.
+- Open **Briefings** and select **New briefing or review**. Complete the dedicated page and choose **Create workspace**, or choose **Cancel** to return without creating a record.
+- On **Portfolio Overview**, select the smaller **Investment Summary** panel to open the full Investment Flow analysis. Filter that page by category or division and select chart nodes to reach source records.
+- Dashboard panel sizes remain configurable. Compact, Standard, and Wide now use consistent layout dimensions and responsive stacking.
+
 ## v0.8.0 quick start
 
 - Open **Divisions** directly from the main menu or use the topbar division switcher; Reports is no longer part of the path.
@@ -19,11 +50,11 @@ The page guide explains the purpose of the current workspace and shows the norma
 
 ## Find places to enter information
 
-Substantial editable forms are marked **Input area**. Required fields have an asterisk. Filters and one-click action forms are intentionally not marked as input areas.
+Editable forms use direct labels, required-field indicators, validation, and page-specific guidance. Required fields have an asterisk.
 
 ## Change text size and spacing
 
-Open **Aa — Display preferences** in the top command bar. Choose Standard, Large, or Extra large text and Comfortable or Compact spacing. These settings are stored in the current browser, not in the user account.
+Open **Aa — Display preferences** in the top command bar. Choose a theme, Standard/Large/Extra large text, and Comfortable/Compact spacing. These settings are stored in the current browser, not in the user account.
 
 ## Daily work
 
@@ -31,7 +62,7 @@ Open **My Work** to review assigned tasks and actions first, then demands and pr
 
 ## Common navigation
 
-The left navigation groups decision support, delivery, personal work, and governance. The top command bar provides global search, current identity and role, light/dark mode, and sign out. Most index pages support filters and saved views. Blue identifiers and titles navigate to authoritative detail records.
+The left navigation groups decision support, delivery, personal work, and governance. The top command bar provides global search, current identity and role, display preferences, and sign out. Most index pages support filters and saved views. Blue identifiers and titles navigate to authoritative detail records.
 
 Health vocabulary is governed: **On Track, At Risk, Off Track, Blocked, Completed, On Hold, Not Reported**. Project records distinguish owner-reported health, calculated health, and an authorized override with rationale.
 
@@ -41,7 +72,7 @@ Use **Briefings** when a division needs to summarize its work and brief leadersh
 
 ### Create the briefing
 
-1. Open **Briefings** and choose **Division Briefing**.
+1. Open **Briefings**, select **New briefing or review**, and choose **Division Briefing** on the dedicated creation page.
 2. Select the division, reporting period, chair/presenter, participants, purpose, and decisions required.
 3. The application creates the standard 15-section briefing structure and fills each section with accessible source-backed evidence.
 

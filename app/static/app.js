@@ -3,17 +3,20 @@
 
   const doc = document;
   const root = doc.documentElement;
-  const savedTheme = localStorage.getItem('jsj6-theme') || localStorage.getItem('ddc5i-theme') || 'dark';
+  const supportedThemes = ['light', 'dusk', 'black', 'forest', 'navy', 'teal', 'plum', 'steel', 'stone'];
+  const storedTheme = localStorage.getItem('jsj6-theme') || localStorage.getItem('ddc5i-theme') || 'dusk';
+  const savedTheme = storedTheme === 'dark' ? 'dusk' : storedTheme;
   const savedFontSize = localStorage.getItem('jsj6-font-size') || 'standard';
   const savedDensity = localStorage.getItem('jsj6-density') || 'comfortable';
-  root.dataset.theme = savedTheme;
+  root.dataset.theme = supportedThemes.includes(savedTheme) ? savedTheme : 'dusk';
   root.dataset.fontSize = ['standard', 'large', 'x-large'].includes(savedFontSize) ? savedFontSize : 'standard';
   root.dataset.density = ['comfortable', 'compact'].includes(savedDensity) ? savedDensity : 'comfortable';
 
-  function toggleTheme() {
-    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  function setTheme(value) {
+    const next = supportedThemes.includes(value) ? value : 'dusk';
     root.dataset.theme = next;
     localStorage.setItem('jsj6-theme', next);
+    doc.querySelectorAll('[data-theme-choice]').forEach((control) => { control.value = next; });
   }
 
   function setFontSize(value) {
@@ -41,36 +44,6 @@
     button.setAttribute('aria-expanded', String(!collapsed));
     button.textContent = collapsed ? 'Show guide' : 'Hide guide';
     localStorage.setItem('jsj6-guide-collapsed', collapsed ? 'true' : 'false');
-  }
-
-  function markInputZones() {
-    const marked = new Set();
-    doc.querySelectorAll('#main-content form').forEach((form) => {
-      if (form.matches('.filters,.search-form,.signout-form,.inline-add,.comment-form,.wbs-actions form,.actions form,.report-actions form,.board-config-actions form')) return;
-      const controls = [...form.querySelectorAll('input:not([type=hidden]):not([type=submit]), select, textarea')]
-        .filter((control) => !control.disabled);
-      if (controls.length < 2) return;
-
-      controls.filter((control) => control.required).forEach((control) => {
-        control.setAttribute('aria-required', 'true');
-        const label = control.closest('label') || (control.id ? form.querySelector(`label[for="${CSS.escape(control.id)}"]`) : null);
-        label?.classList.add('required-indicator');
-      });
-
-      let zone = form.classList.contains('card') ? form : form.closest('.card');
-      if (!zone || marked.has(zone)) return;
-      const zoneForms = [...zone.querySelectorAll('form')].filter((candidate) => candidate.querySelectorAll('input:not([type=hidden]), select, textarea').length >= 2);
-      if (zone !== form && zoneForms.length > 1) zone = form;
-      if (marked.has(zone)) return;
-      zone.classList.add('input-zone');
-      form.classList.add('guided-input-form');
-      const banner = doc.createElement('div');
-      banner.className = 'input-zone-banner';
-      banner.innerHTML = '<strong>Input area</strong><span>Complete the fields, review the information, then use the action button below. Required fields are marked *.</span>';
-      if (zone === form) form.prepend(banner);
-      else form.before(banner);
-      marked.add(zone);
-    });
   }
 
   function toggleSidebar() {
@@ -428,56 +401,258 @@
     const shell = doc.querySelector('[data-travel-map]');
     const markers = shell?.querySelector('[data-map-markers]');
     const detail = shell?.querySelector('[data-map-detail]');
+    const stage = shell?.querySelector('[data-map-stage]');
+    const canvas = shell?.querySelector('.travel-map-canvas');
+    const mapIndex = shell?.querySelector('[data-map-index]');
+    const empty = shell?.querySelector('[data-map-empty]');
+    const regionControl = shell?.querySelector('[data-map-region]');
+    const measureControl = shell?.querySelector('[data-map-measure]');
+    const legend = shell?.querySelector('[data-map-legend]');
+    const summary = shell?.querySelector('[data-map-summary]');
+    const chipCost = shell?.querySelector('[data-map-chip-cost]');
+    const chipCompleted = shell?.querySelector('[data-map-chip-completed]');
+    const chipGap = shell?.querySelector('[data-map-chip-gap]');
     const rows = readJsonElement('travel-map-data');
-    if (!shell || !markers || !detail || !Array.isArray(rows)) return;
+    if (!shell || !markers || !detail || !stage || !canvas || !Array.isArray(rows)) return;
+
     const mapped = rows.filter((row) => row.mapped && Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lon)));
-    const maxCost = Math.max(...mapped.map((row) => Number(row.cost || 0)), 1);
     const markerByKey = new Map();
 
-    function renderDetail(row) {
+    function syncMapIndexHeight() {
+      if (!mapIndex) return;
+      const canvasHeight = Math.round(canvas.getBoundingClientRect().height);
+      if (canvasHeight > 0) shell.style.setProperty('--map-canvas-height', `${canvasHeight}px`);
+    }
+    syncMapIndexHeight();
+    if ('ResizeObserver' in window) {
+      const mapSizeObserver = new ResizeObserver(syncMapIndexHeight);
+      mapSizeObserver.observe(canvas);
+    } else {
+      window.addEventListener('resize', syncMapIndexHeight, { passive: true });
+    }
+    const rowByKey = new Map(rows.map((row) => [row.key, row]));
+    const measureLabels = {
+      cost: 'estimated cost', count: 'travel requests', engagement_count: 'engagements',
+      division_count: 'division participation', report_count: 'trip reports'
+    };
+    const query = new URLSearchParams(window.location.search);
+    let region = query.get('map_region') || 'all';
+    let measure = query.get('map_measure') || 'cost';
+    const supportedRegions = ['all', 'Americas', 'Europe', 'Indo-Pacific', 'Middle East & Africa'];
+    if (!supportedRegions.includes(region)) region = 'all';
+    if (!measureLabels[measure]) measure = 'cost';
+    let view = { scale: 1, x: 0, y: 0 };
+    let activeKey = '';
+    let renderTimer = 0;
+    const pointers = new Map();
+    let gesture = null;
+
+    function displayRegion(value) {
+      if (value === 'North America' || value === 'South America' || value === 'Latin America') return 'Americas';
+      if (value === 'Asia-Pacific' || value === 'Asia' || value === 'Oceania') return 'Indo-Pacific';
+      if (['Middle East', 'Africa', 'Middle East & Africa'].includes(value)) return 'Middle East & Africa';
+      return value || 'Unmapped';
+    }
+    function visibleRows() { return mapped.filter((row) => region === 'all' || displayRegion(row.region) === region); }
+    function metricValue(row) { return Number(row[measure] || 0); }
+    function metricText(row) { return measure === 'cost' ? formatMoney(metricValue(row)) : metricValue(row).toLocaleString(); }
+    function positioned(row) {
+      return { row, left: Math.max(1, Math.min(99, (Number(row.lon) + 180) / 360 * 100)), top: Math.max(3, Math.min(97, (90 - Number(row.lat)) / 180 * 100)) };
+    }
+    function syncUrl() {
+      const url = new URL(window.location.href);
+      if (region === 'all') url.searchParams.delete('map_region'); else url.searchParams.set('map_region', region);
+      if (measure === 'cost') url.searchParams.delete('map_measure'); else url.searchParams.set('map_measure', measure);
+      window.history.replaceState({}, '', url);
+    }
+    function clampView() {
+      if (view.scale <= 1.001) { view.scale = 1; view.x = 0; view.y = 0; return; }
+      const maxX = canvas.clientWidth * ((view.scale - 1) / 2 + .12);
+      const maxY = canvas.clientHeight * ((view.scale - 1) / 2 + .12);
+      view.x = Math.max(-maxX, Math.min(maxX, view.x));
+      view.y = Math.max(-maxY, Math.min(maxY, view.y));
+    }
+    function applyView() {
+      clampView();
+      stage.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+      stage.style.setProperty('--map-marker-scale', String(1 / view.scale));
+      canvas.setAttribute('aria-valuetext', `${Math.round(view.scale * 100)} percent zoom`);
+    }
+    function closeDetail() {
+      activeKey = '';
+      detail.hidden = true;
       detail.replaceChildren();
-      const eyebrow = doc.createElement('span');
-      eyebrow.className = 'eyebrow';
-      eyebrow.textContent = row.region || 'Mapped location';
+      markerByKey.forEach((marker) => marker.classList.remove('is-active'));
+      shell.querySelectorAll('[data-location-focus]').forEach((item) => item.classList.remove('is-highlighted'));
+    }
+    function highlightLocation(key, scroll = false) {
+      markerByKey.forEach((marker, markerKey) => marker.classList.toggle('is-highlighted', markerKey === key));
+      shell.querySelectorAll('[data-location-focus]').forEach((item) => {
+        const selected = item.dataset.locationFocus === key;
+        item.classList.toggle('is-highlighted', selected);
+        if (selected && scroll) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
+    function positionDetail(anchor) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const markerRect = anchor?.getBoundingClientRect();
+      const width = Math.min(292, canvasRect.width - 24);
+      if (!markerRect) {
+        detail.style.width = `${width}px`;
+        detail.style.left = `${Math.max(12, (canvasRect.width - width) / 2)}px`;
+        detail.style.top = '18px';
+        return;
+      }
+      const preferredLeft = markerRect.left - canvasRect.left + markerRect.width + 12;
+      const left = Math.max(12, Math.min(canvasRect.width - width - 12, preferredLeft));
+      const top = Math.max(12, Math.min(canvasRect.height - 190, markerRect.top - canvasRect.top - 20));
+      detail.style.width = `${width}px`; detail.style.left = `${left}px`; detail.style.top = `${top}px`;
+    }
+    function openDetail(row, anchor, scroll = false) {
+      if (!row) return;
+      detail.replaceChildren();
+      const close = doc.createElement('button'); close.type = 'button'; close.className = 'map-popover-close'; close.setAttribute('aria-label', 'Close location detail'); close.textContent = '×';
+      const eyebrow = doc.createElement('span'); eyebrow.className = 'eyebrow'; eyebrow.textContent = `${displayRegion(row.region)} · rank ${row.rank}`;
       const heading = doc.createElement('h4'); heading.textContent = row.location;
-      const amount = doc.createElement('strong'); amount.textContent = formatMoney(row.cost);
-      const copy = doc.createElement('p');
-      copy.textContent = `${row.count} requests · ${row.engagement_count} engagements · ${row.division_count} divisions · ${row.report_count} reports`;
-      const link = doc.createElement('a');
-      link.className = 'btn btn-small'; link.href = row.url; link.textContent = 'Filter to this location';
-      detail.append(eyebrow, heading, amount, copy, link);
+      const amount = doc.createElement('strong'); amount.textContent = metricText(row);
+      const measureName = doc.createElement('small'); measureName.className = 'map-detail-measure'; measureName.textContent = measureLabels[measure];
+      const copy = doc.createElement('p'); copy.textContent = `${formatMoney(row.cost)} estimated · ${row.count} requests · ${row.completed_count} completed · ${row.engagement_count} engagements`;
+      const compliance = doc.createElement('p'); compliance.className = row.overdue_count ? 'map-compliance gap' : 'map-compliance';
+      compliance.textContent = row.report_required_completed ? `${row.linked_completed} linked required reports · ${row.overdue_count} missing` : 'No completed report-required travel at this location';
+      const link = doc.createElement('a'); link.className = 'btn btn-small'; link.href = row.url; link.textContent = 'Filter to this location';
+      detail.append(close, eyebrow, heading, amount, measureName, copy, compliance, link);
+      detail.hidden = false; activeKey = row.key;
       markerByKey.forEach((marker, key) => marker.classList.toggle('is-active', key === row.key));
-      doc.querySelectorAll('[data-location-focus]').forEach((item) => item.classList.toggle('is-highlighted', item.dataset.locationFocus === row.key));
+      highlightLocation(row.key, scroll);
+      positionDetail(anchor || markerByKey.get(row.key));
+      close.addEventListener('click', closeDetail);
+    }
+    function scheduleRender() {
+      window.clearTimeout(renderTimer);
+      renderTimer = window.setTimeout(() => renderMap(), 110);
+    }
+    function zoomAt(nextScale, clientX, clientY) {
+      const oldScale = view.scale;
+      const scale = Math.max(1, Math.min(4, nextScale));
+      const rect = canvas.getBoundingClientRect();
+      const cx = (clientX ?? rect.left + rect.width / 2) - rect.left - rect.width / 2;
+      const cy = (clientY ?? rect.top + rect.height / 2) - rect.top - rect.height / 2;
+      const worldX = (cx - view.x) / oldScale;
+      const worldY = (cy - view.y) / oldScale;
+      view.scale = scale; view.x = cx - worldX * scale; view.y = cy - worldY * scale;
+      closeDetail(); applyView(); scheduleRender();
+    }
+    function fitVisible() {
+      const points = visibleRows().map(positioned);
+      if (!points.length) { view = { scale: 1, x: 0, y: 0 }; applyView(); return; }
+      const minX = Math.min(...points.map((item) => item.left)); const maxX = Math.max(...points.map((item) => item.left));
+      const minY = Math.min(...points.map((item) => item.top)); const maxY = Math.max(...points.map((item) => item.top));
+      const width = Math.max(18, maxX - minX); const height = Math.max(18, maxY - minY);
+      const scale = Math.min(3.5, Math.max(1, Math.min(82 / width, 76 / height)));
+      const centerX = (minX + maxX) / 2; const centerY = (minY + maxY) / 2;
+      view = { scale, x: (50 - centerX) / 100 * canvas.clientWidth * scale, y: (50 - centerY) / 100 * canvas.clientHeight * scale };
+      closeDetail(); applyView();
+    }
+    function renderMap() {
+      const visible = visibleRows();
+      markers.replaceChildren(); markerByKey.clear();
+      const maxValue = Math.max(...visible.map(metricValue), 1);
+      const useClusters = view.scale < 1.35 && visible.length > 6;
+      const groups = [];
+      if (useClusters) {
+        const buckets = new Map();
+        visible.map(positioned).forEach((item) => {
+          const bucketKey = `${Math.round(item.left / 9)}:${Math.round(item.top / 12)}`;
+          if (!buckets.has(bucketKey)) buckets.set(bucketKey, []);
+          buckets.get(bucketKey).push(item);
+        });
+        buckets.forEach((items) => groups.push(items));
+      } else visible.map(positioned).forEach((item) => groups.push([item]));
+
+      groups.forEach((items) => {
+        const row = items[0].row;
+        const left = items.reduce((sum, item) => sum + item.left, 0) / items.length;
+        const top = items.reduce((sum, item) => sum + item.top, 0) / items.length;
+        const value = items.reduce((sum, item) => sum + metricValue(item.row), 0);
+        const marker = doc.createElement('button'); marker.type = 'button';
+        marker.className = items.length > 1 ? 'travel-map-marker map-cluster' : 'travel-map-marker compliance-marker';
+        marker.style.left = `${left}%`; marker.style.top = `${top}%`; marker.style.setProperty('--marker-size', `${18 + Math.sqrt(value / maxValue) * 25}px`);
+        if (items.length > 1) {
+          marker.textContent = String(items.length);
+          marker.setAttribute('aria-label', `${items.length} locations; activate to zoom in`);
+          marker.addEventListener('click', (event) => zoomAt(view.scale + .8, event.clientX, event.clientY));
+        } else {
+          const denominator = Number(row.report_required_completed || 0);
+          const linkedAngle = denominator ? Number(row.linked_completed || 0) / denominator * 360 : 0;
+          const gapAngle = denominator ? (Number(row.linked_completed || 0) + Number(row.overdue_count || 0)) / denominator * 360 : 0;
+          marker.style.setProperty('--linked-angle', `${linkedAngle}deg`); marker.style.setProperty('--gap-angle', `${gapAngle}deg`);
+          marker.classList.toggle('no-compliance-due', denominator === 0);
+          const label = doc.createElement('span'); label.className = 'map-marker-rank'; label.textContent = Number(row.rank) <= 25 ? String(row.rank) : '•'; marker.append(label);
+          marker.dataset.locationKey = row.key;
+          marker.setAttribute('aria-label', `${row.location}, rank ${row.rank}: ${metricText(row)} ${measureLabels[measure]}; ${row.linked_completed} linked and ${row.overdue_count} missing required reports`);
+          marker.title = `${row.location} · ${metricText(row)} · ${row.overdue_count} missing reports`;
+          marker.addEventListener('click', (event) => { event.stopPropagation(); openDetail(row, marker, true); });
+          marker.addEventListener('pointerenter', () => highlightLocation(row.key));
+          marker.addEventListener('pointerleave', () => { if (activeKey !== row.key) highlightLocation(activeKey); });
+          marker.addEventListener('focus', () => highlightLocation(row.key, true));
+          markerByKey.set(row.key, marker);
+        }
+        markers.append(marker);
+      });
+      if (empty) empty.hidden = visible.length > 0;
+      shell.querySelectorAll('[data-location-focus]').forEach((item) => {
+        const row = rowByKey.get(item.dataset.locationFocus);
+        item.hidden = !row || !row.mapped || (region !== 'all' && displayRegion(row.region) !== region);
+      });
+      const totals = visible.reduce((acc, row) => {
+        acc.cost += Number(row.cost || 0); acc.requests += Number(row.count || 0); acc.engagements += Number(row.engagement_count || 0);
+        acc.completed += Number(row.completed_count || 0); acc.gap += Number(row.overdue_count || 0); return acc;
+      }, { cost: 0, requests: 0, engagements: 0, completed: 0, gap: 0 });
+      if (summary) summary.innerHTML = `<strong>${region === 'all' ? 'Filtered footprint' : region}</strong><span>${visible.length} mapped locations</span><span>${totals.requests} requests</span><span>${formatMoney(totals.cost)} estimated</span><span class="${totals.gap ? 'text-warn' : 'text-ok'}">${totals.gap} missing reports</span>`;
+      if (chipCost) chipCost.textContent = formatMoney(totals.cost); if (chipCompleted) chipCompleted.textContent = totals.completed.toLocaleString(); if (chipGap) chipGap.textContent = totals.gap.toLocaleString();
+      if (legend) legend.textContent = `Marker size represents ${measureLabels[measure]}`;
+      if (activeKey && markerByKey.has(activeKey)) openDetail(rowByKey.get(activeKey), markerByKey.get(activeKey)); else closeDetail();
     }
 
-    mapped.forEach((row) => {
-      const marker = doc.createElement('button');
-      marker.type = 'button';
-      marker.className = 'travel-map-marker';
-      marker.dataset.locationKey = row.key;
-      marker.style.left = `${Math.max(1, Math.min(99, (Number(row.lon) + 180) / 360 * 100))}%`;
-      marker.style.top = `${Math.max(3, Math.min(97, (90 - Number(row.lat)) / 180 * 100))}%`;
-      const size = 12 + Math.sqrt(Number(row.cost || 0) / maxCost) * 24;
-      marker.style.setProperty('--marker-size', `${size}px`);
-      marker.setAttribute('aria-label', `${row.location}: ${formatMoney(row.cost)}, ${row.count} requests`);
-      marker.title = `${row.location} · ${formatMoney(row.cost)} · ${row.count} requests`;
-      marker.addEventListener('click', () => renderDetail(row));
-      marker.addEventListener('focus', () => renderDetail(row));
-      if (animEnabled) {
-        marker.classList.add('anim-marker');
-        marker.style.animationDelay = `${240 + markerByKey.size * 45}ms`;
-        requestAnimationFrame(() => requestAnimationFrame(() => marker.classList.add('anim-go')));
+    shell.querySelectorAll('[data-location-focus]').forEach((item) => {
+      const row = rowByKey.get(item.dataset.locationFocus); if (!row) return;
+      item.addEventListener('pointerenter', () => highlightLocation(row.key));
+      item.addEventListener('pointerleave', () => { if (activeKey !== row.key) highlightLocation(activeKey); });
+      item.addEventListener('focus', () => highlightLocation(row.key));
+      item.addEventListener('click', (event) => { event.preventDefault(); openDetail(row, markerByKey.get(row.key), true); });
+    });
+    if (regionControl) { regionControl.value = region; regionControl.addEventListener('change', () => { region = regionControl.value; syncUrl(); renderMap(); requestAnimationFrame(fitVisible); }); }
+    if (measureControl) { measureControl.value = measure; measureControl.addEventListener('change', () => { measure = measureControl.value; syncUrl(); renderMap(); }); }
+    canvas.addEventListener('wheel', (event) => { event.preventDefault(); zoomAt(view.scale * Math.exp(-event.deltaY * .0015), event.clientX, event.clientY); }, { passive: false });
+    canvas.addEventListener('dblclick', (event) => { event.preventDefault(); zoomAt(view.scale + .65, event.clientX, event.clientY); });
+    canvas.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('.travel-map-marker,.travel-map-popover')) return;
+      closeDetail(); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.setPointerCapture(event.pointerId);
+      const points = [...pointers.values()];
+      if (points.length === 1) gesture = { type: 'pan', startX: points[0].x, startY: points[0].y, viewX: view.x, viewY: view.y };
+      if (points.length === 2) gesture = { type: 'pinch', distance: Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y), centerX: (points[0].x + points[1].x) / 2, centerY: (points[0].y + points[1].y) / 2, scale: view.scale, viewX: view.x, viewY: view.y };
+      canvas.classList.add('is-panning');
+    });
+    canvas.addEventListener('pointermove', (event) => {
+      if (!pointers.has(event.pointerId)) return; pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const points = [...pointers.values()];
+      if (points.length === 1 && gesture?.type === 'pan') { view.x = gesture.viewX + points[0].x - gesture.startX; view.y = gesture.viewY + points[0].y - gesture.startY; applyView(); }
+      if (points.length >= 2) {
+        if (gesture?.type !== 'pinch') gesture = { type: 'pinch', distance: Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y), centerX: (points[0].x + points[1].x) / 2, centerY: (points[0].y + points[1].y) / 2, scale: view.scale, viewX: view.x, viewY: view.y };
+        const distance = Math.max(20, Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y)); const centerX = (points[0].x + points[1].x) / 2; const centerY = (points[0].y + points[1].y) / 2;
+        view.scale = Math.max(1, Math.min(4, gesture.scale * distance / Math.max(20, gesture.distance))); view.x = gesture.viewX + centerX - gesture.centerX; view.y = gesture.viewY + centerY - gesture.centerY; applyView();
       }
-      markers.appendChild(marker);
-      markerByKey.set(row.key, marker);
     });
-    doc.querySelectorAll('[data-location-focus]').forEach((item) => {
-      const row = rows.find((candidate) => candidate.key === item.dataset.locationFocus);
-      if (!row) return;
-      item.addEventListener('pointerenter', () => renderDetail(row));
-      item.addEventListener('focus', () => renderDetail(row));
+    function endPointer(event) { pointers.delete(event.pointerId); if (!pointers.size) { gesture = null; canvas.classList.remove('is-panning'); scheduleRender(); } }
+    canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
+    canvas.addEventListener('keydown', (event) => {
+      const pan = event.shiftKey ? 70 : 35; let handled = true;
+      if (event.key === 'ArrowLeft') view.x += pan; else if (event.key === 'ArrowRight') view.x -= pan; else if (event.key === 'ArrowUp') view.y += pan; else if (event.key === 'ArrowDown') view.y -= pan;
+      else if (event.key === '+' || event.key === '=') zoomAt(view.scale + .3); else if (event.key === '-' || event.key === '_') zoomAt(view.scale - .3); else if (event.key === '0') fitVisible(); else if (event.key === 'Escape') closeDetail(); else handled = false;
+      if (handled) { event.preventDefault(); applyView(); scheduleRender(); }
     });
-    if (mapped[0]) renderDetail(mapped[0]);
+    window.addEventListener('resize', () => { closeDetail(); fitVisible(); renderMap(); });
+    renderMap(); requestAnimationFrame(() => { fitVisible(); renderMap(); });
   }
 
   function setupSearch() {
@@ -620,8 +795,11 @@
     const compact = typeof forceCompact === 'boolean' ? forceCompact : !strip.classList.contains('is-compact');
     strip.classList.toggle('is-compact', compact);
     if (button) {
-      button.textContent = compact ? 'Expand' : 'Compact';
+      const icon = button.querySelector('[aria-hidden="true"]');
+      if (icon) icon.textContent = compact ? '⌄' : '⌃';
       button.setAttribute('aria-expanded', compact ? 'false' : 'true');
+      button.setAttribute('aria-label', compact ? 'Expand role focus' : 'Compact role focus');
+      button.title = compact ? 'Expand role focus' : 'Compact role focus';
     }
     localStorage.setItem('jsj6-role-focus-compact', compact ? 'true' : 'false');
   }
@@ -728,9 +906,10 @@
     const ordered = [...(config.order || []).map((id) => byId.get(id)).filter(Boolean), ...panels.filter((panel) => !(config.order || []).includes(panel.dataset.dashboardPanel))];
     ordered.forEach((panel) => {
       const id = panel.dataset.dashboardPanel;
-      panel.dataset.panelSize = (config.sizes || {})[id] || 'standard';
+      panel.dataset.panelSize = (config.sizes || {})[id] || panel.dataset.defaultSize || 'standard';
       panel.dataset.userHidden = (config.hidden || []).includes(id) ? 'true' : 'false';
       panel.hidden = panel.dataset.userHidden === 'true';
+      ['compact', 'standard', 'wide'].forEach((value) => panel.classList.remove(`panel-size-${value}`));
       panel.classList.add(`panel-size-${panel.dataset.panelSize}`);
       const controls = doc.createElement('div');
       controls.className = 'dashboard-panel-controls';
@@ -765,7 +944,6 @@
   doc.addEventListener('click', (event) => {
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'toggle-sidebar') toggleSidebar();
-    if (action === 'toggle-theme') toggleTheme();
     if (action === 'toggle-guidance') toggleGuidance(event.target.closest('[data-action]'));
     if (action === 'toggle-role-focus') toggleRoleFocus();
     if (action === 'open-help') openHelpDrawer();
@@ -782,6 +960,7 @@
     if (action === 'cancel-dashboard-customize') window.location.reload();
     if (['panel-up', 'panel-down', 'panel-size', 'panel-hide'].includes(action)) dashboardPanelAction(action, event.target.closest('[data-action]'));
     if (action === 'reset-display') {
+      setTheme('dusk');
       setFontSize('standard');
       setDensity('comfortable');
     }
@@ -826,6 +1005,7 @@
   doc.addEventListener('DOMContentLoaded', () => {
     const app = doc.getElementById('app-shell');
     if ((localStorage.getItem('jsj6-sidebar') || localStorage.getItem('ddc5i-sidebar')) === 'collapsed' && window.innerWidth > 820) app?.classList.add('collapsed');
+    setTheme(root.dataset.theme);
     setFontSize(root.dataset.fontSize);
     setDensity(root.dataset.density);
     const guide = doc.querySelector('[data-page-guide]');
@@ -839,7 +1019,7 @@
     }
     initAdaptiveShell(returningUser);
     localStorage.setItem('jsj6-visited', 'true');
-    markInputZones();
+    doc.querySelectorAll('[data-theme-choice]').forEach((control) => control.addEventListener('change', () => setTheme(control.value)));
 
     doc.querySelectorAll('[data-auto-submit]').forEach((element) => element.addEventListener('change', () => element.form?.submit()));
 

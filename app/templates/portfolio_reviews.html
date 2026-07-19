@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div><div class="eyebrow">Leadership operating forum</div><h2>Briefings</h2><p>Prepare source-backed division summaries, conduct live leadership briefings, ask questions, record changes, make decisions, and assign follow-up without rebuilding a slide deck.</p></div>
-  <a class="btn btn-primary" href="#create-review">New briefing or review</a>
+  <a class="btn btn-primary" href="/portfolio-reviews/new">New briefing or review</a>
 </div>
 <div class="grid grid-4">
   <div class="card kpi"><div class="kpi-label">All Forums</div><div class="kpi-value">{{ reviews|length }}</div></div>
@@ -26,20 +26,4 @@
 {% else %}<tr><td colspan="7" class="empty">No briefings or reviews have been created.</td></tr>{% endfor %}
 </tbody></table></div>
 
-<section class="card" id="create-review" style="margin-top:16px">
-  <div class="panel-head"><div><div class="eyebrow">New governance cycle</div><h3>Create a division briefing or portfolio review</h3><p class="card-subtitle">Choose Division Briefing to generate the standard 15-section source-backed leadership workspace. Division scope is required for that option.</p></div></div>
-  <form action="/portfolio-reviews" method="post" class="form-grid">
-    <input type="hidden" name="csrf" value="{{ csrf_token }}">
-    <label class="field field-span-2">Title<input class="input" name="title" required placeholder="FY27 Q1 Joint Assessment Division Briefing"></label>
-    <label class="field">Review type<select class="select" name="review_type"><option>Division Briefing</option><option>Portfolio Review</option><option>Investment Review</option><option>Demand Prioritization Board</option><option>Resource Review</option><option>Financial Review</option><option>Benefits Review</option></select></label>
-    <label class="field">Portfolio<select class="select" name="portfolio_id"><option value="">Enterprise / no single portfolio</option>{% for p in portfolios %}<option value="{{ p.id }}">{{ p.code }} · {{ p.name }}</option>{% endfor %}</select></label>
-    <label class="field">Organization scope<select class="select" name="org_id"><option value="">Enterprise (not valid for Division Briefing)</option>{% for o in organizations if o.org_type=='Division' %}<option value="{{ o.id }}" {% if user.division_id == o.id %}selected{% endif %}>{{ o.code }} · {{ o.name }}</option>{% endfor %}</select></label>
-    <label class="field">Chair / presenter<select class="select" name="chair_id" required>{% for u in users %}<option value="{{ u.id }}" {% if u.id==user.id %}selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
-    <label class="field">Period start<input class="input" type="date" name="period_start" required></label><label class="field">Period end<input class="input" type="date" name="period_end" required></label>
-    <label class="field field-span-2">Participants<select class="select multi-select" name="participant_ids" multiple size="6">{% for u in users %}<option value="{{ u.id }}">{{ u.full_name }} · {{ u.roles[0]|replace('_',' ')|title if u.roles else 'User' }}</option>{% endfor %}</select></label>
-    <label class="field field-span-2">Purpose and summary<textarea class="textarea" name="summary" rows="3" placeholder="State the operating context, leadership purpose, and intended outcome."></textarea></label>
-    <label class="field field-span-2">Decisions or assistance required<textarea class="textarea" name="decisions_required" rows="3"></textarea></label>
-    <div class="field"><span>&nbsp;</span><button class="btn btn-primary" type="submit">Create workspace</button></div>
-  </form>
-</section>
 {% endblock %}

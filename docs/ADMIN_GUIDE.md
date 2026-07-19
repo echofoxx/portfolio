@@ -1,12 +1,32 @@
 # Administrator Guide
 
-## v0.8.0 administration
+## v0.8.3.1 administration
 
-The current migration head is `0009_self_service_v080`. See `docs/UPGRADE_0.8.0.md` before upgrading an existing installation.
+v0.8.3.1 is a presentation-only patch with no schema, configuration, dependency, authorization, or source-data change. Follow `docs/UPGRADE_0.8.3.1.md`. Target-host browser acceptance should confirm that the Linked Map Index matches the map canvas at desktop and responsive widths and that only the ranked location list scrolls.
+
+## v0.8.3 administration
+
+The migration head remains `0009_self_service_v080`; v0.8.3 has no schema migration or new runtime dependency. Follow `docs/UPGRADE_0.8.3.md`, preserve the existing `.env`, database, and upload volume, rebuild the application image, and run the complete target-host checks.
+
+The professional theme catalog is browser-local presentation state and does not change server authorization or stored portfolio data. Travel report-compliance and unmapped-spend values are derived from the existing permission-filtered travel payload; the release does not add or rewrite source travel records. Administrators and data stewards should continue maintaining aliases and coordinates in the packaged location registry and review the unmapped summary before using map output in an executive brief.
+
+Direct map manipulation uses browser pointer, wheel, touch, and keyboard events. Target-host acceptance should include desktop mouse/trackpad, keyboard-only, touch or device emulation, narrow-screen reflow, and a check that the empty-state message appears only when the selected map lens contains no mapped locations.
+
+## v0.8.2 administration
+
+The migration head remains `0009_self_service_v080`; v0.8.2 has no schema migration or new runtime dependency. Follow `docs/UPGRADE_0.8.2.md`, preserve the existing `.env`, database, and upload volume, rebuild the application image, and run the complete target-host checks.
+
+Travel region and measure lenses are browser-side views of the existing permission-filtered payload. They do not create records or change source values. Map region/measure state may appear as `map_region` and `map_measure` query parameters; these are presentation state, not server-side authorization filters. Coordinate and alias stewardship remains governed by the packaged location registry.
+
+Sidebar Sign out uses the existing POST `/logout` endpoint and CSRF token. Do not replace it with an unauthenticated GET link.
+
+## v0.8.1 administration
+
+The current migration head remains `0009_self_service_v080`. v0.8.1 has no schema migration. See `docs/UPGRADE_0.8.1.md` before upgrading an existing v0.8.0 installation.
 
 Administrators can open **Resources → Import / Export** to download the governed CSV template, export current capacity and request data, preview a correction/seed file, inspect every row, and explicitly commit valid changes. The importer matches an existing row by stable `record_id` or by the natural key `(division_code, role_name, skill, period)`. Invalid divisions, missing keys, duplicate natural keys, and invalid hour values remain errors and are not committed. Every batch and changed row retains import and audit evidence.
 
-Administrators can also review local-project promotion requests, create either project governance type, and reset their own dashboard layout. Resource import remains Admin-only in v0.8.0.
+Administrators can also review local-project promotion requests, create either project governance type, open the dedicated governance-cycle form, and reset their own dashboard layout. Resource import remains Admin-only in v0.8.1.
 
 ## Responsibilities
 
@@ -39,7 +59,7 @@ Required production changes include:
 
 ## Migrations
 
-Migrations live in `migrations/versions`. Startup applies them automatically. The current v0.8.0 migration head is `0009_self_service_v080`. It adds project governance/promotion and dashboard-preference persistence and reconciles the legacy Front Office code without changing its stable organization ID. Earlier migration foundations remain intact. Before a production migration:
+Migrations live in `migrations/versions`. Startup applies them automatically. The current v0.8.1 migration head remains `0009_self_service_v080`; v0.8.1 changes no tables or columns. That existing migration adds project governance/promotion and dashboard-preference persistence and reconciles the legacy Front Office code without changing its stable organization ID. Earlier migration foundations remain intact. Before a production migration:
 
 1. back up the database;
 2. test upgrade against a restored copy;

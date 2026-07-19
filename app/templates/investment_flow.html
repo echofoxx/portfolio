@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Investment Flow · JSJ6 Enterprise Portfolio{% endblock %}
+{% block content %}
+<div class="breadcrumbs-row"><a href="/dashboard">Home</a><span>›</span><a href="/financials">Investments</a><span>›</span><span>Investment Flow</span></div>
+<div class="page-head">
+  <div><div class="eyebrow">Investment analysis</div><h2>Approved Investment Flow</h2><p>Trace approved funding through category, division, project, and actual or remaining approved value. Every interactive node links back to its contributing source records.</p></div>
+  <div class="actions"><a class="btn" href="/financials">Financial records</a><a class="btn" href="/dashboard">Portfolio Overview</a></div>
+</div>
+
+<form class="card investment-flow-filter-bar" method="get" action="/financials/flow">
+  <label class="field" for="flow-category">Category<select class="select" id="flow-category" name="category"><option value="">All categories</option>{% for item in category_options %}<option value="{{ item }}" {% if filters.category==item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
+  <label class="field" for="flow-division">Division<select class="select" id="flow-division" name="division"><option value="">All accessible divisions</option>{% for org in organizations %}<option value="{{ org.code }}" {% if filters.division==org.code %}selected{% endif %}>{{ org.code }} · {{ org.name }}</option>{% endfor %}</select></label>
+  <div class="actions"><button class="btn btn-primary" type="submit">Apply filters</button><a class="btn btn-ghost" href="/financials/flow">Reset</a></div>
+</form>
+
+<div class="investment-flow-kpis">
+  <a class="card kpi" href="/financials{% if filters.category or filters.division %}?category={{ filters.category|urlencode }}&division={{ filters.division|urlencode }}{% endif %}"><div class="kpi-label">Approved</div><div class="kpi-value">{{ investment_flow.approved|money }}</div><div class="kpi-foot">Accessible approved investment</div></a>
+  <a class="card kpi" href="/financials?view=actual{% if filters.category %}&category={{ filters.category|urlencode }}{% endif %}{% if filters.division %}&division={{ filters.division|urlencode }}{% endif %}"><div class="kpi-label">Actual to date</div><div class="kpi-value">{{ investment_flow.spent|money }}</div><div class="kpi-foot">Recorded actual cost</div></a>
+  <a class="card kpi" href="/financials?view=remaining{% if filters.category %}&category={{ filters.category|urlencode }}{% endif %}{% if filters.division %}&division={{ filters.division|urlencode }}{% endif %}"><div class="kpi-label">Unspent approved</div><div class="kpi-value">{{ investment_flow.remaining|money }}</div><div class="kpi-foot">Approved less actual to date</div></a>
+  <div class="card kpi {% if investment_flow.reconciled %}kpi-ok{% else %}kpi-warn{% endif %}"><div class="kpi-label">Flow check</div><div class="kpi-value flow-check-value">{% if investment_flow.reconciled %}Reconciled{% else %}Review{% endif %}</div><div class="kpi-foot">Approved = actual + unspent approved</div></div>
+</div>
+
+<section class="card investment-flow-page-card">
+  <div class="panel-head"><div><span class="eyebrow">Interactive traceability</span><h3>Category → Division → Project → Outcome</h3></div><span class="badge">{{ rows|length }} financial records</span></div>
+  <div class="investment-flow-shell investment-flow-page-shell" data-investment-flow aria-label="Interactive investment flow diagram">
+    <svg class="investment-flow-svg investment-flow-page-svg" viewBox="0 0 1120 430" role="img" aria-labelledby="investment-flow-title investment-flow-desc">
+      <title id="investment-flow-title">Approved investment flow</title>
+      <desc id="investment-flow-desc">Approved budget flows through financial categories, lead divisions, projects, and actual or remaining approved value. Select a node to inspect its amount and source link.</desc>
+    </svg>
+    <aside class="flow-detail" data-flow-detail aria-live="polite"><span class="eyebrow">Traceable selection</span><h4>Choose a flow node</h4><p>Select a category, division, project, or outcome to inspect its amount and open the contributing records.</p></aside>
+  </div>
+  <script type="application/json" id="investment-flow-data">{{ investment_flow|tojson }}</script>
+  <div class="callout info compact-callout"><strong>Basis:</strong> planning and transaction evidence recorded in this application. This view is not an authoritative accounting statement.</div>
+</section>
+
+<div class="grid grid-2 investment-support-grid">
+  <section class="card"><div class="panel-head"><div><span class="eyebrow">Accessible alternative</span><h3>Investment by category</h3></div></div><div class="table-wrap"><table class="data-table investment-category-table"><thead><tr><th>Category</th><th>Approved</th><th>Share</th></tr></thead><tbody>{% for item in investment_categories %}<tr><td><a href="/financials/flow?category={{ item.name|urlencode }}{% if filters.division %}&division={{ filters.division|urlencode }}{% endif %}">{{ item.name }}</a></td><td>{{ item.amount|money }}</td><td>{{ item.percentage|round(1) }}%</td></tr>{% else %}<tr><td colspan="3" class="empty">No investment records match the selected filters.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="card"><div class="panel-head"><div><span class="eyebrow">Source records</span><h3>Contributing financial baselines</h3></div><a class="panel-link" href="/financials">Open register <span>→</span></a></div><div class="table-wrap"><table class="data-table investment-source-table"><thead><tr><th>Project</th><th>Category</th><th>FY</th><th>Approved</th><th>Actual</th></tr></thead><tbody>{% for financial,project in rows %}<tr><td><a href="/projects/{{ project.id }}?tab=financial">{{ project.human_id }} · {{ project.title }}</a></td><td>{{ financial.category }}</td><td>FY{{ financial.fiscal_year }}</td><td>{{ financial.approved_budget|money }}</td><td>{{ financial.actual_cost|money }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No contributing financial records.</td></tr>{% endfor %}</tbody></table></div></section>
+</div>
+{% endblock %}

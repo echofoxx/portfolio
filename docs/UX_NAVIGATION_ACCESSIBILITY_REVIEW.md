@@ -1,5 +1,7 @@
 # UX Navigation, Role Focus, and Accessibility Review — v0.6.1
 
+> **v0.8.3 update:** The automatic input-area border, background, banner, and client-side enhancement described below were removed in v0.8.3. Required-field indicators, form labels, focus treatment, display preferences, and the original v0.6.1 historical acceptance record remain. The v0.8.3 interface uses focused page structure without injecting “Input area” notes.
+
 ## Executive assessment
 
 v0.6.0 contains a broad and usable enterprise portfolio capability set, but its shell assumed that users already understood portfolio-management language, role permissions, and lifecycle sequencing. The primary friction was not missing records or workflows; it was missing orientation:

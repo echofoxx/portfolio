@@ -69,7 +69,7 @@
   </article>
 </section>
 
-<section class="kpi-grid-6" aria-label="Portfolio key performance indicators" data-dashboard-panel="kpis" data-panel-title="Portfolio KPIs">
+<section class="kpi-grid-6" aria-label="Portfolio key performance indicators" data-dashboard-panel="kpis" data-panel-title="Portfolio KPIs" data-default-size="wide">
   <a class="card kpi premium-kpi" href="/projects">
     <span class="kpi-icon blue">▧</span><div class="kpi-label">Active Projects</div><div class="kpi-value">{{ projects|length }}</div><div class="kpi-trend positive">↑ {{ projects|length - stale|length }} <span>current this period</span></div>
   </a>
@@ -137,40 +137,23 @@
   </article>
 </section>
 
-<div class="section-title"><div><div class="eyebrow">Investment analysis</div><h3>Approved investment flow and traceability</h3></div><small class="muted">Deep-dive view · supports the decisions above</small></div>
-<section class="investment-flow-row">
-<article class="card dashboard-panel investment-flow-panel flow-standalone" data-dashboard-panel="investment" data-panel-title="Investment Flow">
-    <div class="panel-head"><div><span class="eyebrow">Portfolio planning flow</span><h3>Investment Flow</h3></div><span class="metric-info" title="Approved budget traced through category, division, project, and actual or remaining approved value">i</span></div>
-    <div class="flow-summary" aria-label="Investment flow summary">
-      <span><small>Approved</small><strong>{{ investment_flow.approved|money }}</strong></span>
-      <span><small>Actual to date</small><strong>{{ investment_flow.spent|money }}</strong></span>
-      <span><small>Unspent approved</small><strong>{{ investment_flow.remaining|money }}</strong></span>
-      <span class="flow-basis {% if investment_flow.reconciled %}is-reconciled{% endif %}"><small>Flow check</small><strong>{% if investment_flow.reconciled %}Reconciled{% else %}Review{% endif %}</strong></span>
-    </div>
-    <div class="investment-flow-shell" data-investment-flow aria-label="Interactive investment flow diagram">
-      <svg class="investment-flow-svg" viewBox="0 0 1120 430" role="img" aria-labelledby="investment-flow-title investment-flow-desc">
-        <title id="investment-flow-title">Approved investment flow</title>
-        <desc id="investment-flow-desc">Approved budget flows through financial categories, lead divisions, projects, and actual or remaining approved value. Select a node to open its source records.</desc>
-      </svg>
-      <aside class="flow-detail" data-flow-detail aria-live="polite">
-        <span class="eyebrow">Traceable selection</span>
-        <h4>Choose a flow node</h4>
-        <p>Select a category, division, project, or outcome to inspect its amount and open the contributing records.</p>
-      </aside>
-    </div>
-    <script type="application/json" id="investment-flow-data">{{ investment_flow|tojson }}</script>
-    <details class="visual-data-table">
-      <summary>Accessible investment category table</summary>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Category</th><th>Approved amount</th><th>Share</th></tr></thead><tbody>{% for category in investment_categories %}<tr><td><a href="/financials?category={{ category.name|urlencode }}">{{ category.name }}</a></td><td>{{ category.amount|money }}</td><td>{{ category.percentage|round(1) }}%</td></tr>{% else %}<tr><td colspan="3" class="empty">No investment records.</td></tr>{% endfor %}</tbody></table></div>
-    </details>
-    <div class="callout info compact-callout"><strong>Basis:</strong> planning and transaction evidence in this application; not an authoritative accounting statement.</div>
-    <a class="panel-link" href="/financials">Open financial records <span>→</span></a>
+<section class="investment-summary-row">
+  <article class="card dashboard-panel investment-summary-panel" data-dashboard-panel="investment" data-panel-title="Investment Summary" data-default-size="standard">
+    <a class="investment-summary-link" href="/financials/flow" aria-label="Open full Investment Flow analysis">
+      <div class="panel-head"><div><span class="eyebrow">Portfolio planning flow</span><h3>Investment Summary</h3></div><span class="investment-open-icon" aria-hidden="true">↗</span></div>
+      <div class="investment-summary-metrics">
+        <span><small>Approved</small><strong>{{ investment_flow.approved|money }}</strong></span>
+        <span><small>Actual to date</small><strong>{{ investment_flow.spent|money }}</strong></span>
+        <span><small>Unspent approved</small><strong>{{ investment_flow.remaining|money }}</strong></span>
+      </div>
+      <span class="panel-link investment-summary-cta">Open full flow and traceability <span>→</span></span>
+    </a>
   </article>
 </section>
 
-<section class="card division-dashboard-panel" data-dashboard-panel="divisions" data-panel-title="Division Portfolios"><div class="panel-head"><div><span class="eyebrow">Direct mission access</span><h3>Division Portfolios</h3></div><a class="panel-link" href="/divisions">Open all divisions <span>→</span></a></div><div class="division-dashboard-grid">{% for row in division_rows %}<a href="/divisions/{{ row.org.code }}"><span>{{ row.org.code }}</span><strong>{{ row.org.name }}</strong><small>{{ row.projects }} active · {{ row.at_risk }} exceptions · {{ row.demands }} demands</small></a>{% endfor %}</div></section>
+<section class="card division-dashboard-panel" data-dashboard-panel="divisions" data-panel-title="Division Portfolios" data-default-size="wide"><div class="panel-head"><div><span class="eyebrow">Direct mission access</span><h3>Division Portfolios</h3></div><a class="panel-link" href="/divisions">Open all divisions <span>→</span></a></div><div class="division-dashboard-grid">{% for row in division_rows %}<a href="/divisions/{{ row.org.code }}"><span>{{ row.org.code }}</span><strong>{{ row.org.name }}</strong><small>{{ row.projects }} active · {{ row.at_risk }} exceptions · {{ row.demands }} demands</small></a>{% endfor %}</div></section>
 
-<section class="card glance-panel" data-dashboard-panel="portfolio" data-panel-title="Portfolio at a Glance">
+<section class="card glance-panel" data-dashboard-panel="portfolio" data-panel-title="Portfolio at a Glance" data-default-size="wide">
   <div class="panel-head glance-head"><h3>Portfolio at a Glance</h3><div class="glance-controls"><label>View: <select class="select" aria-label="Portfolio table view"><option>Standard</option></select></label><a class="panel-link" href="/projects">View full portfolio <span>→</span></a></div></div>
   <div class="table-wrap dashboard-table-wrap">
     <table class="data-table portfolio-glance-table">

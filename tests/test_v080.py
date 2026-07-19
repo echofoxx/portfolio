@@ -13,7 +13,7 @@ from conftest import login
 
 def test_v080_divisions_are_direct_and_banner_complete(client, db):
     login(client, "admin")
-    assert APP_VERSION == "0.8.0"
+    assert APP_VERSION.startswith("0.8.")
     page = client.get("/divisions")
     assert page.status_code == 200
     for code, asset in [("FO", "fo.webp"), ("CCD", "ccd.webp"), ("JFID", "jfid.webp")]:

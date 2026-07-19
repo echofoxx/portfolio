@@ -2,14 +2,60 @@
 
 A functional, locally deployable reference implementation for connecting JSJ6 strategy and mission to demand intake, assessment, leadership decisions, portfolio delivery, projects, resources, investments, dependencies, outcomes, benefits, audit, reporting, and requirements traceability.
 
-> **Release:** 0.8.0 — Self-Service Portfolio Operations  
+> **Release:** 0.8.3.1 — Linked Map Index Height Patch  
 > **Deployment:** Docker Desktop / Docker Compose  
 > **Web port:** `8080`  
 > **Mailpit:** `8025`  
 > **Authentication:** local demonstration accounts only; not production SSO, CAC, or PIV  
 > **Authorization:** server-side RBAC, organization scope, sensitivity checks, and audit evidence
 
-The application is deliberately honest about coverage. v0.8.0 adds self-service project governance, configurable role dashboards, direct division navigation, controlled resource exchange, and expanded delivery blueprints while preserving all prior demand, briefing, travel, investment, audit, and traceability capabilities.
+The application is deliberately honest about coverage. v0.8.3.1 retains the v0.8.3 executive travel-assurance and theme refinements while correcting the Linked Map Index height and internal scrolling behavior. It does not change the v0.8.0 data model or remove any prior capability.
+
+## What is new in v0.8.3.1
+
+- **Exact map/index alignment:** the Linked Map Index observes the rendered map canvas and matches its height across responsive layout changes.
+- **Contained scrolling:** the index heading and coordinate-stewardship summary remain inside the aligned panel while the ranked location list scrolls within the available space.
+- **Patch-only upgrade:** no schema migration, new runtime dependency, or source-data change.
+
+See [Upgrade to v0.8.3.1](docs/UPGRADE_0.8.3.1.md), [Phase 2 Travel Map Plan](docs/PHASE_2_TRAVEL_MAP_PLAN.md), and [Release Notes](docs/RELEASE_NOTES.md).
+
+## What is new in v0.8.3
+
+- **Travel footprint and assurance in one system:** the map, ranked location index, executive summary, and click-anchored detail now behave as one coordinated component.
+- **Accurate compliance encoding:** marker size communicates the selected concentration measure while a blue/amber/neutral ring communicates linked required reports, overdue required reports, and planned/no-report-due activity. Compliance is calculated only from completed, approved, report-required travel.
+- **Direct map manipulation:** wheel/trackpad zoom, pointer-centered zoom, drag pan, touch pinch/pan, double-click zoom, keyboard pan/zoom, Escape dismissal, bounded movement, and automatic fit-to-filtered-data replace map-header zoom buttons.
+- **Bidirectional location linkage:** marker hover/focus highlights the ranked location row; list hover/focus pulses the marker; clicking either opens the same accessible popover and source filter.
+- **Credible empty and stewardship states:** the empty message cannot display over populated markers; the map surfaces missing-report exposure, unmapped spend, unmapped request count, and coordinate-stewardship detail.
+- **Nine professional themes:** Light, Dusk, Black, Deep Forest, Navy Command, Charcoal + Teal, Plum Authority, Steel Executive, and Warm Stone persist in the browser while preserving semantic health colors.
+- **Focused forms:** all injected “Input area” notes and styling are removed; the project control is now a concise, aligned **Blueprint Catalog** button.
+- **Release quality:** schema-compatible, no new runtime dependency, Python/JavaScript syntax checks pass, and **115 automated tests pass**.
+
+See [Upgrade to v0.8.3](docs/UPGRADE_0.8.3.md), [Phase 2 Travel Map Plan](docs/PHASE_2_TRAVEL_MAP_PLAN.md), [Release Notes](docs/RELEASE_NOTES.md), and [Demonstration Walkthrough](docs/DEMONSTRATION_WALKTHROUGH.md).
+
+## What is new in v0.8.2
+
+- **Complete RAID identifiers:** IDs such as `RAID-26-011` remain visible, compact, and on one line while narrative content continues to wrap.
+- **Stable input guidance:** Board Governance uses one full-width guidance banner above all workflow-state forms; Travel uses one full-width banner above its filter fields.
+- **Executive dashboard density:** all six KPI cards fit their content in an equal-height responsive grid, and all eight division cards use an even 4×2 desktop layout with deliberate tablet/mobile breakpoints.
+- **Reliable task navigation:** focused task pages honor their semantic breadcrumbs, and the task collection path safely returns to the project board instead of emitting a 405 API response.
+- **Aligned icon controls and mobile sign-out:** the role-focus control is a fixed icon button with accessible state labels; a CSRF-protected Sign out action is always available in the sidebar, including compact and mobile layouts.
+- **Regional travel intelligence:** the local map adds Americas, Europe, Indo-Pacific, and Middle East & Africa lenses; cost/request/engagement/division/report marker measures; zoom and fit controls; low-zoom clusters; selected-state persistence in the URL; and an executive region summary.
+- **Release quality:** no migration or new runtime dependency; **111 automated tests pass**, including seven v0.8.2 acceptance tests.
+
+See [Upgrade to v0.8.2](docs/UPGRADE_0.8.2.md), [Release Notes](docs/RELEASE_NOTES.md), [User Guide by Role](docs/USER_GUIDE.md), and [Administrator Guide](docs/ADMIN_GUIDE.md).
+
+## What is new in v0.8.1
+
+- **Readable project overview:** purpose, desired end state, scope, deliverables, accountability, baseline/current dates, variance, and completion now use structured, aligned information groups.
+- **Correct project signals and Gantt labels:** Governed Reporting, Schedule Assurance, and Flow Management use isolated metric-card styling; WBS number, task title, and dates no longer collapse into one text run.
+- **Responsive RAID and dependencies:** panels stack when needed, tables consume available width, metadata stays on one line, narrative fields wrap, and narrow screens use record cards instead of page-level horizontal scrolling.
+- **Focused governance creation:** New briefing or review opens a dedicated create-or-cancel page; permissions, CSRF protection, source-backed briefing initialization, attribution, and auditing remain enforced.
+- **Stable roadmap filters:** Status, Division, Apply, and Reset use a defined responsive filter layout separated from the forecast panel.
+- **Uniform configurable dashboard panels:** Compact, Standard, and Wide panel tokens now control all panels consistently with stretched row alignment and responsive stacking.
+- **Dedicated Investment Flow:** Portfolio Overview now contains only Approved, Actual to Date, and Unspent Approved summary values. The complete interactive flow, reconciliation, filters, accessible category table, and source baselines live at `/financials/flow`.
+- **Release quality:** no database migration or new application dependency; **104 automated tests pass**, including seven new v0.8.1 acceptance tests.
+
+See [Upgrade to v0.8.1](docs/UPGRADE_0.8.1.md), [Release Notes](docs/RELEASE_NOTES.md), [User Guide by Role](docs/USER_GUIDE.md), and [Administrator Guide](docs/ADMIN_GUIDE.md).
 
 ## What is new in v0.8.0
 
@@ -625,12 +671,17 @@ Status is intentionally conservative. An RTM row is marked Implemented only when
 
 The five-phase roadmap is in [ROADMAP.md](docs/ROADMAP.md). Each roadmap work package includes business value, dependencies, related requirement IDs, complexity, primary owner, acceptance criteria, security implications, integration implications, and recommended release.
 
-v0.8.0 is delivered with self-service projects and promotion, role-focused configurable dashboards, direct division navigation, controlled Admin resource exchange, focused forms, and fourteen project blueprints. The next major planned capability release is **0.9.0 — Connected Operations and Enterprise Identity**, centered on OIDC, enforced delegation, durable workers, a live ProjectOS test connector, reconciliation, and an approved Microsoft Graph/SharePoint pilot. AI remains gated until access control, data quality, metrics, lineage, audit, evaluation, and human-review controls are demonstrably mature.
+v0.8.3.1 is delivered as the Linked Map Index height patch on the v0.8.3 executive travel-assurance baseline. The next travel-map increment is defined in the [Phase 2 Travel Map Plan](docs/PHASE_2_TRAVEL_MAP_PLAN.md); the next major connected-operations release remains **0.9.0 — Connected Operations and Enterprise Identity**, centered on OIDC, enforced delegation, durable workers, a live ProjectOS test connector, reconciliation, and an approved Microsoft Graph/SharePoint pilot. AI remains gated until access control, data quality, metrics, lineage, audit, evaluation, and human-review controls are demonstrably mature.
 
 ## Documentation index
 
 - [Target Operating Model](docs/TARGET_OPERATING_MODEL.md)
 - [Installation Guide](docs/INSTALLATION.md)
+- [Upgrade to v0.8.3.1](docs/UPGRADE_0.8.3.1.md)
+- [Upgrade to v0.8.3](docs/UPGRADE_0.8.3.md)
+- [Phase 2 Travel Map Plan](docs/PHASE_2_TRAVEL_MAP_PLAN.md)
+- [Upgrade to v0.8.2](docs/UPGRADE_0.8.2.md)
+- [Upgrade to v0.8.1](docs/UPGRADE_0.8.1.md)
 - [Upgrade to v0.8.0](docs/UPGRADE_0.8.0.md)
 - [Upgrade to v0.7.9](docs/UPGRADE_0.7.9.md)
 - [Upgrade to v0.7.7](docs/UPGRADE_0.7.7.md)

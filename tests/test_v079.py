@@ -128,18 +128,19 @@ def test_v079_dashboard_is_decision_first_with_explainable_health(client):
     assert "Significant Changes" in text
     assert "View calculation" in text  # explainable health rollup
     assert "Data freshness:" in text
-    # Ordering: decisions → changes → health → investment analysis deep-dive
+    # Ordering: decisions → changes → health → investment summary, which links to the deep-dive page.
     assert text.index("Decisions Required") < text.index("Significant Changes")
     assert text.index("Significant Changes") < text.index("Portfolio Health")
     assert text.index("Portfolio Health") < text.index("Investment Flow")
-    assert "Investment analysis" in text
+    assert "Investment Summary" in text
+    assert 'href="/financials/flow"' in text
 
 
 def test_v079_travel_split_into_focused_views_with_pagination(client):
     login(client, "admin")
     overview = client.get("/travel")
     assert overview.status_code == 200
-    assert "Interactive geographic footprint" in overview.text
+    assert "Executive geographic assurance" in overview.text
     assert "Traveler-level approvals" not in overview.text  # long tables moved off overview
 
     requests_view = client.get("/travel?view=requests")

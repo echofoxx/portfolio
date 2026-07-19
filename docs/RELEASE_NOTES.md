@@ -1,5 +1,83 @@
 # Release Notes
 
+## v0.8.3.1 — Linked Map Index Height Patch
+
+- Matched the Linked Map Index panel height to the rendered map canvas using a lightweight resize observer.
+- Kept the index header and coordinate-stewardship summary within the fixed panel while making the ranked location list the scrolling region.
+- Preserved the complete v0.8.3 map, compliance, theme, and accessibility behavior.
+- Added patch-specific acceptance coverage. No database migration or new runtime dependency is required.
+
+## v0.8.3 — Executive Travel Assurance & Theme Refinement
+
+### Changed
+
+- Replaced injected “Input area” banners with the existing field labels, required markers, validation, and page-level guidance.
+- Shortened and aligned the project creation link to **Blueprint Catalog**.
+- Consolidated the travel map, fixed detail panel, and Top Locations card into one linked executive map system.
+- Replaced visible map navigation buttons with direct mouse, trackpad, touch, and keyboard interaction and automatic fit-to-filtered-data.
+
+### Added
+
+- Added per-location completed, report-required, linked, overdue, compliance-percentage, mapped-cost, and unmapped-cost aggregation without a schema change.
+- Added dual-channel marker encoding: size for concentration and a blue/amber/neutral ring for post-trip report assurance.
+- Added click-anchored accessible location detail, synchronized map/list rank IDs, bidirectional highlight, and executive spend/completion/gap/unmapped chips.
+- Added Light, Dusk, Black, Deep Forest, Navy Command, Charcoal + Teal, Plum Authority, Steel Executive, and Warm Stone themes with browser persistence and legacy dark-theme migration.
+- Added four v0.8.3 acceptance tests covering themes/clean forms, Blueprint Catalog alignment, request-accurate compliance, and direct-manipulation map behavior.
+
+### Validation and boundaries
+
+- Full suite: **115 passed**, 0 failed, with 215 non-failing Starlette template deprecation warnings.
+- JavaScript syntax and Python compilation pass. Existing route-rendering and workflow tests cover the updated templates and aggregation.
+- No schema migration or new runtime dependency. Migration head remains `0009_self_service_v080`.
+- Country choropleth, COCOM AOR overlays, FY-quarter scrubbing, and density/heat mode are intentionally planned for Phase 2 after locally packaged geometry and stewardship rules are established.
+
+## v0.8.2 — Executive Demo Readiness Hotfix
+
+### Fixed
+
+- Expanded the project RAID ID column so complete governed identifiers remain visible on one line.
+- Consolidated Board Governance guidance into one full-width panel banner and corrected Travel filter guidance placement.
+- Tightened the six Portfolio Overview KPI cards and standardized the eight division cards into responsive, equal-height grids.
+- Corrected focused task breadcrumbs to use their declared parent routes and added a safe task-collection redirect to eliminate the 405 response.
+- Replaced misaligned role-focus text controls with a fixed icon control and accessible expanded/compact labels.
+- Added a persistent, CSRF-protected sidebar Sign out action for compact, tablet, and mobile access.
+
+### Added
+
+- Added regional travel lenses for the Americas, Europe, Indo-Pacific, and Middle East & Africa.
+- Added five map measures, zoom/fit controls, low-zoom marker clustering, region summary metrics, URL-persisted map state, and a privacy reminder.
+- Added seven v0.8.2 acceptance tests covering release identity, RAID IDs, grouped guidance, dashboard grids, breadcrumbs, shell controls, and map lenses.
+
+### Validation and boundaries
+
+- Full suite: **111 passed**, 0 failed, with 209 non-failing Starlette deprecation warnings.
+- Python compilation, JavaScript syntax, Jinja compilation/route rendering, and Alembic compatibility pass.
+- No schema migration or new runtime dependency. Migration head remains `0009_self_service_v080`.
+- The map remains same-origin and locally rendered; it shows city-level planning points, never traveler routes. Formal target-browser and Docker Compose validation remain deployment/UAT responsibilities.
+
+## v0.8.1 — Responsive Portfolio Presentation Hotfix
+
+### Fixed
+
+- Rebuilt the Project Overview content hierarchy and removed the CSS class collision that jumbled Governed Reporting, Schedule Assurance, and Flow Management.
+- Separated Timeline/Gantt WBS number, title, and date range into stable label regions.
+- Reworked project RAID and dependency panels to stack responsively, auto-fit their tables, keep metadata on one line, and wrap only narrative content.
+- Moved governance-cycle creation off the Briefings register to a dedicated create-or-cancel page.
+- Added a defined Enterprise Roadmap filter/action layout so Apply and Reset do not collide with the Division field or forecast panel.
+- Standardized configurable dashboard panel width and height behavior for Compact, Standard, and Wide sizes.
+- Replaced the dashboard's full Investment Flow visualization with a smaller three-value summary panel.
+
+### Added
+
+- Added `/financials/flow`, a dedicated role-scoped Investment Flow workspace with category/division filters, interactive Sankey, selection details, reconciliation, accessible category totals, and contributing financial baselines.
+- Added seven v0.8.1 acceptance tests and updated two historical expectations to follow the intentionally relocated Investment Flow visualization.
+
+### Validation and boundaries
+
+- Full suite: **104 passed**, 0 failed. Python compilation, JavaScript syntax, Jinja template compilation, and clean Alembic upgrade to existing head `0009_self_service_v080` pass.
+- v0.8.1 has no schema migration and no new runtime dependency. Existing PostgreSQL data and attachments remain compatible.
+- Docker Compose target-host validation remains required because Docker is not installed in the build environment.
+
 ## v0.8.0 — Self-Service Portfolio Operations
 
 ### Added

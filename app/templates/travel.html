@@ -38,32 +38,41 @@
   <div class="card kpi {% if payload.completed_without_report %}kpi-warn{% endif %}"><div class="kpi-label">Report gap</div><div class="kpi-value">{{ payload.completed_without_report }}</div><div class="kpi-foot">Completed travel without linked report</div></div>
 </section>
 
-<section class="travel-map-layout">
-  <article class="card travel-map-card">
-    <div class="panel-head"><div><span class="eyebrow">Interactive geographic footprint</span><h3>Places traveled</h3></div><div class="map-coverage"><strong>{{ payload.mapping_coverage }}%</strong><span>requests mapped</span></div></div>
-    <div class="travel-map-shell" data-travel-map>
-      <div class="travel-map-canvas">
-        {% include "_world_map.html" %}
-        <div class="travel-map-markers" data-map-markers></div>
+<section class="card travel-map-system" data-travel-map>
+  <div class="panel-head travel-map-head"><div><span class="eyebrow">Executive geographic assurance</span><h3>Travel Footprint &amp; Report Compliance</h3><p>Marker size shows concentration; the ring shows linked versus missing required trip reports.</p></div><div class="map-coverage"><strong>{{ payload.mapping_coverage }}%</strong><span>requests mapped</span></div></div>
+  <div class="map-executive-chips" aria-label="Filtered travel map summary">
+    <div><span>Mapped spend</span><strong data-map-chip-cost>{{ payload.mapped_cost|money }}</strong></div>
+    <div><span>Completed travel</span><strong data-map-chip-completed>{{ payload.outcome_funnel[1].count }}</strong></div>
+    <div class="{% if payload.completed_without_report %}has-gap{% endif %}"><span>Missing reports</span><strong data-map-chip-gap>{{ payload.completed_without_report }}</strong></div>
+    <div class="{% if payload.unmapped_request_count %}has-unmapped{% endif %}"><span>Unmapped spend</span><strong data-map-chip-unmapped>{{ payload.unmapped_cost|money }}</strong><small>{{ payload.unmapped_request_count }} requests</small></div>
+  </div>
+  <div class="travel-map-toolbar" aria-label="Map data controls">
+    <label class="map-control-field"><span>Region</span><select class="select" data-map-region><option value="all">All regions</option><option value="Americas">Americas</option><option value="Europe">Europe</option><option value="Indo-Pacific">Indo-Pacific</option><option value="Middle East & Africa">Middle East &amp; Africa</option></select></label>
+    <label class="map-control-field"><span>Size markers by</span><select class="select" data-map-measure><option value="cost">Estimated cost</option><option value="count">Travel requests</option><option value="engagement_count">Engagements</option><option value="division_count">Division participation</option><option value="report_count">Trip reports</option></select></label>
+    <div class="map-interaction-hint" id="map-interaction-hint"><strong>Explore directly on the map</strong><span>Scroll or pinch to zoom · drag to pan · double-click to zoom · press 0 to refit</span></div>
+  </div>
+  <div class="travel-map-summary" data-map-summary aria-live="polite"></div>
+  <div class="travel-map-layout">
+    <div class="travel-map-main">
+      <div class="travel-map-canvas" tabindex="0" role="application" aria-label="Interactive travel cost and report compliance map" aria-describedby="map-interaction-hint">
+        <div class="travel-map-stage" data-map-stage>
+          {% include "_world_map.html" %}
+          <div class="travel-map-markers" data-map-markers></div>
+        </div>
+        <aside class="travel-map-popover" data-map-detail aria-live="polite" hidden></aside>
         <div class="map-empty" data-map-empty {% if payload.mapped_location_rows %}hidden{% endif %}>No mapped locations match the current filters.</div>
       </div>
-      <aside class="travel-map-detail" data-map-detail aria-live="polite">
-        {% if payload.location_rows %}{% set first=payload.location_rows[0] %}
-        <span class="eyebrow">Top visible location</span><h4>{{ first.location }}</h4><strong>{{ first.cost|money }}</strong><p>{{ first.count }} requests · {{ first.engagement_count }} engagements · {{ first.division_count }} divisions · {{ first.report_count }} reports</p><a class="btn btn-small" href="{{ first.url }}">Filter to this location</a>
-        {% else %}<span class="eyebrow">Map detail</span><h4>No location selected</h4><p>Adjust the filters to display geographic travel activity.</p>{% endif %}
-      </aside>
+      <div class="map-legend"><span><i class="map-ring linked"></i>Linked required report</span><span><i class="map-ring gap"></i>Missing required report</span><span><i class="map-ring neutral"></i>Planned / no report due</span><span data-map-legend>Marker size represents estimated cost</span><span class="map-privacy-note">City-level planning view · no traveler routes shown</span></div>
     </div>
-    <script type="application/json" id="travel-map-data">{{ payload.location_rows|tojson }}</script>
-    <div class="map-legend"><span><i class="map-dot small"></i>Lower estimate</span><span><i class="map-dot large"></i>Higher estimate</span><span>Marker size represents estimated cost</span></div>
-  </article>
-
-  <aside class="card travel-location-card">
-    <div class="panel-head"><div><span class="eyebrow">Linked map index</span><h3>Top locations</h3></div><span>Estimated cost</span></div>
-    <div class="top-location-list">
-      {% for row in payload.location_rows[:25] %}<a href="{{ row.url }}" data-location-focus="{{ row.key }}" class="{% if filters.location==row.location %}is-active{% endif %}"><span class="location-rank">{{ loop.index }}</span><span><strong>{{ row.location }}</strong><small>{{ row.count }} requests · {{ row.division_count }} divisions</small></span><b>{{ row.cost|money }}</b></a>{% else %}<div class="empty compact">No locations to display.</div>{% endfor %}
-    </div>
-    {% if payload.unmapped_location_rows %}<details class="unmapped-locations"><summary>{{ payload.unmapped_location_rows|length }} locations need coordinate stewardship</summary>{% for row in payload.unmapped_location_rows[:10] %}<span>{{ row.location }} · {{ row.count }} request{{ '' if row.count == 1 else 's' }}</span>{% endfor %}</details>{% endif %}
-  </aside>
+    <aside class="travel-location-card" data-map-index aria-label="Linked map index">
+      <div class="panel-head"><div><span class="eyebrow">Linked map index</span><h3>Top Locations</h3></div><span>Estimated cost</span></div>
+      <div class="top-location-list">
+        {% for row in payload.location_rows[:25] %}<a href="{{ row.url }}" data-location-focus="{{ row.key }}" data-location-rank="{{ row.rank }}" class="{% if filters.location==row.location %}is-active{% endif %}"><span class="location-rank">{{ row.rank }}</span><span><strong>{{ row.location }}</strong><small>{{ row.count }} requests · {{ row.overdue_count }} missing reports</small></span><b>{{ row.cost|money }}</b></a>{% else %}<div class="empty compact">No locations to display.</div>{% endfor %}
+      </div>
+      {% if payload.unmapped_location_rows %}<details class="unmapped-locations"><summary>{{ payload.unmapped_location_rows|length }} locations need coordinate stewardship · {{ payload.unmapped_cost|money }}</summary>{% for row in payload.unmapped_location_rows[:10] %}<span>{{ row.location }} · {{ row.count }} request{{ '' if row.count == 1 else 's' }} · {{ row.cost|money }}</span>{% endfor %}</details>{% endif %}
+    </aside>
+  </div>
+  <script type="application/json" id="travel-map-data">{{ payload.location_rows|tojson }}</script>
 </section>
 
 <div class="grid grid-2 travel-analytics-grid">

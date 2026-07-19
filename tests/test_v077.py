@@ -25,12 +25,15 @@ def test_v077_dashboard_investment_flow_and_briefings_label_render(client, db):
     login(client, "admin")
     response = client.get("/dashboard")
     assert response.status_code == 200
-    assert "Investment Flow" in response.text
-    assert 'id="investment-flow-data"' in response.text
-    assert "Approved investment" in response.text
-    assert "not an authoritative accounting statement" in response.text
+    assert "Investment Summary" in response.text
+    assert 'href="/financials/flow"' in response.text
     assert ">Briefings<" in response.text
     assert f'/static/app.js?v={APP_VERSION}' in response.text
+    flow = client.get("/financials/flow")
+    assert flow.status_code == 200
+    assert 'id="investment-flow-data"' in flow.text
+    assert "Approved investment" in flow.text
+    assert "not an authoritative accounting statement" in flow.text
     assert db.query(FinancialRecord).count() > 0
 
 
@@ -39,9 +42,9 @@ def test_v077_interactive_travel_map_and_fancy_analytics_render(client):
     response = client.get("/travel")
     assert response.status_code == 200
     for marker in [
-        "Interactive geographic footprint",
+        "Executive geographic assurance",
         'id="travel-map-data"',
-        "Places traveled",
+        "Travel Footprint &amp; Report Compliance",
         "Monthly travel trend",
         "Determination by division",
         "Outcome pipeline",

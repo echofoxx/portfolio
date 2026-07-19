@@ -1,5 +1,56 @@
 # Product Roadmap
 
+## Delivered in v0.8.3 — Executive Travel Assurance & Theme Refinement
+
+- One linked Travel Footprint & Report Compliance system with executive summary chips and a height-aligned ranked location index.
+- Request-accurate per-location report assurance using completed, approved, report-required travel as the compliance denominator.
+- Cost/measure-sized donut markers, blue linked-report segments, amber gap segments, neutral planned/no-report-due state, and accessible equivalent text.
+- Direct wheel, trackpad, pointer, touch, pinch, double-click, and keyboard map navigation with fit-to-filtered-data and bounded movement.
+- Click-anchored detail, list↔marker rank linkage, credible empty state, and surfaced unmapped spend.
+- Nine persistent professional themes; removal of all injected Input Area notes; concise Blueprint Catalog control.
+- Schema-compatible release with 115-test regression validation.
+
+### Phase 2 — Geographic Decision Intelligence
+
+The detailed implementation plan is maintained in [PHASE_2_TRAVEL_MAP_PLAN.md](PHASE_2_TRAVEL_MAP_PLAN.md). Priorities are:
+
+1. Locally packaged per-country geometry and country/AOR stewardship registry.
+2. Markers / Regions view modes, with country choropleth and explicit unmapped totals.
+3. Toggleable, versioned COCOM AOR boundaries and per-AOR rollup chips.
+4. FY/quarter range scrubber backed by location-quarter aggregation.
+5. Conditional request-density heat view only when a minimum-point threshold prevents misleading output.
+6. Accessible briefing/export snapshot and saved named map views.
+
+## Delivered in v0.8.2 — Executive Demo Readiness Hotfix
+
+Delivered capabilities:
+
+- Complete one-line RAID IDs and narrative-only wrapping.
+- Full-width grouped guidance for Board Governance and Travel filters.
+- Equal, content-fit six-KPI and eight-division dashboard grids.
+- Semantic task breadcrumbs with no 405 navigation path.
+- Accessible icon compaction control and persistent sidebar Sign out.
+- Regional multi-measure travel map with zoom, fit, clustering, URL state, and summary metrics.
+- Schema-compatible upgrade with seven new acceptance tests and 111-test regression validation.
+
+### Recommended next increment — v0.9.0
+
+- Add a steward-managed region/country taxonomy and approved coordinate correction workflow.
+- Add a full-screen briefing map mode with saved named map views and an accessible export snapshot.
+- Connect authoritative actual travel costs only through an approved financial/travel integration and reconciliation design.
+- Complete enterprise identity, durable jobs, approved connectors, and formal accessibility/security evidence.
+
+## Delivered in v0.8.1 — Responsive Portfolio Presentation Hotfix
+
+Delivered capabilities:
+
+- Structured project Overview presentation with isolated reporting, schedule, and flow signals.
+- Readable Gantt labels and responsive project RAID/dependency presentation.
+- Dedicated governance-cycle creation and stable Enterprise Roadmap filters.
+- Uniform dashboard size tokens with responsive stacking.
+- Compact dashboard Investment Summary and dedicated `/financials/flow` analysis workspace.
+- Schema-compatible upgrade with seven new acceptance tests and 104-test regression validation.
+
 ## Delivered in v0.8.0 — Self-Service Portfolio Operations
 
 Delivered capabilities:

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark" data-font-size="standard" data-density="comfortable">
+<html lang="en" data-theme="dusk" data-font-size="standard" data-density="comfortable">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -65,7 +65,11 @@
       </details>
       {% endif %}
     </div>
-    <div class="sidebar-foot"><button class="collapse-control" type="button" data-action="toggle-sidebar"><span>‹</span><span>Collapse</span></button><small>v{{ app_version }}</small></div>
+    <div class="sidebar-foot">
+      <form action="/logout" method="post" class="sidebar-signout-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="sidebar-foot-action" type="submit" aria-label="Sign out" title="Sign out"><span aria-hidden="true">↪</span><span class="sidebar-foot-label">Sign out</span></button></form>
+      <button class="collapse-control sidebar-foot-action" type="button" data-action="toggle-sidebar" aria-label="Collapse navigation" title="Collapse navigation"><span aria-hidden="true">‹</span><span class="sidebar-foot-label">Collapse</span></button>
+      <small class="sidebar-version">v{{ app_version }}</small>
+    </div>
   </nav>
 
   <div class="main">
@@ -78,11 +82,24 @@
         <details class="division-switcher"><summary class="btn btn-small" aria-label="Open division switcher">Divisions⌄</summary><div class="division-switcher-menu"><div class="preferences-head"><strong>Division portfolios</strong><small>Open an accessible mission workspace</small></div><a href="/divisions"><b>All divisions</b><span>Banner gallery and portfolio roll-up</span></a>{% for org in division_shortcuts %}<a href="/divisions/{{ org.code }}"><b>{{ org.code }}</b><span>{{ org.name }}</span></a>{% endfor %}</div></details>
         <a class="top-icon" href="/notifications" aria-label="Notifications" title="Notifications"><span>◉</span>{% if unread_notifications %}<b>{{ unread_notifications }}</b>{% endif %}</a>
         <button class="top-icon" type="button" data-action="open-help" aria-label="Help and glossary" aria-haspopup="dialog" title="Help, definitions, and guidance">?</button>
-        <button class="top-icon" type="button" data-action="toggle-theme" aria-label="Toggle light and dark theme" title="Toggle light/dark theme">◐</button>
         <details class="preferences-menu">
           <summary class="top-icon" aria-label="Display preferences" title="Display preferences">Aa</summary>
           <div class="preferences-popover" role="group" aria-label="Display preferences">
             <div class="preferences-head"><strong>Display preferences</strong><small>Saved in this browser</small></div>
+            <fieldset><legend>Theme</legend>
+              <label class="theme-choice-label" for="theme-choice">Color theme</label>
+              <select class="select theme-select" id="theme-choice" data-theme-choice>
+                <option value="light">Light</option>
+                <option value="dusk">Dusk</option>
+                <option value="black">Black / Pure Dark</option>
+                <option value="forest">Deep Forest</option>
+                <option value="navy">Navy Command</option>
+                <option value="teal">Charcoal + Teal</option>
+                <option value="plum">Plum Authority</option>
+                <option value="steel">Steel Executive</option>
+                <option value="stone">Warm Stone</option>
+              </select>
+            </fieldset>
             <fieldset><legend>Text size</legend>
               <label><input type="radio" name="font-size" value="standard" data-font-size-choice> Standard</label>
               <label><input type="radio" name="font-size" value="large" data-font-size-choice> Large</label>
@@ -112,7 +129,7 @@
       <section class="role-focus-strip" aria-label="Role focus" data-role-focus>
         <div class="role-focus-copy"><span class="focus-kicker">Your focus · {{ role_focus.label }}</span><p data-role-focus-summary>{{ role_focus.summary }}</p></div>
         <div class="role-focus-actions" data-role-focus-actions>{% for action in role_focus.actions %}<a href="{{ action.href }}" title="{{ action.hint }}"><strong>{{ action.label }}</strong><small>{{ action.hint }}</small></a>{% endfor %}</div>
-        <button class="btn btn-small btn-ghost role-focus-toggle" type="button" data-action="toggle-role-focus" aria-expanded="true">Compact</button>
+        <button class="role-focus-toggle" type="button" data-action="toggle-role-focus" aria-expanded="true" aria-label="Compact role focus" title="Compact role focus"><span aria-hidden="true">⌃</span></button>
       </section>
 
       {% if page_guide %}

@@ -1,6 +1,25 @@
 # Demonstration Walkthrough
 
-Allow 35–45 minutes for the full scenario, including the v0.7.0 leadership briefing workflow.
+Allow 35–45 minutes for the full scenario. For a 12-minute senior-leader preview, use the v0.8.3 sequence below.
+
+## v0.8.3 senior-leader preview
+
+1. Sign in as `leader / Demo123!`. On **Portfolio Overview**, use the display menu to switch between Dusk, Black, Navy Command, and Deep Forest while emphasizing that layout and semantic health colors remain stable.
+2. Open an at-risk project, confirm complete RAID identifiers, and start project creation long enough to show the aligned **Blueprint Catalog** control and clean form presentation without injected Input Area banners.
+3. Open **Travel & Engagements**. Frame the four map chips: estimated spend, completed travel, missing reports, and unmapped spend.
+4. Explain the marker grammar: size is cost concentration; blue ring segments have linked required reports; amber segments represent completed report-required travel without a linked report; neutral markers have no completed report due.
+5. Hover a Top Location to pulse its numbered marker, click the marker to open the anchored detail, and use the source filter. Drag to pan, scroll to zoom under the pointer, and select **Europe** to demonstrate automatic fit-to-filtered-data.
+6. Close with the governance message: costs remain approval estimates, coordinates and geometry remain local, traveler routes are never drawn, unmapped exposure is visible, and every gap can drill back to scoped source records.
+
+## v0.8.2 senior-leader preview
+
+1. Sign in as `leader / Demo123!`. On **Portfolio Overview**, frame the six compact KPIs as the decision pulse, then open one of the eight evenly aligned Division Portfolio cards.
+2. Open an at-risk project. Use **Overview** to show purpose, accountability, baseline/current schedule, and isolated delivery signals; use **RAID & Dependencies** to show complete identifiers and readable source detail.
+3. Open **Timeline / Gantt** and point out the separated WBS, task title, dates, and schedule track. Open a task creation page and use **Board** in the breadcrumb to demonstrate reliable navigation.
+4. Open **Travel & Engagements**. Select **Europe**, change marker size from **Estimated cost** to **Engagements**, zoom once, select a location, and show the region summary and linked source filter. Return to **All regions** to demonstrate low-zoom clusters.
+5. Close with the governance message: the map is local and route-free, costs are approval estimates, dashboard figures retain source drill-through, and role/scope controls remain enforced.
+
+Use the sidebar **Sign out** action at the end; it remains available on tablet/mobile and when the navigation is compact.
 
 ## v0.7.7 visual intelligence
 

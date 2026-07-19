@@ -1,4 +1,71 @@
-# Feature Inventory — v0.8.0
+# Feature Inventory — v0.8.3
+
+## Executive Travel Assurance & Theme Refinement
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| Professional themes | Implemented | Nine persistent token-based themes preserve layout and semantic status colors | Local browser preference; not centrally managed branding |
+| Clean form presentation | Implemented | Injected Input Area boxes are removed; field labels and validation remain | Does not change authorization or validation rules |
+| Blueprint Catalog control | Implemented | Concise single-line catalog access aligns under blueprint selection | Blueprint authoring remains code/seed governed |
+| Location compliance aggregation | Implemented | Completed required travel reconciles to linked and overdue reports per location | Linkage does not certify report content quality |
+| Executive travel map | Implemented | One linked map/index/detail system shows spend, completion, gaps, unmapped exposure, and source drill-through | Marker view only; country/AOR/time/heat are Phase 2 |
+| Direct interaction | Implemented | Mouse, trackpad, touch/pinch, double-click, and keyboard pan/zoom with filtered fit | Formal target-device certification remains UAT work |
+
+## Platform release status
+
+- Application version: 0.8.3.
+- Migration head: `0009_self_service_v080` (unchanged).
+- 115 automated tests pass.
+- No new runtime dependency or database schema change.
+
+---
+
+# Historical Feature Inventory — v0.8.2
+
+## Executive Demo Readiness Hotfix
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| Complete RAID identity | Implemented | Full identifiers remain visible and metadata remains single-line | Long narrative fields alone are intended to wrap |
+| Grouped input guidance | Implemented | Board Governance and Travel place guidance above the whole editable area | Guidance does not replace field validation or authorization |
+| Executive dashboard grids | Implemented | Six KPIs and eight divisions align evenly with responsive breakpoints | User panel personalization remains governed by size tokens |
+| Navigable task breadcrumbs | Implemented | All focused-task breadcrumb targets return HTML and the task collection returns to Board | Breadcrumbs do not retain unsaved form state |
+| Compact/mobile shell controls | Implemented | Icon control aligns predictably and sidebar Sign out stays available | Sign out remains a POST with CSRF protection |
+| Regional travel map | Implemented | Region and measure lenses, zoom/fit, clustering, summary, URL state, and linked source navigation | Local city-level reference points are not routes or authoritative geospatial intelligence |
+
+## Platform release status
+
+- Application version: 0.8.2.
+- Migration head: `0009_self_service_v080` (unchanged).
+- 111 automated tests pass.
+- No new runtime dependency or database schema change.
+
+---
+
+# Historical Feature Inventory — v0.8.1
+
+## Responsive Portfolio Presentation Hotfix
+
+| Capability | Status | Operational result | Transparent boundary |
+|---|---|---|---|
+| Structured project overview | Implemented | Purpose, end state, scope, deliverables, accountability, schedule variance, completion, and project signals render in stable layouts | Completeness still depends on record-owner input |
+| Readable Gantt labels | Implemented | WBS, task title, and dates occupy separate label regions | Large schedules retain contained horizontal timeline scrolling |
+| Responsive RAID | Implemented | Panels stack, metadata remains one line, narrative wraps, and mobile rows become record cards | Enterprise-wide RAID register retains its existing table behavior |
+| Dedicated governance entry | Implemented | Create and Cancel are isolated from the briefing register | Permissions and required division scope remain enforced |
+| Roadmap filter alignment | Implemented | Status, Division, Apply, and Reset remain visually separated from forecast content | Timeline scale remains based on accessible matching projects |
+| Uniform dashboard sizes | Implemented | Compact, Standard, and Wide tokens work consistently across configurable panels | Freeform pixel placement remains intentionally excluded |
+| Dedicated Investment Flow | Implemented | Dashboard summary opens a filtered, accessible, source-linked full analysis page | Planning evidence is not an authoritative accounting statement |
+
+## Platform release status
+
+- Application version: 0.8.1.
+- Migration head: `0009_self_service_v080` (unchanged).
+- 104 automated tests pass.
+- No new runtime dependency or database schema change.
+
+---
+
+# Historical Feature Inventory — v0.8.0
 
 ## Self-Service Portfolio Operations
 

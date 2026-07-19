@@ -1,4 +1,53 @@
-# Test Results — v0.8.0
+# Test Results — v0.8.3.1
+
+## v0.8.3.1 release result
+
+- Full suite: **117 passed, 0 failed** in 26.55 seconds, with 217 non-failing Starlette deprecation warnings.
+- Focused v0.8.3.1/v0.8.3/v0.8.2 compatibility set: **13 passed**.
+- New patch coverage verifies rendered-canvas height synchronization and internally scrolling ranked locations.
+- Python compilation and JavaScript syntax passed.
+- Existing head remains `0009_self_service_v080`; no migration.
+- Docker/graphical browser validation remains required on the target host because neither is available in the build environment.
+
+---
+
+# Historical Test Results — v0.8.3
+
+- Full suite: **115 passed, 0 failed**, with 215 non-failing Starlette deprecation warnings.
+- Coverage verifies nine themes, clean forms, Blueprint Catalog alignment, per-location linked/overdue compliance, direct map interactions, list↔marker linkage, empty-state integrity, and executive map chips.
+
+---
+
+# Historical Test Results — v0.8.2
+
+## v0.8.2 release result
+
+- Full suite: **111 passed, 0 failed**, with 209 non-failing Starlette deprecation warnings.
+- v0.8.2 acceptance tests: **7 passed**, covering release identity, full RAID IDs, grouped input guidance, compact/even dashboard grids, task breadcrumbs, icon/sidebar controls, and regional map lenses.
+- Python module and migration compilation: passed.
+- JavaScript syntax (`node --check app/static/app.js`): passed.
+- Jinja template compilation and authenticated principal-route rendering: passed.
+- Alembic compatibility: existing head `0009_self_service_v080`; no v0.8.2 migration.
+- Docker Compose validation: not run because Docker is unavailable in the build environment; target-host verification remains required.
+
+---
+
+# Historical Test Results — v0.8.1
+
+## v0.8.1 release result
+
+- Full suite: **104 passed, 0 failed**, with 191 non-failing Starlette deprecation warnings.
+- v0.8.1 acceptance tests: **7 passed** covering project overview, Gantt label separation, responsive RAID tables, governance create/cancel page, roadmap actions, dedicated Investment Flow, and uniform dashboard sizes.
+- Two historical Investment Flow assertions were intentionally updated because the full chart moved from Portfolio Overview to `/financials/flow` by requirement.
+- Python module and migration compilation: passed.
+- JavaScript syntax (`node --check app/static/app.js`): passed.
+- Jinja template compilation and principal route rendering: passed.
+- Clean Alembic upgrade: passed through existing head `0009_self_service_v080`; no v0.8.1 schema migration.
+- Docker Compose validation: not run because Docker is unavailable in the build environment; target-host verification remains required.
+
+---
+
+# Historical Test Results — v0.8.0
 
 ## v0.8.0 release result
 

@@ -1,16 +1,62 @@
-# v0.8.0 Build Validation
+# v0.8.3.1 Build Validation
 
 ## Automated validation
 
 | Check | Result |
 |---|---|
-| `pytest -q` | **97 passed**, 175 non-failing framework deprecation warnings |
+| `pytest -q` | **117 passed**, 217 non-failing framework deprecation warnings |
+| Focused v0.8.3.1/v0.8.3/v0.8.2 set | **13 passed** |
+| Python compilation | Passed for travel service and application modules |
+| `node --check app/static/app.js` | Passed |
+| Route/template rendering | Passed through authenticated regression tests |
+| Alembic compatibility | Existing head `0009_self_service_v080`; no migration |
+| Application version | `0.8.3.1` from `VERSION` |
+
+## v0.8.3.1 functional evidence
+
+- The Linked Map Index reads the rendered canvas height and remains synchronized through responsive resizing.
+- The index header and stewardship summary remain fixed while the Top Locations list scrolls internally.
+- Input Area banner source and styling are absent.
+- Nine themes render with browser-persistence hooks and legacy dark-to-Dusk migration.
+- Location compliance reconciles completed required travel to linked and overdue reports.
+- Direct pointer, wheel, touch/pinch, double-click, and keyboard hooks replace map-header zoom buttons.
+- Hidden empty/detail states cannot be overridden by component display CSS.
+- Map/list linkage, anchored detail, executive chips, compliance legend, and unmapped exposure render from the authenticated Travel route.
+
+---
+
+# Prior v0.8.2 Build Validation
+
+## Automated validation
+
+| Check | Result |
+|---|---|
+| `pytest -q` | **111 passed**, 209 non-failing framework deprecation warnings |
 | Python compilation | Passed for application and migration Python modules |
 | `node --check app/static/app.js` | Passed |
 | Jinja template compilation and route rendering | Passed |
-| Alembic compatibility | Clean upgrade passed through `0009_self_service_v080`; new tables and project fields asserted |
-| Application version | `0.8.0` (single source: `VERSION` → `app.config.APP_VERSION`) |
+| Alembic compatibility | Existing head `0009_self_service_v080`; v0.8.2 adds no migration |
+| Application version | `0.8.2` (single source: `VERSION` → `app.config.APP_VERSION`) |
 | Clean seed | 8 divisions, 14 active project blueprints, 27 demo users |
+
+## v0.8.2 functional evidence
+
+- Full RAID IDs remain visible on one line; narrative cells retain responsive wrapping.
+- Board Governance groups its editable workflow states under one guidance banner; Travel guidance spans the complete filter row.
+- Portfolio KPI and eight-division grids use equal-height, content-fit desktop and responsive layouts.
+- Focused task breadcrumbs link to valid HTML routes; the task collection path redirects to the board.
+- Role-focus and sidebar controls retain accessible names and visible compact/mobile states.
+- Travel map region/measure controls, zoom/fit, clusters, URL state, linked locations, summary metrics, and privacy wording render from the filtered local payload.
+
+## Prior v0.8.1 functional evidence
+
+- Project overview renders structured narrative, accountability, schedule comparison, variance, progress, and three isolated project signal cards.
+- Gantt labels render WBS, title, and date range as separate semantic elements.
+- RAID and dependency tables render responsive metadata/narrative classes and mobile record-card labels.
+- Briefings register links to `/portfolio-reviews/new`; the register contains no embedded creation form; create and cancel navigation is verified.
+- Enterprise Roadmap filter and action groups render separately from Current Forecast.
+- Portfolio Overview contains the three-value Investment Summary and no Sankey payload; `/financials/flow` contains the full visualization and source records.
+- Compact, Standard, and Wide dashboard size tokens are applied consistently through the persisted preference workflow.
 
 ## v0.8.0 functional evidence
 

@@ -501,6 +501,7 @@ def travel_dashboard_payload(
     report_rows = list(reports)
     engagement_rows = list(engagements)
     item_rows = list(report_items)
+    matched_request_ids = {report.request_id for report in report_rows if report.request_id}
     status_costs: dict[str, float] = defaultdict(float)
     status_counts = Counter()
     division_costs: dict[str, float] = defaultdict(float)
@@ -523,11 +524,21 @@ def travel_dashboard_payload(
         row = location_rollup.setdefault(geo["canonical"], {
             **geo, "cost": 0.0, "count": 0, "approved_count": 0, "request_ids": set(),
             "engagement_ids": set(), "division_ids": set(), "report_ids": set(),
+            "completed_count": 0, "report_required_completed": 0,
+            "linked_completed": 0, "overdue_count": 0,
         })
         row["cost"] += cost
         row["count"] += 1
         row["approved_count"] += int(item.determination == "Approved")
         row["request_ids"].add(item.id)
+        is_completed = item.return_date < date.today() and item.determination == "Approved"
+        row["completed_count"] += int(is_completed)
+        if is_completed and item.report_required:
+            row["report_required_completed"] += 1
+            if item.id in matched_request_ids:
+                row["linked_completed"] += 1
+            else:
+                row["overdue_count"] += 1
         if item.engagement_id:
             row["engagement_ids"].add(item.engagement_id)
         row["division_ids"].add(item.org_id)
@@ -538,15 +549,20 @@ def travel_dashboard_payload(
         if canonical in location_rollup:
             location_rollup[canonical]["report_ids"].add(report.id)
     location_rows = []
-    for row in sorted(location_rollup.values(), key=lambda item: item["cost"], reverse=True):
+    for rank, row in enumerate(sorted(location_rollup.values(), key=lambda item: item["cost"], reverse=True), start=1):
+        compliance_denominator = row["report_required_completed"]
         location_rows.append({
+            "rank": rank,
             "location": row["canonical"], "lat": row["lat"], "lon": row["lon"],
             "country": row["country"], "region": row["region"], "mapped": row["mapped"],
             "confidence": row["confidence"], "cost": round(row["cost"], 2), "count": row["count"],
             "approved_count": row["approved_count"], "report_count": len(row["report_ids"]),
             "engagement_count": len(row["engagement_ids"]), "division_count": len(row["division_ids"]),
+            "completed_count": row["completed_count"],
+            "report_required_completed": compliance_denominator,
+            "linked_completed": row["linked_completed"], "overdue_count": row["overdue_count"],
+            "compliance_pct": round(row["linked_completed"] / compliance_denominator * 100, 1) if compliance_denominator else None,
         })
-    matched_request_ids = {r.request_id for r in report_rows if r.request_id}
     completed_requests = [item for item in request_rows if item.return_date < date.today() and item.determination == "Approved"]
     completed_without_report = sum(1 for item in completed_requests if item.report_required and item.id not in matched_request_ids)
     reviewed_reports = sum(r.review_status in {"Reviewed", "Closed"} for r in report_rows)
@@ -578,6 +594,9 @@ def travel_dashboard_payload(
         "mapped_location_rows": [row for row in location_rows if row["mapped"]],
         "unmapped_location_rows": [row for row in location_rows if not row["mapped"]],
         "mapping_coverage": round(mapped_requests / len(request_rows) * 100, 1) if request_rows else 100.0,
+        "mapped_cost": round(sum(row["cost"] for row in location_rows if row["mapped"]), 2),
+        "unmapped_cost": round(sum(row["cost"] for row in location_rows if not row["mapped"]), 2),
+        "unmapped_request_count": sum(row["count"] for row in location_rows if not row["mapped"]),
         "request_count": len(request_rows),
         "engagement_count": len(engagement_rows),
         "report_count": len(report_rows),
